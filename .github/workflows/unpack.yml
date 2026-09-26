@@ -14,56 +14,61 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Unpack project ZIP
+      - name: Check ZIP
         run: |
           set -e
 
-          ZIP_FILE="rajab-diagnostics-clean.zip"
-
-          if [ ! -f "$ZIP_FILE" ]; then
-            echo "❌ ZIP file not found: $ZIP_FILE"
+          if [ ! -f "rajab-diagnostics-clean.zip" ]; then
+            echo "❌ rajab-diagnostics-clean.zip not found"
             exit 1
           fi
+
+          echo "✅ ZIP found"
+
+      - name: Extract ZIP
+        run: |
+          set -e
 
           rm -rf .unpacked
           mkdir -p .unpacked
 
-          unzip -o "$ZIP_FILE" -d .unpacked
+          unzip -o "rajab-diagnostics-clean.zip" -d .unpacked
 
-          echo "✅ ZIP extracted successfully"
+          echo "✅ ZIP extracted"
 
-      - name: Copy project files
+      - name: Copy project files excluding workflows
         run: |
           set -e
 
-          cp -R .unpacked/. .
+          mkdir -p .tmp-project
 
-          echo "✅ Project files copied"
+          rsync -a \
+            --exclude=".github/workflows/" \
+            .unpacked/ \
+            .tmp-project/
 
-      - name: Remove ZIP
-        run: |
+          rsync -a .tmp-project/ ./
+
+          rm -rf .tmp-project
+          rm -rf .unpacked
           rm -f "rajab-diagnostics-clean.zip"
-          rm -rf ".unpacked"
 
-          echo "✅ Temporary files removed"
+          echo "✅ Project copied"
+          echo "✅ Workflow files from ZIP were excluded"
 
-      - name: Remove workflows from unpacked project
+      - name: Verify workflows
         run: |
-          echo "ℹ️ Keeping existing GitHub Actions workflows unchanged"
+          echo "📁 Existing workflows:"
+          find .github/workflows -maxdepth 1 -type f -print 2>/dev/null || true
 
-          if [ -d ".github/workflows" ]; then
-            git restore .github/workflows 2>/dev/null || true
-          fi
+          echo ""
+          echo "🔎 Checking extracted workflow files:"
+          find . -path "*/.github/workflows/*" -type f -print 2>/dev/null || true
 
-      - name: Show project structure
+      - name: Commit project
         run: |
-          echo "📁 Project files:"
-          find . -maxdepth 2 -type f \
-            ! -path "./.git/*" \
-            | sort | head -200
+          set -e
 
-      - name: Commit changes
-        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -71,7 +76,8 @@ jobs:
 
           if git diff --cached --quiet; then
             echo "ℹ️ No changes to commit"
-          else
-            git commit -m "Add latest project version"
-            git push
+            exit 0
           fi
+
+          git commit -m "Add latest project version"
+          git push

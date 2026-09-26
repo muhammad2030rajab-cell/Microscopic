@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.vercel/
+.output/
+.nitro/
+.tanstack/
+
+# Env / secrets — DATABASE_URL, BETTER_AUTH_SECRET, etc. live here.
+.env
+.env.*
+!.env.example
+
+# Local database backups produced by scripts/backup-db.mjs — contain
+# password hashes and patient data, must never be committed.
+backups/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor/OS noise
+.DS_Store
+.vscode/
+.idea/

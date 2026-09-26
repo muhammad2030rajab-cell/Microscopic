@@ -1,0 +1,38 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Rajab Diagnostics",
+      "hasCanvas": false,
+      "bodyTextLen": 658,
+      "bodyTextHash": "033955d252970dcbb7c5ecc08d7b57ecd2a07cfb16e3be058be5a19a898e3158",
+      "bodyTextPrefix": "مختبر رجب للتحاليل الطبية RAJAB DIAGNOSTICS الرئيسية تقرير جديد",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Rajab Diagnostics",
+      "hasCanvas": false,
+      "bodyTextLen": 526,
+      "bodyTextHash": "f6e7cde350f4770eb8da9a4744474e12f4d9655441928d40eff41f512b6001e0",
+      "bodyTextPrefix": "Rajab Diagnostics تقرير جديد CLINICAL LABORATORY مختبر رجب للتح",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": false,
+  "baselineReasons": []
+}

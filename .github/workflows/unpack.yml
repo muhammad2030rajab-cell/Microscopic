@@ -25,28 +25,39 @@ jobs:
             exit 1
           fi
 
+          rm -rf .unpacked
           mkdir -p .unpacked
 
           unzip -o "$ZIP_FILE" -d .unpacked
 
           echo "✅ ZIP extracted successfully"
 
-      - name: Move project files to root
+      - name: Copy project files
         run: |
           set -e
 
-          if [ -d ".unpacked" ]; then
-            find .unpacked -mindepth 1 -maxdepth 1 -exec cp -R {} . \;
-            rm -rf .unpacked
-          fi
+          cp -R .unpacked/. .
 
+          echo "✅ Project files copied"
+
+      - name: Remove ZIP
+        run: |
           rm -f "rajab-diagnostics-clean.zip"
+          rm -rf ".unpacked"
 
-          echo "✅ Project files moved to repository root"
+          echo "✅ Temporary files removed"
+
+      - name: Remove workflows from unpacked project
+        run: |
+          echo "ℹ️ Keeping existing GitHub Actions workflows unchanged"
+
+          if [ -d ".github/workflows" ]; then
+            git restore .github/workflows 2>/dev/null || true
+          fi
 
       - name: Show project structure
         run: |
-          echo "📁 Project structure:"
+          echo "📁 Project files:"
           find . -maxdepth 2 -type f \
             ! -path "./.git/*" \
             | sort | head -200
@@ -61,6 +72,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "ℹ️ No changes to commit"
           else
-            git commit -m "Unpack latest project version"
+            git commit -m "Add latest project version"
             git push
           fi

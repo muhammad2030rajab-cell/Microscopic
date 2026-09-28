@@ -37,6 +37,7 @@ export type CreateLabReportInput = {
   nationalId?: string;
   doctor?: string;
   notes?: string;
+  collectedAt?: string;
   tests: DraftTest[];
 };
 
@@ -88,9 +89,9 @@ export const createLabReport = createServerFn({ method: "POST" })
     );
 
     await sql.query(
-      `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, created_by)
-       values ($1,$2,$3,$4,$5,'draft',$6,$7)`,
-      [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, lab_user_id],
+      `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by)
+       values ($1,$2,$3,$4,$5,'draft',$6,$7,$8)`,
+      [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id],
     );
 
     for (let i = 0; i < tests.length; i += 1) {
@@ -132,6 +133,7 @@ export type LabReport = {
   sampleId: string;
   doctor: string;
   createdAt: string;
+  collectedAt?: string;
   tests: DraftTest[];
   notes?: string;
   status: "draft" | "pending_review" | "approved" | "cancelled";
@@ -176,8 +178,8 @@ export const updateLabReport = createServerFn({ method: "POST" })
       [data.patientCode?.trim() || null, patientName, age, data.gender, data.phone?.trim() || null, data.nationalId?.trim() || null, data.notes?.trim() || null, current[0].patient_id, lab_id],
     );
     await sql.query(
-      `update reports set referring_doctor=$1, notes=$2, updated_at=current_timestamp where id=$3 and lab_id=$4 and status='draft'`,
-      [data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.id, lab_id],
+      `update reports set referring_doctor=$1, notes=$2, collected_at=$3, updated_at=current_timestamp where id=$4 and lab_id=$5 and status='draft'`,
+      [data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, data.id, lab_id],
     );
     await sql.query(`delete from report_results where report_id=$1`, [data.id]);
     for (let i = 0; i < tests.length; i += 1) {
@@ -203,11 +205,11 @@ export const listLabReports = createServerFn({ method: "GET" })
     const { sql, lab_id } = await getLabContext(context.userId, "reports.view");
     const rows = await sql<{
       id: string; patient_code: string | null; full_name: string; age: number; gender: "ذكر" | "أنثى"; phone: string | null; national_id: string | null;
-      sample_id: string | null; referring_doctor: string | null; created_at: string | Date; notes: string | null;
+      sample_id: string | null; referring_doctor: string | null; created_at: string | Date; notes: string | null; collected_at: string | Date | null;
       status: "draft" | "pending_review" | "approved" | "cancelled"; reviewed_by: string | null; approved_at: string | Date | null;
     }>`
       select r.id, p.patient_code, p.full_name, p.age, p.gender, p.phone, p.national_id,
-             r.sample_id, r.referring_doctor, r.created_at, r.notes, r.status, r.reviewed_by, r.approved_at
+             r.sample_id, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at
       from reports r
       inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
       where r.lab_id = ${lab_id}
@@ -216,7 +218,8 @@ export const listLabReports = createServerFn({ method: "GET" })
     return rows.map((r) => ({
       id: r.id, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), gender: r.gender,
       phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "",
-      doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), tests: [], notes: r.notes || undefined,
+      doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), collectedAt: r.collected_at ? String(r.collected_at).slice(0, 10) : undefined,
+      tests: [], notes: r.notes || undefined,
       status: r.status, reviewedBy: r.reviewed_by || undefined, approvedAt: r.approved_at ? String(r.approved_at) : undefined,
     }));
   });
@@ -227,11 +230,11 @@ export const getLabReport = createServerFn({ method: "GET" })
     const { sql, lab_id } = await getLabContext(context.userId, "reports.view");
     const rows = await sql<{
       id: string; patient_code: string | null; full_name: string; age: number; gender: "ذكر" | "أنثى"; phone: string | null; national_id: string | null;
-      sample_id: string | null; referring_doctor: string | null; created_at: string | Date; notes: string | null;
+      sample_id: string | null; referring_doctor: string | null; created_at: string | Date; notes: string | null; collected_at: string | Date | null;
       status: "draft" | "pending_review" | "approved" | "cancelled"; reviewed_by: string | null; approved_at: string | Date | null;
     }>`
       select r.id, p.patient_code, p.full_name, p.age, p.gender, p.phone, p.national_id,
-             r.sample_id, r.referring_doctor, r.created_at, r.notes, r.status, r.reviewed_by, r.approved_at
+             r.sample_id, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at
       from reports r
       inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
       where r.id = ${data.id} and r.lab_id = ${lab_id}
@@ -251,7 +254,8 @@ export const getLabReport = createServerFn({ method: "GET" })
     return {
       id: r.id, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), gender: r.gender,
       phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "",
-      doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), notes: r.notes || undefined,
+      doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), collectedAt: r.collected_at ? String(r.collected_at).slice(0, 10) : undefined,
+      notes: r.notes || undefined,
       status: r.status, reviewedBy: r.reviewed_by || undefined, approvedAt: r.approved_at ? String(r.approved_at) : undefined,
       tests: results.map((t) => ({
         name: t.test_name, categoryId: t.category_id || "", categoryAr: t.category_ar || "",

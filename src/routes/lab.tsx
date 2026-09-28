@@ -14,6 +14,7 @@ import {
   UserRoundSearch,
   ClipboardList,
   BarChart3,
+  CircleHelp,
 } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
@@ -174,6 +175,13 @@ function LabDashboard() {
             label="الإعدادات"
           />
         ) : null}
+
+        <GridAction
+          to="/help"
+          icon={<CircleHelp />}
+          color="rose"
+          label="مساعدة"
+        />
       </section>
 
       <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -220,6 +228,7 @@ const GRID_COLORS = {
   amber: "bg-amber-500/10 text-amber-600",
   slate: "bg-slate-500/10 text-slate-600",
   sky: "bg-sky-500/10 text-sky-600",
+  rose: "bg-rose-500/10 text-rose-600",
 } as const;
 
 function GridAction({

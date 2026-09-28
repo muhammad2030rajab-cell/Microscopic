@@ -72,6 +72,7 @@ export type LabProfileData = {
   doctor_name: string | null;
   doctor_degree: string | null;
   doctor_specialty: string | null;
+  logo_url: string | null;
   is_profile_complete: boolean;
 };
 
@@ -82,7 +83,7 @@ export const getCurrentLab = createServerFn({ method: "GET" })
     const rows = await sql<LabProfileData>`
       select l.id as lab_id, l.name as lab_name, l.name_en as lab_name_en,
              lu.username, lu.role, l.phone, l.whatsapp, l.email, l.website,
-             l.address, l.doctor_name, l.doctor_degree, l.doctor_specialty,
+             l.address, l.doctor_name, l.doctor_degree, l.doctor_specialty, l.logo_url,
              (length(trim(coalesce(l.name, ''))) >= 2
               and length(trim(coalesce(l.phone, ''))) >= 5
               and length(trim(coalesce(l.address, ''))) >= 5) as is_profile_complete
@@ -109,6 +110,7 @@ export type UpdateLabProfileInput = {
   doctorName?: string;
   doctorDegree?: string;
   doctorSpecialty?: string;
+  logoUrl?: string | null;
 };
 
 export const updateCurrentLabProfile = createServerFn({ method: "POST" })
@@ -128,12 +130,16 @@ export const updateCurrentLabProfile = createServerFn({ method: "POST" })
     if (!rows.length) throw new Error("LAB_ACCESS_REQUIRED");
     if (rows[0].role !== "owner") throw new Error("OWNER_ACCESS_REQUIRED");
 
+    const logoUrl = data.logoUrl?.trim() || null;
+    // بيتخزن كـ data URI (base64) — نحدد سقف معقول عشان صف المعمل في القاعدة يفضل خفيف.
+    if (logoUrl && logoUrl.length > 700_000) throw new Error("حجم الشعار كبير جدًا، اختر صورة أصغر");
+
     await sql.query(
       `update labs
        set name=$1, name_en=$2, phone=$3, whatsapp=$4, email=$5, website=$6,
            address=$7, doctor_name=$8, doctor_degree=$9, doctor_specialty=$10,
-           updated_at=current_timestamp
-       where id=$11`,
+           logo_url=$11, updated_at=current_timestamp
+       where id=$12`,
       [
         name,
         data.nameEn?.trim() || null,
@@ -145,6 +151,7 @@ export const updateCurrentLabProfile = createServerFn({ method: "POST" })
         data.doctorName?.trim() || null,
         data.doctorDegree?.trim() || null,
         data.doctorSpecialty?.trim() || null,
+        logoUrl,
         rows[0].lab_id,
       ],
     );

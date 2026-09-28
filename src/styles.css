@@ -6,15 +6,15 @@
   --font-display: "Source Serif 4", "Noto Naskh Arabic", ui-serif, Georgia, "Times New Roman", serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-  --color-paper: #f4f6fb;
-  --color-paper-2: #e8edf5;
-  --color-ink: #0f2942;
-  --color-ink-soft: #3a4b5e;
-  --color-muted: #6b7684;
-  --color-line: #dde3ec;
-  --color-line-strong: #c1cad9;
-  --color-teal: #2f6fed;
-  --color-teal-deep: #1d4fb8;
+  --color-paper: #f4f7f7;
+  --color-paper-2: #e6eeee;
+  --color-ink: #0c2230;
+  --color-ink-soft: #37505c;
+  --color-muted: #667a83;
+  --color-line: #d8e3e4;
+  --color-line-strong: #b7c9cb;
+  --color-teal: #0e7c86;
+  --color-teal-deep: #0a5f68;
   --color-teal-fg: #ffffff;
   --color-ok: #1f9d55;
   --color-ok-bg: #e5f7ec;
@@ -24,7 +24,7 @@
   --color-low-bg: #fdf1e3;
   --color-surface: #ffffff;
   --color-elevated: #ffffff;
-  --color-ring: #2f6fed;
+  --color-ring: #0e7c86;
   --color-flag-yellow: #f3d66a;
 
   --radius-xs: 4px;
@@ -33,7 +33,7 @@
   --radius-lg: 18px;
   --radius-xl: 28px;
 
-  --shadow-sheet: 0 18px 50px -28px rgb(21 36 40 / 0.35);
+  --shadow-sheet: 0 18px 50px -28px rgb(12 34 48 / 0.38);
 }
 
 @layer base {
@@ -48,7 +48,7 @@
     background:
       radial-gradient(
         1200px 500px at 100% -10%,
-        rgb(47 111 237 / 0.08),
+        rgb(14 124 134 / 0.09),
         transparent 55%
       ),
       var(--color-paper);
@@ -128,7 +128,7 @@
   right: 0;
   width: 5.75rem;
   height: 4rem;
-  background: var(--color-high);
+  background: var(--color-teal);
   clip-path: polygon(
     38% 0,
     100% 0,
@@ -163,11 +163,10 @@
 }
 
 .lab-grid th {
-  background: var(--color-paper-2);
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  background: rgb(14 124 134 / 0.1);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .lab-barcode {
@@ -275,6 +274,7 @@
   gap: 1.5rem;
   padding-bottom: 1rem;
   border-bottom: 2px solid var(--color-ink);
+  box-shadow: 0 3px 0 -1px var(--color-teal);
 }
 
 .lab-logo {
@@ -326,10 +326,9 @@
 .lab-info-label {
   display: block;
   margin-bottom: 0.22rem;
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: var(--color-muted);
 }
 

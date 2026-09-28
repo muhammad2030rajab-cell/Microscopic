@@ -8,26 +8,27 @@ import {
   interpretResult,
   isCritical,
   parseValue,
+  type DraftTest,
   type Flag,
 } from "@/lib/medical";
 import { getNormalRange } from "@/lib/tests-catalog";
 import {
   defaultLab,
   type LabProfile,
-  type Report,
-  type SavedTest,
 } from "@/lib/store";
+import type { LabReport } from "@/lib/lab-reports";
 import { cn, formatSlashDate, visitIdFrom } from "@/lib/utils";
+import { ReportQrCode } from "./report-qr-code";
 
 /* =========================================
    GROUP TESTS
    ========================================= */
 
-function groupTests(report: Report) {
+function groupTests(report: LabReport) {
   const groups: {
     en: string;
     ar: string;
-    tests: SavedTest[];
+    tests: DraftTest[];
   }[] = [];
 
   const index = new Map<string, number>();
@@ -84,7 +85,7 @@ export function PrintView({
   report,
   lab,
 }: {
-  report: Report;
+  report: LabReport;
   lab: LabProfile;
   interactive?: boolean;
 }) {
@@ -100,6 +101,7 @@ export function PrintView({
   const requested = formatSlashDate(
     report.createdAt,
   );
+  const collected = report.collectedAt ? formatSlashDate(report.collectedAt) : null;
 
   return (
     <article
@@ -124,19 +126,23 @@ export function PrintView({
 
       <header className="lab-header">
         <div className="flex items-center gap-3">
-          <span
-            className="lab-logo"
-            aria-hidden
-          >
-            <FlaskConical className="size-6" />
-          </span>
+          {brand.logoUrl ? (
+            <img src={brand.logoUrl} alt="" aria-hidden className="lab-logo size-11 rounded-lg object-cover" />
+          ) : (
+            <span
+              className="lab-logo"
+              aria-hidden
+            >
+              <FlaskConical className="size-6" />
+            </span>
+          )}
 
           <div>
             <p className="font-display text-xl font-semibold leading-tight sm:text-2xl">
               {brand.name}
             </p>
 
-            <p className="text-[0.68rem] font-medium tracking-[0.18em] text-teal uppercase">
+            <p className="text-[0.72rem] font-medium tracking-[0.04em] text-teal">
               {brand.nameEn}
             </p>
 
@@ -178,7 +184,7 @@ export function PrintView({
             LABORATORY REPORT
           </p>
 
-          <p className="text-[0.65rem] font-medium tracking-[0.2em] text-muted uppercase">
+          <p className="text-[0.7rem] font-medium tracking-[0.03em] text-muted">
             Clinical Laboratory Medicine
           </p>
         </div>
@@ -251,6 +257,13 @@ export function PrintView({
           label="Request Date / تاريخ الطلب"
           value={requested}
         />
+
+        {collected ? (
+          <InfoCell
+            label="Collection Date / تاريخ السحب"
+            value={collected}
+          />
+        ) : null}
 
         <InfoCell
           label="Report ID / رقم التقرير"
@@ -392,7 +405,7 @@ export function PrintView({
                             </span>
 
                             {test.calculated ? (
-                              <span className="ms-1 text-[0.6rem] font-normal uppercase text-muted">
+                              <span className="ms-1 text-[0.62rem] font-normal italic text-muted">
                                 calculated
                               </span>
                             ) : null}
@@ -501,7 +514,7 @@ export function PrintView({
         </div>
 
         <div className="lab-verification">
-          <p className="text-[0.62rem] uppercase tracking-[0.12em] text-muted">
+          <p className="text-[0.68rem] tracking-[0.03em] text-muted">
             Verified / اعتماد
           </p>
 
@@ -530,6 +543,8 @@ export function PrintView({
           <p className="text-xs font-semibold">
             Lab. Director
           </p>
+
+          {report.status === "approved" ? <ReportQrCode reportId={report.id} /> : null}
 
           {brand.doctorDegree ? (
             <p className="text-[0.68rem] text-muted">

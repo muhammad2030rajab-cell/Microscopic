@@ -163,7 +163,8 @@ export function ReportWizard({ catalog, editReport }: { catalog: LabCatalogRow[]
     try {
       const payload = {
         patientName: draft.patientName, patientCode: draft.patientCode, age, gender: draft.gender,
-        phone: draft.phone, nationalId: draft.nationalId, doctor: draft.doctor, notes: draft.notes, tests: draft.tests,
+        phone: draft.phone, nationalId: draft.nationalId, doctor: draft.doctor, notes: draft.notes,
+        collectedAt: draft.collectedAt, tests: draft.tests,
       };
       const report = editReport
         ? await updateLabReport({ data: { ...payload, id: editReport.id } })
@@ -408,13 +409,22 @@ function PatientStep({
             dir="ltr"
           />
         </div>
-        <div className="sm:col-span-2">
+        <div>
           <Label htmlFor="doc">الطبيب المعالج</Label>
           <Input
             id="doc"
             value={draft.doctor}
             onChange={(e) => setDraft({ doctor: e.target.value })}
             placeholder="Himself أو اسم الطبيب"
+          />
+        </div>
+        <div>
+          <Label htmlFor="collectedAt">تاريخ سحب العينة</Label>
+          <Input
+            id="collectedAt"
+            type="date"
+            value={draft.collectedAt}
+            onChange={(e) => setDraft({ collectedAt: e.target.value })}
           />
         </div>
         <div className="sm:col-span-2">

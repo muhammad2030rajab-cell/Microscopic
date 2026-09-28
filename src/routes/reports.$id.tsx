@@ -50,6 +50,7 @@ function ReportDetail() {
     doctorName: lab.doctor_name || "",
     doctorDegree: lab.doctor_degree || "",
     doctorSpecialty: lab.doctor_specialty || "",
+    logoUrl: lab.logo_url || "",
   };
 
   async function submitForReview() {

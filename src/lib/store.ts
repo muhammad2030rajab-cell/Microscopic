@@ -15,6 +15,7 @@ export interface LabProfile {
   doctorName: string;
   doctorDegree: string;
   doctorSpecialty: string;
+  logoUrl?: string;
 }
 
 export interface SavedTest {
@@ -39,6 +40,7 @@ export interface Report {
   sampleId?: string;
   doctor: string;
   createdAt: string;
+  collectedAt?: string;
   tests: SavedTest[];
   notes?: string;
 }
@@ -51,6 +53,7 @@ export interface Draft {
   phone: string;
   nationalId: string;
   doctor: string;
+  collectedAt: string;
   selectedCategoryIds: string[];
   tests: DraftTest[];
   notes: string;
@@ -181,6 +184,7 @@ const emptyDraft = (): Draft => ({
   phone: "",
   nationalId: "",
   doctor: "",
+  collectedAt: new Date().toISOString().slice(0, 10),
   selectedCategoryIds: [],
   tests: [],
   notes: "",

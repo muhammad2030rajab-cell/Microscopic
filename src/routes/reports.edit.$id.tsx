@@ -30,7 +30,9 @@ function EditReportPage() {
   if (!canEdit || !report || report.status !== "draft") return <Navigate to={report ? "/reports/$id" : "/reports"} params={report ? { id: report.id } : undefined} />;
   const draft: Draft = {
     patientName: report.patientName, patientCode: report.patientCode, age: String(report.age), gender: report.gender,
-    phone: report.phone || "", nationalId: report.nationalId || "", doctor: report.doctor, selectedCategoryIds: Array.from(new Set(report.tests.map((t) => t.categoryId))),
+    phone: report.phone || "", nationalId: report.nationalId || "", doctor: report.doctor,
+    collectedAt: report.collectedAt || new Date().toISOString().slice(0, 10),
+    selectedCategoryIds: Array.from(new Set(report.tests.map((t) => t.categoryId))),
     tests: report.tests, notes: report.notes || "", step: 0,
   };
   return <AppShell><ReportWizard catalog={catalog} editReport={{ id: report.id, draft }} /></AppShell>;

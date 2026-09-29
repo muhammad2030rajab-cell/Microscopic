@@ -9,20 +9,15 @@ import type { ReactNode } from "react";
 import {
   FileText,
   FlaskConical,
+  Microscope,
   Settings2,
   UserRoundSearch,
   ClipboardList,
   BarChart3,
   CircleHelp,
-  ChevronLeft,
-  Users,
-  Clock,
-  CircleCheck,
-  TriangleAlert,
 } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
-import { FieldOfView } from "@/components/brand/field-of-view";
 import { UserButton, useCurrentUserState } from "@/lib/auth/gates";
 import { getCurrentLab, getLabDashboardStats } from "@/lib/lab-access";
 import { getCurrentLabPermissions, type LabPermissions } from "@/lib/lab-users";
@@ -126,73 +121,99 @@ function LabDashboard() {
           </p>
         </div>
 
-        <FieldOfView className="pointer-events-none absolute -left-10 -top-10 size-40 opacity-90 sm:size-48" />
+        <div className="pointer-events-none absolute -left-6 -top-6 grid size-32 place-items-center rounded-full bg-teal/25 sm:size-40">
+          <Microscope
+            className="size-14 text-paper/80 sm:size-16"
+            strokeWidth={1.2}
+          />
+        </div>
       </section>
 
-      {/* الإجراء الأساسي */}
-      {permissions["reports.create"] ? (
-        <Link
-          to="/new"
-          className="mt-5 flex items-center gap-4 rounded-2xl bg-teal p-5 text-teal-fg transition hover:bg-teal-deep sm:p-6"
-        >
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/15">
-            <FlaskConical className="size-5" />
-          </span>
-
-          <span className="flex-1">
-            <span className="block font-display text-lg font-semibold">
-              تقرير جديد
-            </span>
-            <span className="block text-sm text-teal-fg/75">
-              ابدأ بإدخال بيانات المريض والنتائج
-            </span>
-          </span>
-
-          <ChevronLeft className="size-5 shrink-0 opacity-70" />
-        </Link>
-      ) : null}
-
-      <section className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
-        <GridAction to="/reports" icon={<FileText />} label="الأرشيف" />
-        <GridAction to="/catalog" icon={<ClipboardList />} label="التحاليل" />
-        <GridAction to="/patients" icon={<UserRoundSearch />} label="المرضى" />
-        <GridAction to="/analytics" icon={<BarChart3 />} label="التحليلات" />
-        {lab.role === "owner" ? (
-          <GridAction to="/settings" icon={<Settings2 />} label="الإعدادات" />
+      <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {permissions["reports.create"] ? (
+          <GridAction
+            to="/new"
+            icon={<FlaskConical />}
+            color="teal"
+            label="تقرير جديد"
+          />
         ) : null}
-        <GridAction to="/help" icon={<CircleHelp />} label="مساعدة" />
+
+        <GridAction
+          to="/reports"
+          icon={<FileText />}
+          color="indigo"
+          label="أرشيف التقارير"
+        />
+
+        <GridAction
+          to="/catalog"
+          icon={<ClipboardList />}
+          color="violet"
+          label="قائمة التحاليل"
+        />
+
+        <GridAction
+          to="/patients"
+          icon={<UserRoundSearch />}
+          color="amber"
+          label="المرضى"
+        />
+
+        <GridAction
+          to="/analytics"
+          icon={<BarChart3 />}
+          color="sky"
+          label="التحليلات"
+        />
+
+        {lab.role === "owner" ? (
+          <GridAction
+            to="/settings"
+            icon={<Settings2 />}
+            color="slate"
+            label="الإعدادات"
+          />
+        ) : null}
+
+        <GridAction
+          to="/help"
+          icon={<CircleHelp />}
+          color="rose"
+          label="مساعدة"
+        />
       </section>
 
       <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard
           label="إجمالي المرضى"
           value={stats.patients}
-          icon={<Users />}
+          icon="👥"
         />
 
         <StatCard
           label="تقارير اليوم"
           value={stats.reportsToday}
-          icon={<FileText />}
+          icon="🧾"
         />
 
         <StatCard
           label="تحت المراجعة"
           value={stats.pendingReview}
-          icon={<Clock />}
+          icon="🔎"
           emphasis={stats.pendingReview > 0}
         />
 
         <StatCard
           label="تقارير معتمدة"
           value={stats.approved}
-          icon={<CircleCheck />}
+          icon="✅"
         />
 
         <StatCard
           label="نتائج حرجة"
           value={stats.critical}
-          icon={<TriangleAlert />}
+          icon="🚨"
           emphasis={stats.critical > 0}
         />
       </section>
@@ -200,25 +221,39 @@ function LabDashboard() {
   );
 }
 
+const GRID_COLORS = {
+  teal: "bg-teal/10 text-teal",
+  indigo: "bg-indigo-500/10 text-indigo-600",
+  violet: "bg-violet-500/10 text-violet-600",
+  amber: "bg-amber-500/10 text-amber-600",
+  slate: "bg-slate-500/10 text-slate-600",
+  rose: "bg-rose-500/10 text-rose-600",
+  sky: "bg-sky-500/10 text-sky-600",
+} as const;
+
 function GridAction({
   to,
   icon,
+  color,
   label,
 }: {
   to: string;
   icon: ReactNode;
+  color: keyof typeof GRID_COLORS;
   label: string;
 }) {
   return (
     <Link
       to={to}
-      className="flex flex-col items-center gap-2 rounded-xl border border-line bg-elevated p-3 text-center transition hover:-translate-y-0.5 hover:border-teal/40 hover:shadow-sm sm:p-4"
+      className="flex flex-col items-center gap-2.5 rounded-xl border border-line bg-elevated p-4 text-center transition hover:-translate-y-0.5 hover:shadow-sm sm:p-5"
     >
-      <span className="grid size-10 place-items-center rounded-xl bg-teal/10 text-teal">
+      <span
+        className={`grid size-12 place-items-center rounded-2xl ${GRID_COLORS[color]}`}
+      >
         {icon}
       </span>
 
-      <span className="text-xs font-medium leading-tight sm:text-sm">
+      <span className="text-sm font-medium">
         {label}
       </span>
     </Link>
@@ -233,17 +268,17 @@ function StatCard({
 }: {
   label: string;
   value: number;
-  icon: ReactNode;
+  icon: string;
   emphasis?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-line bg-elevated p-4">
+    <div
+      className={`rounded-xl border bg-elevated p-4 ${
+        emphasis ? "border-amber-300" : "border-line"
+      }`}
+    >
       <div className="flex items-center justify-between gap-2">
-        <span
-          className={`grid size-8 place-items-center rounded-lg ${
-            emphasis ? "bg-high/10 text-high" : "bg-ink/5 text-ink-soft"
-          }`}
-        >
+        <span className="text-xl" aria-hidden="true">
           {icon}
         </span>
 

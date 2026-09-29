@@ -12,14 +12,17 @@ import { useNavigate } from "@tanstack/react-router";
 import { reportStatusClasses, reportStatusLabels } from "@/lib/report-workflow";
 import { downloadReportPdf } from "@/lib/generate-report-pdf";
 import { visitIdFrom } from "@/lib/utils";
+import { listReportAttachments, type ReportAttachment } from "@/lib/attachments";
+import { AttachmentsPanel } from "@/components/report/attachments-panel";
 
 export const Route = createFileRoute("/reports/$id")({
   loader: async ({ params }) => {
     try {
       const [report, lab, access] = await Promise.all([getLabReport({ data: { id: params.id } }), getCurrentLab(), getCurrentLabPermissions()]);
-      return { report, lab, permissions: access.permissions };
+      const attachments = await listReportAttachments({ data: { reportId: params.id } }).catch(() => [] as ReportAttachment[]);
+      return { report, lab, permissions: access.permissions, attachments };
     } catch {
-      return { report: null, lab: null as LabProfileData | null, permissions: {} as Record<string, boolean | undefined> };
+      return { report: null, lab: null as LabProfileData | null, permissions: {} as Record<string, boolean | undefined>, attachments: [] as ReportAttachment[] };
     }
   },
   component: ReportDetail,
@@ -27,7 +30,7 @@ export const Route = createFileRoute("/reports/$id")({
 
 function ReportDetail() {
   const data = Route.useLoaderData();
-  const { lab, permissions } = data;
+  const { lab, permissions, attachments } = data;
   const navigate = useNavigate();
   const [report, setReport] = useState(data.report);
   const [loading, setLoading] = useState<"submit" | "approve" | "delete" | null>(null);
@@ -152,6 +155,8 @@ function ReportDetail() {
           <p className="mt-3 text-xs leading-5 text-muted">مشاركة واتساب والبريد بترسل ملخص نتائج التقرير كنص. لإرسال التقرير بشكله الكامل (PDF)، استخدم زر "حفظ PDF" ثم أرفق الملف يدويًا.</p>
         </div>
         {error ? <div className="mx-auto mb-5 max-w-[820px] rounded-lg border border-high/20 bg-high/5 p-4 text-sm text-high">{error}</div> : null}
+
+        <AttachmentsPanel reportId={report.id} canEdit={permissions["reports.edit"] === true} initial={attachments} />
 
         {(critical.length || notes.length) ? <aside className="mx-auto mb-6 w-full max-w-[820px] rounded-lg border border-line bg-elevated p-4"><h2 className="text-sm font-medium">ملخص طبي</h2>{critical.length > 0 && <p className="mt-2 text-sm text-high">قيم حرجة: {critical.map((t) => `${t.name} (${t.value})`).join("، ")}</p>}<ul className="mt-2 space-y-1.5 text-sm text-ink-soft">{notes.slice(0, 6).map(({ f, t }) => <li key={`${t.categoryId}-${t.name}`}><span className="font-medium text-ink">{t.name}:</span> {f.note}</li>)}</ul></aside> : null}
         <div ref={printRef} className="mx-auto w-full max-w-4xl">

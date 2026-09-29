@@ -266,7 +266,7 @@ export const getLabReport = createServerFn({ method: "GET" })
   });
 
 
-async function getReportForAction(userId: string, reportId: string, permission?: LabPermission) {
+export async function getReportForAction(userId: string, reportId: string, permission?: LabPermission) {
   const { sql, lab_user_id, lab_id, role } = await getLabContext(userId, permission);
   const rows = await sql<{ id: string; status: "draft" | "pending_review" | "approved" | "cancelled" }>`
     select id, status from reports where id = ${reportId} and lab_id = ${lab_id} limit 1

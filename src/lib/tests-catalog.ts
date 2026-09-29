@@ -1216,24 +1216,32 @@ export const CATEGORIES: Category[] = [
 ];
 
 export const TEST_INDEX: Record<string, { test: TestDef; category: Category }> = {};
+// Some names repeat across categories ("Color", "Blood", "RBCs"), so the plain
+// name index is ambiguous. This one is exact: `${categoryId}:${testName}`.
+export const TEST_BY_CATEGORY: Record<string, { test: TestDef; category: Category }> = {};
 for (const category of CATEGORIES) {
   for (const test of category.tests) {
     TEST_INDEX[test.name] = { test, category };
+    TEST_BY_CATEGORY[`${category.id}:${test.name}`] = { test, category };
   }
 }
 
-export function getNormalRange(testName: string, gender: Gender): string {
-  const hit = TEST_INDEX[testName];
+function lookupTest(testName: string, categoryId?: string) {
+  return (categoryId && TEST_BY_CATEGORY[`${categoryId}:${testName}`]) || TEST_INDEX[testName];
+}
+
+export function getNormalRange(testName: string, gender: Gender, categoryId?: string): string {
+  const hit = lookupTest(testName, categoryId);
   if (!hit) return "غير محدد";
   return gender === "أنثى" ? hit.test.female : hit.test.male;
 }
 
-export function getTestUnit(testName: string): string {
-  return TEST_INDEX[testName]?.test.unit ?? "";
+export function getTestUnit(testName: string, categoryId?: string): string {
+  return lookupTest(testName, categoryId)?.test.unit ?? "";
 }
 
-export function getCategoryForTest(testName: string): Category | undefined {
-  return TEST_INDEX[testName]?.category;
+export function getCategoryForTest(testName: string, categoryId?: string): Category | undefined {
+  return lookupTest(testName, categoryId)?.category;
 }
 
 export function searchTests(query: string) {

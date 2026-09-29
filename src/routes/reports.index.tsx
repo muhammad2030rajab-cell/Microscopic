@@ -97,7 +97,7 @@ function ReportsList({ reports }: { reports: LabReportSummary[] }) {
         <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-elevated">
           {filtered.map((r) => {
             const flags = r.tests.map((t) =>
-              interpretResult(t.name, t.value, r.gender, t.customRange),
+              interpretResult(t.name, t.value, r.gender, t.customRange, t.categoryId),
             );
             const bad = flags.filter(
               (f) => f.flag === "high" || f.flag === "low" || f.flag === "abnormal",

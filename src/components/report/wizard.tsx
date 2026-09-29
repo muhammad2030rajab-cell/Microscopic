@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import { getQualitativeOptions } from "@/lib/qualitative-options";
 import { FlagBadge } from "@/components/report/flag-badge";
 import { interpretResult } from "@/lib/medical";
 import { useLabStore, type Draft } from "@/lib/store";
@@ -574,6 +576,73 @@ function TestsStep({
   );
 }
 
+const CUSTOM = "__custom__";
+
+/**
+ * Result entry. Urine / stool tests get a pick-list (with "other" for anything
+ * unusual, and for old values that are not in the list); everything else stays
+ * a plain input.
+ */
+function ResultField({
+  test,
+  onChange,
+}: {
+  test: { name: string; categoryId: string; value: string };
+  onChange: (value: string) => void;
+}) {
+  const options = getQualitativeOptions(test.categoryId, test.name);
+  const [custom, setCustom] = useState(false);
+
+  if (!options) {
+    return (
+      <Input
+        value={test.value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="قيمة"
+        className="tabular-nums"
+      />
+    );
+  }
+
+  const listed = options.some((o) => o.value === test.value);
+  const showText = custom || (test.value !== "" && !listed);
+
+  return (
+    <div className="space-y-2">
+      <NativeSelect
+        value={showText ? CUSTOM : test.value}
+        aria-label={`نتيجة ${test.name}`}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === CUSTOM) {
+            setCustom(true);
+            if (listed) onChange("");
+            return;
+          }
+          setCustom(false);
+          onChange(v);
+        }}
+      >
+        <option value="">اختر…</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.value}
+          </option>
+        ))}
+        <option value={CUSTOM}>أخرى (اكتب)…</option>
+      </NativeSelect>
+      {showText ? (
+        <Input
+          value={test.value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="اكتب النتيجة"
+          autoFocus={custom && test.value === ""}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function ResultsStep({
   draft,
   gender,
@@ -594,10 +663,10 @@ function ResultsStep({
     <div className="overflow-hidden rounded-lg border border-line bg-elevated">
       <ul className="divide-y divide-line">
         {draft.tests.map((t) => {
-          const range = t.customRange || getNormalRange(t.name, gender);
-          const interp = t.value ? interpretResult(t.name, t.value, gender, t.customRange) : null;
+          const range = t.customRange || getNormalRange(t.name, gender, t.categoryId);
+          const interp = t.value ? interpretResult(t.name, t.value, gender, t.customRange, t.categoryId) : null;
           return (
-            <li key={`${t.categoryId}-${t.name}`} className="grid gap-3 p-4 sm:grid-cols-[1fr_8rem_8rem_auto] sm:items-end">
+            <li key={`${t.categoryId}-${t.name}`} className="grid gap-3 p-4 sm:grid-cols-[1fr_11rem_8rem_auto] sm:items-end">
               <div>
                 <p className="text-sm font-medium">{t.name}</p>
                 <p className="text-[11px] text-muted">
@@ -606,12 +675,7 @@ function ResultsStep({
               </div>
               <div>
                 <Label>النتيجة</Label>
-                <Input
-                  value={t.value}
-                  onChange={(e) => setValue(t.name, t.categoryId, e.target.value)}
-                  placeholder="قيمة"
-                  className="tabular-nums"
-                />
+                <ResultField test={t} onChange={(v) => setValue(t.name, t.categoryId, v)} />
               </div>
               <div>
                 <Label>مدى مخصص</Label>
@@ -642,7 +706,7 @@ function ResultsStep({
 
 function ReviewStep({ draft, gender }: { draft: Draft; gender: Gender }) {
   const filled = draft.tests.filter((t) => t.value.trim());
-  const flags = filled.map((t) => interpretResult(t.name, t.value, gender, t.customRange));
+  const flags = filled.map((t) => interpretResult(t.name, t.value, gender, t.customRange, t.categoryId));
   const abnormal = flags.filter((f) => f.flag === "high" || f.flag === "low" || f.flag === "abnormal").length;
 
   return (
@@ -667,7 +731,7 @@ function ReviewStep({ draft, gender }: { draft: Draft; gender: Gender }) {
           </thead>
           <tbody>
             {filled.map((t) => {
-              const interp = interpretResult(t.name, t.value, gender, t.customRange);
+              const interp = interpretResult(t.name, t.value, gender, t.customRange, t.categoryId);
               return (
                 <tr key={`${t.categoryId}-${t.name}`} className="border-t border-line">
                   <td className="px-4 py-2.5">{t.name}</td>

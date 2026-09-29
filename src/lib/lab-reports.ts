@@ -59,12 +59,12 @@ export const createLabReport = createServerFn({ method: "POST" })
       from lab_test_catalog
       where lab_id = ${lab_id} and is_active = true
     `;
-    const catalogMap = new Map(catalogRows.map((row) => [row.test_name, row]));
+    const catalogMap = new Map(catalogRows.map((row) => [`${row.category_id}:${row.test_name}`, row]));
     for (const test of entered) {
-      if (!catalogMap.has(test.name)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
+      if (!catalogMap.has(`${test.categoryId}:${test.name}`)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
     }
     const catalogTests = entered.map((test) => {
-      const row = catalogMap.get(test.name)!;
+      const row = catalogMap.get(`${test.categoryId}:${test.name}`)!;
       return {
         ...test,
         categoryId: row.category_id,
@@ -96,7 +96,7 @@ export const createLabReport = createServerFn({ method: "POST" })
 
     for (let i = 0; i < tests.length; i += 1) {
       const test = tests[i];
-      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange);
+      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, test.categoryId);
       const critical = isCritical(test.name, test.value);
       const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
       await sql.query(
@@ -107,7 +107,7 @@ export const createLabReport = createServerFn({ method: "POST" })
         [
           randomUUID(), reportId, `${test.categoryId}:${test.name}`, test.name,
           test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null,
-          test.customRange?.trim() || getNormalRange(test.name, data.gender), flag,
+          test.customRange?.trim() || getNormalRange(test.name, data.gender, test.categoryId), flag,
           interpretation.note, i,
         ],
       );
@@ -165,10 +165,10 @@ export const updateLabReport = createServerFn({ method: "POST" })
       select test_name, unit, male_range, female_range, category_id, category_name_ar, category_name_en
       from lab_test_catalog where lab_id = ${lab_id} and is_active = true
     `;
-    const catalogMap = new Map(catalogRows.map((row) => [row.test_name, row]));
-    for (const test of entered) if (!catalogMap.has(test.name)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
+    const catalogMap = new Map(catalogRows.map((row) => [`${row.category_id}:${row.test_name}`, row]));
+    for (const test of entered) if (!catalogMap.has(`${test.categoryId}:${test.name}`)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
     const catalogTests = entered.map((test) => {
-      const row = catalogMap.get(test.name)!;
+      const row = catalogMap.get(`${test.categoryId}:${test.name}`)!;
       return { ...test, categoryId: row.category_id, categoryAr: row.category_name_ar, categoryEn: row.category_name_en, unit: row.unit, customRange: (data.gender === "ذكر" ? row.male_range : row.female_range) || test.customRange };
     });
     const tests = addCalculatedTests(catalogTests, data.gender, age);
@@ -184,12 +184,12 @@ export const updateLabReport = createServerFn({ method: "POST" })
     await sql.query(`delete from report_results where report_id=$1`, [data.id]);
     for (let i = 0; i < tests.length; i += 1) {
       const test = tests[i];
-      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange);
+      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, test.categoryId);
       const critical = isCritical(test.name, test.value);
       const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
       await sql.query(
         `insert into report_results (id, report_id, test_id, test_name, category_id, category_ar, category_en, result_value, unit, reference_range, flag, interpretation, sort_order) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [randomUUID(), data.id, `${test.categoryId}:${test.name}`, test.name, test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null, test.customRange?.trim() || getNormalRange(test.name, data.gender), flag, interpretation.note, i],
+        [randomUUID(), data.id, `${test.categoryId}:${test.name}`, test.name, test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null, test.customRange?.trim() || getNormalRange(test.name, data.gender, test.categoryId), flag, interpretation.note, i],
       );
     }
     await sql.query(

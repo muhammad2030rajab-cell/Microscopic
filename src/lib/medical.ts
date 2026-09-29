@@ -4,6 +4,7 @@ import {
   getNormalRange,
   getTestUnit,
 } from "./tests-catalog";
+import { qualitativeVerdict } from "./qualitative-options";
 
 export type Flag = "normal" | "high" | "low" | "abnormal" | "unknown";
 
@@ -114,11 +115,29 @@ export function interpretResult(
   value: string,
   gender: Gender,
   customRange?: string,
+  categoryId?: string,
 ): Interpretation {
-  const rangeText = customRange?.trim() || getNormalRange(testName, gender);
+  const defaultRange = getNormalRange(testName, gender, categoryId);
+  const rangeText = customRange?.trim() || defaultRange;
   const trimmed = value.trim();
   if (!trimmed) {
     return { flag: "unknown", label: "بدون قيمة", note: "لم تُدخل نتيجة بعد." };
+  }
+
+  // Pick-list tests (urine / stool): the chosen option carries its own verdict,
+  // unless the lab overrode the reference range for this test.
+  if (rangeText.toLowerCase() === defaultRange.trim().toLowerCase()) {
+    const verdict = qualitativeVerdict(categoryId, testName, trimmed);
+    if (verdict === "normal") {
+      return { flag: "normal", label: "طبيعي", note: "النتيجة ضمن المتوقع." };
+    }
+    if (verdict === "abnormal") {
+      return {
+        flag: "abnormal",
+        label: "غير طبيعي",
+        note: `المتوقع: ${defaultRange}`,
+      };
+    }
   }
 
   const qualitative = QUALITATIVE_NORMAL.has(rangeText.toLowerCase());

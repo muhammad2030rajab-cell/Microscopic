@@ -19,6 +19,30 @@ import {
 import type { LabReport } from "@/lib/lab-reports";
 import { cn, formatSlashDate, visitIdFrom } from "@/lib/utils";
 import { ReportQrCode } from "./report-qr-code";
+import { RangeBar } from "./range-bar";
+
+/* =========================================
+   BILINGUAL LABEL
+   "English / عربي" -> English on the left, Arabic on the right.
+   Labels without an Arabic part (e.g. "Age / Sex") render as-is.
+   ========================================= */
+
+const ARABIC = /[\u0600-\u06FF]/;
+
+function BiLabel({ text }: { text: string }) {
+  const i = text.indexOf(" / ");
+  const en = i === -1 ? text : text.slice(0, i);
+  const ar = i === -1 ? "" : text.slice(i + 3);
+
+  if (!ARABIC.test(ar)) return <>{text}</>;
+
+  return (
+    <span className="lab-bi">
+      <span>{en}</span>
+      <span className="lab-bi-ar">{ar}</span>
+    </span>
+  );
+}
 
 /* =========================================
    GROUP TESTS
@@ -70,6 +94,42 @@ function profileTitle(en: string) {
 }
 
 /* =========================================
+   RESULT SUMMARY
+   ========================================= */
+
+function summarize(report: LabReport) {
+  let measured = 0;
+  let outside = 0;
+  let critical = 0;
+
+  for (const test of report.tests) {
+    if (!test.value.trim()) continue;
+    measured += 1;
+
+    const interp = interpretResult(
+      test.name,
+      test.value,
+      report.gender,
+      test.customRange,
+      test.categoryId,
+    );
+    const isCrit = isCritical(test.name, test.value);
+
+    if (isCrit) critical += 1;
+    if (
+      isCrit ||
+      interp.flag === "high" ||
+      interp.flag === "low" ||
+      interp.flag === "abnormal"
+    ) {
+      outside += 1;
+    }
+  }
+
+  return { measured, outside, critical };
+}
+
+/* =========================================
    GLUCOSE
    ========================================= */
 
@@ -91,6 +151,7 @@ export function PrintView({
 }) {
   const brand = { ...defaultLab, ...lab };
   const groups = groupTests(report);
+  const summary = summarize(report);
 
   const sex =
     report.gender === "أنثى"
@@ -281,7 +342,7 @@ export function PrintView({
 
         <div className="lab-info-cell lab-barcode-cell">
           <span className="lab-info-label">
-            Sample Barcode / باركود العينة
+            <BiLabel text="Sample Barcode / باركود العينة" />
           </span>
 
           <div className="lab-barcode-wrap">
@@ -296,6 +357,39 @@ export function PrintView({
           </div>
         </div>
       </div>
+
+      {/* =========================================
+          RESULT SUMMARY
+         ========================================= */}
+
+      {summary.measured > 0 ? (
+        <div
+          className={cn(
+            "lab-summary mt-4",
+            summary.outside === 0
+              ? "lab-summary-ok"
+              : "lab-summary-flag",
+          )}
+        >
+          <span className="lab-summary-en">
+            {summary.outside === 0
+              ? "All results are within the reference range"
+              : `${summary.outside} of ${summary.measured} results outside the reference range`}
+            {summary.critical > 0
+              ? ` (${summary.critical} critical)`
+              : ""}
+          </span>
+
+          <span dir="rtl" className="lab-summary-ar">
+            {summary.outside === 0
+              ? "جميع النتائج ضمن المدى المرجعي"
+              : `${summary.outside} من ${summary.measured} نتيجة خارج المدى المرجعي`}
+            {summary.critical > 0
+              ? ` (${summary.critical} حرجة)`
+              : ""}
+          </span>
+        </div>
+      ) : null}
 
       {/* =========================================
           RESULTS TITLE
@@ -333,11 +427,11 @@ export function PrintView({
                 <thead>
                   <tr>
                     <th className="w-[34%]">
-                      Test / التحليل
+                      <BiLabel text="Test / التحليل" />
                     </th>
 
                     <th className="w-[13%]">
-                      Result / النتيجة
+                      <BiLabel text="Result / النتيجة" />
                     </th>
 
                     <th className="w-[8%]">
@@ -349,7 +443,7 @@ export function PrintView({
                     </th>
 
                     <th>
-                      Reference Interval / المدى المرجعي
+                      <BiLabel text="Reference Interval / المدى المرجعي" />
                     </th>
                   </tr>
                 </thead>
@@ -362,6 +456,7 @@ export function PrintView({
                         getNormalRange(
                           test.name,
                           report.gender,
+                          test.categoryId,
                         );
 
                       const interp =
@@ -370,6 +465,7 @@ export function PrintView({
                           test.value,
                           report.gender,
                           test.customRange,
+                          test.categoryId,
                         );
 
                       const critical =
@@ -387,6 +483,11 @@ export function PrintView({
                         interp.flag ===
                           "low";
 
+                      const low =
+                        !critical &&
+                        interp.flag ===
+                          "low";
+
                       const glucose =
                         isGlucose(
                           test.name,
@@ -395,6 +496,13 @@ export function PrintView({
                       return (
                         <tr
                           key={`${test.categoryId}-${test.name}`}
+                          className={
+                            low
+                              ? "lab-row-low"
+                              : abnormal
+                                ? "lab-row-abnormal"
+                                : undefined
+                          }
                         >
                           {/* TEST NAME */}
                           <td className="font-medium">
@@ -414,7 +522,13 @@ export function PrintView({
                           {/* RESULT */}
                           <td className="tabular-nums font-semibold text-ink">
                             {abnormal ? (
-                              <span className="lab-abnormal-result">
+                              <span
+                                className={cn(
+                                  "lab-abnormal-result",
+                                  low &&
+                                    "lab-abnormal-low",
+                                )}
+                              >
                                 {test.value}
                               </span>
                             ) : (
@@ -448,13 +562,22 @@ export function PrintView({
                                 }
                               />
                             ) : (
-                              <span>
-                                {rangeLabel(
-                                  test.name,
-                                  range,
-                                  report.gender,
-                                )}
-                              </span>
+                              <>
+                                <span>
+                                  {rangeLabel(
+                                    test.name,
+                                    range,
+                                    report.gender,
+                                  )}
+                                </span>
+
+                                <RangeBar
+                                  range={range}
+                                  value={test.value}
+                                  flag={interp.flag}
+                                  critical={critical}
+                                />
+                              </>
                             )}
                           </td>
                         </tr>
@@ -501,7 +624,7 @@ export function PrintView({
               High
             </span>
 
-            <span className="inline-flex items-center gap-1 text-high">
+            <span className="inline-flex items-center gap-1 text-[var(--color-flag-low)]">
               <ArrowDown className="size-3.5" />
               Low
             </span>
@@ -608,7 +731,7 @@ function InfoCell({
   return (
     <div className="lab-info-cell">
       <span className="lab-info-label">
-        {label}
+        <BiLabel text={label} />
       </span>
 
       <span
@@ -821,7 +944,7 @@ function FlagMark({
   if (flag === "low") {
     return (
       <ArrowDown
-        className="size-4 text-high"
+        className="size-4 text-[var(--color-flag-low)]"
         aria-label="Abnormal Low"
       />
     );

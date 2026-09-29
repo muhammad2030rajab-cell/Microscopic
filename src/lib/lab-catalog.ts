@@ -35,7 +35,11 @@ async function getLab(sql: Awaited<ReturnType<typeof getSql>>, userId: string) {
 
 async function ensureSeeded(sql: Awaited<ReturnType<typeof getSql>>, labId: string) {
   const count = await sql<{ count: number }>`select count(*)::int as count from lab_test_catalog where lab_id = ${labId}`;
-  if (count[0]?.count) return;
+  const total = CATEGORIES.reduce((n, c) => n + c.tests.length, 0);
+  // Top up labs seeded before names were made unique per category (stool
+  // "Color" / "Blood" / "RBCs" were silently skipped). Existing rows and any
+  // range edits are untouched (on conflict do nothing).
+  if ((count[0]?.count ?? 0) >= total) return;
 
   for (const category of CATEGORIES) {
     for (const test of category.tests) {
@@ -44,7 +48,7 @@ async function ensureSeeded(sql: Awaited<ReturnType<typeof getSql>>, labId: stri
         `insert into lab_test_catalog
           (id, lab_id, test_name, category_id, category_name_ar, category_name_en, unit, male_range, female_range)
          values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-         on conflict (lab_id, test_name) do nothing`,
+         on conflict (lab_id, category_id, test_name) do nothing`,
         [id, labId, test.name, category.id, category.nameAr, category.nameEn, test.unit, test.male, test.female],
       );
     }

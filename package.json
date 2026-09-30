@@ -15,7 +15,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/auth/sign-in-gate.test.ts",
+    "test": "node --test scripts/migration-plan.test.mjs scripts/browser-smoke-verdict.test.mjs scripts/sw-rules.test.mjs && node --experimental-strip-types --test src/lib/auth/sign-in-gate.test.ts src/lib/range-position.test.ts src/lib/qualitative-options.test.ts src/lib/offline/queue.test.ts src/lib/code128.test.ts src/lib/share-text.test.ts src/lib/report-strings.test.ts src/lib/age-ranges.test.ts src/lib/numerals.test.ts src/lib/search-text.test.ts src/lib/reports-filters.test.ts src/lib/post-login-path.test.ts",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
@@ -29,7 +29,6 @@
     "jspdf": "^2.5.2",
     "qrcode": "^1.5.4",
     "@vercel/blob": "^0.27.0",
-    "jsbarcode": "^3.11.6",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.11",

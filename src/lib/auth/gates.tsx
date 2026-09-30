@@ -70,7 +70,7 @@ export function SignInGate({
  * Minimal signed-in identity chip + sign-out. Sign-out is only shown when
  * auth is enabled (the disabled-auth dev user has nothing to sign out of).
  */
-export function UserButton() {
+export function UserButton({ compact = false }: { compact?: boolean }) {
   const user = useCurrentUser();
   // Sign-out can take a moment (and can fail when deployed), so the control
   // shows it is working and cannot be fired twice.
@@ -78,7 +78,7 @@ export function UserButton() {
   if (!user) return null;
   const label = user.displayName ?? user.primaryEmail ?? "Account";
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2">
       {user.profileImageUrl ? (
         <img
           src={user.profileImageUrl}
@@ -90,7 +90,7 @@ export function UserButton() {
           {label.charAt(0).toUpperCase()}
         </span>
       )}
-      <span className="text-sm font-medium">{label}</span>
+      {compact ? null : <span className="truncate text-sm font-medium">{label}</span>}
       {authEnabled && (
         <button
           type="button"
@@ -100,9 +100,10 @@ export function UserButton() {
             // Success navigates away; on failure re-enable so it can be retried.
             void signOut().catch(() => setSigningOut(false));
           }}
-          className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline disabled:cursor-wait disabled:no-underline"
+          aria-label={compact ? `تسجيل الخروج (${label})` : undefined}
+          className="min-h-9 cursor-pointer whitespace-nowrap text-sm underline-offset-4 opacity-70 hover:underline disabled:cursor-wait disabled:no-underline"
         >
-          {signingOut ? "Signing out…" : "Sign out"}
+          {signingOut ? "جارٍ الخروج…" : "تسجيل الخروج"}
         </button>
       )}
     </div>

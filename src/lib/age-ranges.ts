@@ -109,18 +109,38 @@ export interface CatalogRanges {
   age_ranges?: string | null;
 }
 
+export interface BuiltinRanges {
+  /** The built-in adult range for this sex (what a freshly seeded catalog row holds). */
+  sexDefault?: string;
+  /** A built-in age-band range for this age, if the app ships one for the test. */
+  ageRange?: string;
+}
+
+const same = (a: string | undefined, b: string | undefined) =>
+  (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+
 /**
- * The reference range that applies to a patient: age band → lab's sex range →
- * undefined (caller falls back to the built-in default).
+ * The reference range that applies to a patient, in order:
+ *   1. the lab's own age band for this age and sex
+ *   2. the lab's male/female range, if the lab changed it from the built-in one
+ *   3. a built-in age band (only when the lab has not customised the range)
+ *   4. the lab's male/female range
+ * undefined means "no catalog row": the caller falls back to getNormalRange().
  * A malformed age_ranges text is ignored rather than breaking the report.
  */
-export function effectiveCatalogRange(row: CatalogRanges | undefined, sex: Sex, age: number): string | undefined {
+export function effectiveCatalogRange(
+  row: CatalogRanges | undefined,
+  sex: Sex,
+  age: number,
+  builtin?: BuiltinRanges,
+): string | undefined {
   if (!row) return undefined;
   const parsed = parseAgeRanges(row.age_ranges);
   if (parsed.ok && parsed.bands.length) {
     const hit = pickAgeRange(parsed.bands, age, sex);
     if (hit) return hit;
   }
-  const bySex = (sex === "ذكر" ? row.male_range : row.female_range)?.trim();
-  return bySex || undefined;
+  const bySex = (sex === "ذكر" ? row.male_range : row.female_range)?.trim() || undefined;
+  if (builtin?.ageRange && (!bySex || same(bySex, builtin.sexDefault))) return builtin.ageRange;
+  return bySex;
 }

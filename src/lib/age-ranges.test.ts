@@ -71,3 +71,19 @@ test("a malformed stored text never breaks a report", () => {
   const row = { male_range: "13-17", female_range: "12-16", age_ranges: "garbage" };
   assert.equal(effectiveCatalogRange(row, "ذكر", 8), "13-17");
 });
+
+test("built-in age band applies only while the lab range is still the built-in default", () => {
+  const untouched = { male_range: "13-17", female_range: "12-16", age_ranges: null };
+  const builtin = { sexDefault: "13-17", ageRange: "11-14.5" };
+  assert.equal(effectiveCatalogRange(untouched, "ذكر", 8, builtin), "11-14.5");
+  // the lab edited its range: its choice wins over the built-in band
+  const customised = { male_range: "14-18", female_range: "12-16", age_ranges: null };
+  assert.equal(effectiveCatalogRange(customised, "ذكر", 8, builtin), "14-18");
+  // no built-in band for this age: plain sex range
+  assert.equal(effectiveCatalogRange(untouched, "ذكر", 30, { sexDefault: "13-17" }), "13-17");
+  // the lab's own age band beats everything
+  const own = { male_range: "13-17", female_range: "12-16", age_ranges: "1-12: 10-13" };
+  assert.equal(effectiveCatalogRange(own, "ذكر", 8, builtin), "10-13");
+  // empty lab range + built-in band
+  assert.equal(effectiveCatalogRange({ male_range: "", female_range: "" }, "ذكر", 8, builtin), "11-14.5");
+});

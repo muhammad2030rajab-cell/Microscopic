@@ -1,3 +1,4 @@
+import { OfflineStatus } from "@/components/offline-status";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   BookOpen,
@@ -126,6 +127,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               تقرير جديد
             </Link>
           </header>
+
+          <OfflineStatus />
 
           {/* Page */}
           <main className="flex-1 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-10">

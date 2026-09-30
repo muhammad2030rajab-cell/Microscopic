@@ -1,34 +1,34 @@
-import { useEffect, useRef } from "react";
+import { code128Layout } from "@/lib/code128";
+
+const QUIET = 10; // modules of white space each side (Code 128 requires >= 10)
+const HEIGHT = 36;
 
 /**
- * باركود Code128 حقيقي وقابل للمسح بأي قارئ باركود معملي عادي، بدل شريط زخرفي
- * وهمي. بيتولّد في المتصفح فقط (بدون أي اتصال شبكة).
+ * Scannable Code 128 barcode for the sample id. Always black on white,
+ * whatever the theme, because scanners need the contrast. Renders nothing
+ * (rather than a wrong barcode) if the value cannot be encoded.
  */
 export function SampleBarcode({ value }: { value: string }) {
-  const svgRef = useRef<SVGSVGElement>(null);
+  let layout;
+  try {
+    layout = code128Layout(value);
+  } catch {
+    return null;
+  }
+  const width = layout.width + QUIET * 2;
+  const d = layout.bars.map((b) => `M${b.x + QUIET} 0h${b.w}v${HEIGHT}h-${b.w}z`).join("");
 
-  useEffect(() => {
-    if (!value) return;
-    let cancelled = false;
-    import("jsbarcode").then(({ default: JsBarcode }) => {
-      if (cancelled || !svgRef.current) return;
-      try {
-        JsBarcode(svgRef.current, value, {
-          format: "CODE128",
-          displayValue: false,
-          margin: 0,
-          height: 28,
-          width: 1.4,
-        });
-      } catch {
-        // قيمة غير صالحة لترميز Code128 — نسيب الـ SVG فاضي بهدوء.
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [value]);
-
-  if (!value) return null;
-  return <svg ref={svgRef} className="lab-barcode-svg" role="img" aria-label={`باركود العينة ${value}`} />;
+  return (
+    <svg
+      className="lab-barcode-svg"
+      viewBox={`0 0 ${width} ${HEIGHT}`}
+      preserveAspectRatio="none"
+      shapeRendering="crispEdges"
+      role="img"
+      aria-label={`Barcode ${value}`}
+    >
+      <rect width={width} height={HEIGHT} fill="#fff" />
+      <path d={d} fill="#000" />
+    </svg>
+  );
 }

@@ -10,6 +10,7 @@ import {
 
 import { authClient } from "@/lib/auth/client";
 import { getCurrentAccess } from "@/lib/lab-access";
+import { postLoginPath } from "@/lib/post-login-path";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,13 +69,9 @@ function Login() {
 
     const access = await getCurrentAccess();
 
-    if (access.type === "admin") {
-      await navigate({ to: "/admin" });
-      return;
-    }
-
-    if (access.type === "lab") {
-      await navigate({ to: "/lab" });
+    const destination = postLoginPath(access);
+    if (destination) {
+      await navigate({ to: destination });
       return;
     }
 

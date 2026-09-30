@@ -26,6 +26,9 @@
   --color-elevated: #ffffff;
   --color-ring: #2f6fed;
   --color-flag-yellow: #f3d66a;
+  --color-flag-low: #1d4fb8;
+  --color-flag-low-bg: #e3ecfd;
+  --color-row-alt: #f8fafd;
 
   --radius-xs: 4px;
   --radius-sm: 8px;
@@ -92,7 +95,7 @@
    ========================================= */
 
 .lab-sheet {
-  padding: 1.75rem 1.5rem 1.25rem;
+  padding: 3rem 1.5rem 1.25rem;
   border: 1px solid var(--color-line);
   background: var(--color-elevated);
 }
@@ -102,8 +105,15 @@
   top: 0;
   right: 0;
   width: 13.5rem;
-  height: 4rem;
+  height: 2.25rem;
   pointer-events: none;
+}
+
+/* Arabic (RTL) sheet: mirror the corner to the left edge */
+[dir="rtl"] > .lab-corner {
+  right: auto;
+  left: 0;
+  transform: scaleX(-1);
 }
 
 .lab-corner-navy,
@@ -127,7 +137,7 @@
   top: 0;
   right: 0;
   width: 5.75rem;
-  height: 4rem;
+  height: 2.25rem;
   background: var(--color-high);
   clip-path: polygon(
     38% 0,
@@ -150,32 +160,61 @@
 
 .lab-grid {
   border-collapse: collapse;
-  border: 1px solid var(--color-ink);
+  border-top: 2px solid var(--color-ink);
+  border-bottom: 1px solid var(--color-ink);
   min-width: 32rem;
 }
 
 .lab-grid th,
 .lab-grid td {
-  border: 1px solid var(--color-ink);
-  padding: 0.4rem 0.55rem;
+  border-bottom: 1px solid var(--color-line);
+  padding: 0.5rem 0.65rem;
   text-align: start;
   vertical-align: middle;
 }
 
 .lab-grid th {
+  border-bottom: 1px solid var(--color-line-strong);
   background: var(--color-paper-2);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  /* no letter-spacing / uppercase: they break Arabic letter joining */
+}
+
+.lab-grid > tbody > tr:nth-child(even) > td {
+  background: var(--color-row-alt);
+}
+
+.lab-grid > tbody > tr.lab-row-abnormal > td {
+  background: var(--color-high-bg);
+}
+
+.lab-grid > tbody > tr.lab-row-low > td {
+  background: var(--color-flag-low-bg);
+}
+
+.lab-grid td:nth-child(2) {
+  font-size: 1rem;
+}
+
+.lab-bi {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.lab-bi-ar {
+  direction: rtl;
+  unicode-bidi: isolate;
 }
 
 .lab-barcode-svg {
-  display: inline-block;
-  vertical-align: middle;
-  width: 7rem;
-  height: 1.75rem;
-  margin-inline-start: 0.5rem;
+  display: block;
+  width: 15rem;
+  max-width: 100%;
+  height: 2.25rem;
+  background: #fff;
 }
 
 .lab-nested {
@@ -185,6 +224,7 @@
 
 .lab-nested td {
   border: 1px solid var(--color-line-strong);
+  background: transparent;
   padding: 0.15rem 0.4rem;
   font-size: 0.7rem;
 }
@@ -302,12 +342,12 @@
 .lab-info-cell {
   min-height: 3.8rem;
   padding: 0.55rem 0.7rem;
-  border-right: 1px solid var(--color-ink);
+  border-inline-end: 1px solid var(--color-ink);
   border-bottom: 1px solid var(--color-ink);
 }
 
 .lab-info-cell:nth-child(3n) {
-  border-right: 0;
+  border-inline-end: 0;
 }
 
 .lab-info-cell:nth-last-child(-n + 3) {
@@ -317,10 +357,8 @@
 .lab-info-label {
   display: block;
   margin-bottom: 0.22rem;
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
   color: var(--color-muted);
 }
 
@@ -361,18 +399,25 @@
 
 /* =========================================
    ABNORMAL RESULT
+   High / critical = red, low = blue
    ========================================= */
 
 .lab-abnormal-result {
-  display: inline-block !important;
-  min-width: 42px !important;
-  padding: 3px 8px !important;
-  border-radius: 5px !important;
-  background-color: #fecaca !important;
-  color: #991b1b !important;
-  font-weight: 800 !important;
-  text-align: center !important;
-  box-shadow: inset 0 0 0 1px #ef4444 !important;
+  display: inline-block;
+  min-width: 42px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background-color: #fecaca;
+  color: #991b1b;
+  font-weight: 800;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px #ef4444;
+}
+
+.lab-abnormal-low {
+  background-color: #bfd4fb;
+  color: #17418f;
+  box-shadow: inset 0 0 0 1px #2f6fed;
 }
 
 /* =========================================
@@ -393,11 +438,11 @@
   }
 
   .lab-info-cell:nth-child(3n) {
-    border-right: 1px solid var(--color-ink);
+    border-inline-end: 1px solid var(--color-ink);
   }
 
   .lab-info-cell:nth-child(2n) {
-    border-right: 0;
+    border-inline-end: 0;
   }
 
   .lab-info-cell:nth-last-child(-n + 3) {
@@ -427,12 +472,11 @@
    ========================================= */
 
 @media print {
-  .lab-abnormal-result {
-    display: inline-block !important;
-    background-color: #fecaca !important;
-    color: #991b1b !important;
-    print-color-adjust: exact !important;
-    -webkit-print-color-adjust: exact !important;
+  .lab-abnormal-result,
+  .lab-grid td,
+  .lab-grid th {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   html,
@@ -487,7 +531,7 @@
 
   .lab-grid th,
   .lab-grid td {
-    padding: 2.2mm 2mm;
+    padding: 1.8mm 2mm;
   }
 
   .lab-patient-grid {
@@ -503,7 +547,7 @@
   }
 
   .lab-info-cell:nth-child(3n) {
-    border-right: 0;
+    border-inline-end: 0;
   }
 
   .lab-info-cell:nth-last-child(-n + 3) {
@@ -523,12 +567,17 @@
   }
 
   .lab-corner,
-  .lab-barcode,
+  .lab-barcode-svg,
   .lab-band-dm td,
   .lab-band-pre td,
   .lab-band-ok td {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  .lab-barcode-svg {
+    width: 62mm;
+    height: 9mm;
   }
 
   .lab-final-grid {
@@ -539,6 +588,85 @@
   @page {
     size: A4 portrait;
     margin: 0;
+  }
+}
+
+/* =========================================
+   RANGE BAR + RESULT SUMMARY
+   ========================================= */
+
+.lab-rbar {
+  position: relative;
+  height: 0.4rem;
+  margin-top: 0.4rem;
+  border-radius: 999px;
+  background: var(--color-paper-2);
+}
+
+.lab-rbar-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: #9fdcb9;
+}
+
+.lab-rbar-dot {
+  position: absolute;
+  top: 50%;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1px rgb(15 41 66 / 0.35);
+}
+
+.lab-rbar-dot-ok {
+  background: var(--color-ok);
+}
+
+.lab-rbar-dot-high {
+  background: var(--color-high);
+}
+
+.lab-rbar-dot-low {
+  background: var(--color-flag-low);
+}
+
+.lab-rbar-dot-off {
+  border-radius: 2px;
+}
+
+.lab-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding: 0.55rem 0.8rem;
+  border-inline-start: 4px solid;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.lab-summary-ok {
+  border-color: var(--color-ok);
+  background: var(--color-ok-bg);
+}
+
+.lab-summary-flag {
+  border-color: var(--color-high);
+  background: var(--color-high-bg);
+}
+
+@media print {
+  .lab-rbar,
+  .lab-rbar-zone,
+  .lab-rbar-dot,
+  .lab-summary {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 }
 

@@ -4,9 +4,11 @@ import {
   Outlet,
   Scripts,
 } from "@tanstack/react-router";
-import { Toaster } from "sonner";
+import { useEffect } from "react";
+import { Toaster, toast } from "sonner";
 
 import { AuthProvider } from "@/lib/auth/provider";
+import { registerServiceWorker } from "@/lib/offline/sync";
 
 import appCss from "../styles.css?url";
 
@@ -84,6 +86,10 @@ export const Route = createRootRoute({
 });
 
 function RootComponent() {
+  useEffect(() => {
+    registerServiceWorker(() => toast.success("التطبيق جاهز للعمل بدون إنترنت"));
+  }, []);
+
   return (
     <html
       lang="ar"

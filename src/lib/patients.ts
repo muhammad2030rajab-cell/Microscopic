@@ -1,3 +1,4 @@
+import { SQL_FOLD_FROM, SQL_FOLD_TO, escapeLike, normalizeSearch } from "@/lib/search-text";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
@@ -49,7 +50,11 @@ export const searchLabPatients = createServerFn({ method: "GET" })
         return [] as PatientSummary[];
       }
 
-      const like = `%${query}%`;
+      // "احمد" must find "أحمد": fold both sides with the same character lists
+      // (translate() below uses SQL_FOLD_FROM/TO; the query goes through normalizeSearch).
+      const like = `%${escapeLike(normalizeSearch(query))}%`;
+      const foldFrom = SQL_FOLD_FROM;
+      const foldTo = SQL_FOLD_TO;
 
       const rows = await sql<{
         id: string;
@@ -78,7 +83,7 @@ export const searchLabPatients = createServerFn({ method: "GET" })
           and r.lab_id = p.lab_id
         where p.lab_id = ${labId}
           and (
-            p.full_name ilike ${like}
+            translate(lower(p.full_name), ${foldFrom}, ${foldTo}) like ${like}
             or coalesce(p.patient_code, '') ilike ${like}
             or coalesce(p.phone, '') ilike ${like}
             or coalesce(p.national_id, '') ilike ${like}

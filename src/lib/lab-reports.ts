@@ -234,12 +234,65 @@ export const listLabReports = createServerFn({ method: "GET" })
       where r.lab_id = ${lab_id}
       order by r.created_at desc
     `;
+    // The archive needs "how many tests / how many flagged / any critical" per report.
+    // Aggregate in SQL from the stored flags instead of shipping every result row.
+    const counts = await sql<{ report_id: string; total: number; flagged: number; critical: number }>`
+      select rr.report_id,
+             count(*)::int as total,
+             count(*) filter (where rr.flag in ('high', 'low', 'abnormal'))::int as flagged,
+             count(*) filter (where rr.flag = 'critical')::int as critical
+      from report_results rr
+      inner join reports r on r.id = rr.report_id
+      where r.lab_id = ${lab_id}
+      group by rr.report_id
+    `;
+    const byReport = new Map(counts.map((c) => [c.report_id, c]));
+    return rows.map((r) => {
+      const c = byReport.get(r.id);
+      return {
+        id: r.id, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), gender: r.gender,
+        phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "",
+        doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), collectedAt: r.collected_at ? String(r.collected_at).slice(0, 10) : undefined,
+        tests: [], notes: r.notes || undefined,
+        status: r.status, reviewedBy: r.reviewed_by || undefined, approvedAt: r.approved_at ? String(r.approved_at) : undefined,
+        testCount: Number(c?.total ?? 0), flaggedCount: Number(c?.flagged ?? 0), criticalCount: Number(c?.critical ?? 0),
+      };
+    });
+  });
+
+export type RecentReport = {
+  id: string;
+  patientName: string;
+  age: number;
+  gender: "ذكر" | "أنثى";
+  status: "draft" | "pending_review" | "approved" | "cancelled";
+  createdAt: string;
+  criticalCount: number;
+  flaggedCount: number;
+};
+
+/** The latest few reports, for the home screen. Cheap: LIMIT in SQL, one aggregate over just those rows. */
+export const getRecentLabReports = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<RecentReport[]> => {
+    const { sql, lab_id } = await getLabContext(context.userId, "reports.view");
+    const rows = await sql<{
+      id: string; full_name: string; age: number; gender: "ذكر" | "أنثى";
+      status: RecentReport["status"]; created_at: string | Date; total: number; flagged: number; critical: number;
+    }>`
+      select r.id, p.full_name, p.age, p.gender, r.status, r.created_at,
+             (select count(*)::int from report_results rr where rr.report_id = r.id) as total,
+             (select count(*)::int from report_results rr where rr.report_id = r.id and rr.flag in ('high', 'low', 'abnormal')) as flagged,
+             (select count(*)::int from report_results rr where rr.report_id = r.id and rr.flag = 'critical') as critical
+      from reports r
+      inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
+      where r.lab_id = ${lab_id} and r.status <> 'cancelled'
+      order by r.created_at desc
+      limit 5
+    `;
     return rows.map((r) => ({
-      id: r.id, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), gender: r.gender,
-      phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "",
-      doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), collectedAt: r.collected_at ? String(r.collected_at).slice(0, 10) : undefined,
-      tests: [], notes: r.notes || undefined,
-      status: r.status, reviewedBy: r.reviewed_by || undefined, approvedAt: r.approved_at ? String(r.approved_at) : undefined,
+      id: r.id, patientName: r.full_name, age: Number(r.age), gender: r.gender, status: r.status,
+      createdAt: String(r.created_at), criticalCount: Number(r.critical), flaggedCount: Number(r.flagged),
     }));
   });
 

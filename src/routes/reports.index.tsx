@@ -1,12 +1,13 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { Search, SlidersHorizontal } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { Search, SlidersHorizontal, TriangleAlert } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { FlagDot } from "@/components/report/flag-badge";
+import { matchesSearch } from "@/lib/search-text";
+import { loadReportFilters, saveReportFilters, type ReportPeriodFilter, type ReportStatusFilter } from "@/lib/reports-filters";
 import { Input } from "@/components/ui/input";
-import { interpretResult } from "@/lib/medical";
 import { listLabReports } from "@/lib/lab-reports";
-import { formatArDate } from "@/lib/utils";
+import { formatListDate } from "@/lib/utils";
 import { reportStatusClasses, reportStatusLabels } from "@/lib/report-workflow";
 
 type LabReportSummary = Awaited<ReturnType<typeof listLabReports>>[number];
@@ -30,23 +31,47 @@ function ReportsPage() {
 
 function ReportsList({ reports }: { reports: LabReportSummary[] }) {
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState<"all" | "draft" | "pending_review" | "approved" | "cancelled">("all");
-  const [period, setPeriod] = useState<"all" | "month" | "year">("all");
+  const [status, setStatus] = useState<ReportStatusFilter>("all");
+  const [period, setPeriod] = useState<ReportPeriodFilter>("all");
+  const [onlyCritical, setOnlyCritical] = useState(false);
+
+  // Coming back from a report should keep the filters. Restored after mount so
+  // the server-rendered HTML and the first client render match.
+  useEffect(() => {
+    const saved = loadReportFilters();
+    if (saved.q !== undefined) setQ(saved.q);
+    if (saved.status) setStatus(saved.status);
+    if (saved.period) setPeriod(saved.period);
+    if (saved.onlyCritical !== undefined) setOnlyCritical(saved.onlyCritical);
+  }, []);
+  useEffect(() => {
+    saveReportFilters({ q, status, period, onlyCritical });
+  }, [q, status, period, onlyCritical]);
+
+  const criticalTotal = useMemo(() => reports.filter((r) => r.criticalCount > 0).length, [reports]);
+
+  const statusCounts = useMemo(() => {
+    const c = { draft: 0, pending_review: 0, approved: 0, cancelled: 0 };
+    for (const r of reports) c[r.status] += 1;
+    return c;
+  }, [reports]);
 
   const filtered = useMemo(() => {
-    const t = q.trim().toLowerCase();
     const now = new Date();
     return reports.filter((r) => {
       const matchesStatus = status === "all" || r.status === status;
-      const matchesText = !t || [r.patientName, r.doctor, r.id, r.patientCode, r.sampleId].some((v) => v.toLowerCase().includes(t));
+      // Arabic-aware: "احمد" finds "أحمد"; Arabic digits match Latin ones; word order is free.
+      const matchesText = matchesSearch(q, r.patientName, r.doctor, r.id, r.patientCode, r.sampleId, r.phone, r.nationalId);
       const created = new Date(r.createdAt);
+      const sameMonth = created.getFullYear() === now.getFullYear() && created.getMonth() === now.getMonth();
       const matchesPeriod =
         period === "all" ||
         (period === "year" && created.getFullYear() === now.getFullYear()) ||
-        (period === "month" && created.getFullYear() === now.getFullYear() && created.getMonth() === now.getMonth());
-      return matchesStatus && matchesText && matchesPeriod;
+        (period === "month" && sameMonth) ||
+        (period === "today" && sameMonth && created.getDate() === now.getDate());
+      return matchesStatus && matchesText && matchesPeriod && (!onlyCritical || r.criticalCount > 0);
     });
-  }, [q, reports, status, period]);
+  }, [q, reports, status, period, onlyCritical]);
 
   return (
     <AppShell>
@@ -61,7 +86,7 @@ function ReportsList({ reports }: { reports: LabReportSummary[] }) {
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="بحث باسم المريض أو الكود أو العينة"
+              placeholder="بحث بالاسم أو الهاتف أو الكود أو العينة"
               className="ps-9"
             />
           </div>
@@ -69,39 +94,47 @@ function ReportsList({ reports }: { reports: LabReportSummary[] }) {
             <SlidersHorizontal className="pointer-events-none absolute top-3.5 start-3 size-4 text-muted" />
             <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="h-11 w-full appearance-none rounded-lg border border-line bg-elevated ps-9 pe-8 text-sm outline-none focus:border-teal sm:w-48">
               <option value="all">كل الحالات</option>
-              <option value="draft">مسودة</option>
-              <option value="pending_review">في انتظار المراجعة</option>
-              <option value="approved">معتمد</option>
-              <option value="cancelled">ملغي</option>
+              <option value="draft">مسودة ({statusCounts.draft})</option>
+              <option value="pending_review">في انتظار المراجعة ({statusCounts.pending_review})</option>
+              <option value="approved">معتمد ({statusCounts.approved})</option>
+              <option value="cancelled">ملغي ({statusCounts.cancelled})</option>
             </select>
           </label>
         </div>
       </header>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        <PeriodChip active={period === "year"} onClick={() => setPeriod(period === "year" ? "all" : "year")}>هذا العام</PeriodChip>
+        <PeriodChip active={period === "today"} onClick={() => setPeriod(period === "today" ? "all" : "today")}>اليوم</PeriodChip>
         <PeriodChip active={period === "month"} onClick={() => setPeriod(period === "month" ? "all" : "month")}>هذا الشهر</PeriodChip>
+        <PeriodChip active={period === "year"} onClick={() => setPeriod(period === "year" ? "all" : "year")}>هذا العام</PeriodChip>
         <PeriodChip active={period === "all"} onClick={() => setPeriod("all")}>الكل</PeriodChip>
+        {criticalTotal > 0 ? (
+          <PeriodChip active={onlyCritical} onClick={() => setOnlyCritical(!onlyCritical)}>بقيم حرجة ({criticalTotal})</PeriodChip>
+        ) : null}
+        {statusCounts.pending_review > 0 && status !== "pending_review" ? (
+          <PeriodChip active={false} onClick={() => setStatus("pending_review")}>بانتظار المراجعة ({statusCounts.pending_review})</PeriodChip>
+        ) : null}
       </div>
 
       <div className="mb-3 flex items-center justify-between text-xs text-muted">
         <span>عرض {filtered.length} من {reports.length} تقرير</span>
-        {(q || status !== "all" || period !== "all") ? <button type="button" onClick={() => { setQ(""); setStatus("all"); setPeriod("all"); }} className="font-medium text-teal hover:underline">مسح الفلاتر</button> : null}
+        {(q || status !== "all" || period !== "all" || onlyCritical) ? <button type="button" onClick={() => { setQ(""); setStatus("all"); setPeriod("all"); setOnlyCritical(false); }} className="font-medium text-teal hover:underline">مسح الفلاتر</button> : null}
       </div>
 
-      {filtered.length === 0 ? (
+      {reports.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-line px-4 py-12 text-center text-sm text-muted">
+          <p>لا توجد تقارير بعد.</p>
+          <Link to="/new" className="mt-3 inline-flex h-11 items-center rounded-sm bg-teal px-4 font-medium text-teal-fg">إنشاء أول تقرير</Link>
+        </div>
+      ) : filtered.length === 0 ? (
         <p className="rounded-lg border border-dashed border-line px-4 py-12 text-center text-sm text-muted">
           لا توجد تقارير مطابقة.
         </p>
       ) : (
         <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-elevated">
           {filtered.map((r) => {
-            const flags = r.tests.map((t) =>
-              interpretResult(t.name, t.value, r.gender, t.customRange, t.categoryId),
-            );
-            const bad = flags.filter(
-              (f) => f.flag === "high" || f.flag === "low" || f.flag === "abnormal",
-            ).length;
+            const bad = r.flaggedCount;
+            const critical = r.criticalCount;
             return (
               <li key={r.id} className="flex items-stretch">
                 <Link
@@ -112,11 +145,18 @@ function ReportsList({ reports }: { reports: LabReportSummary[] }) {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{r.patientName}</p>
                     <p className="text-xs text-muted">
-                      {r.age} {r.gender} · {r.doctor} · {formatArDate(r.createdAt)}
+                      {r.age} {r.gender} · {r.doctor} · {formatListDate(r.createdAt)}
                     </p>
+                    <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[11px] sm:hidden ${reportStatusClasses[r.status]}`}>{reportStatusLabels[r.status]}</span>
                   </div>
                   <span className={`hidden rounded-full px-2 py-1 text-[11px] sm:inline ${reportStatusClasses[r.status]}`}>{reportStatusLabels[r.status]}</span>
-                  <span className="hidden text-xs text-muted sm:inline">{r.tests.length} تحليل</span>
+                  <span className="hidden text-xs text-muted sm:inline">{r.testCount} تحليل</span>
+                  {critical > 0 ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-high-bg px-2 py-1 text-xs font-medium text-high">
+                      <TriangleAlert className="size-3.5" />
+                      {critical} حرج
+                    </span>
+                  ) : null}
                   <span className="inline-flex items-center gap-1.5 text-xs">
                     <FlagDot flag={bad ? "high" : "normal"} />
                     {bad ? `${bad} علامة` : "طبيعي"}

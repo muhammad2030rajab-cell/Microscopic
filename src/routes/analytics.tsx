@@ -47,7 +47,7 @@ function AnalyticsPage() {
   return (
     <AppShell>
       <header className="mb-5 flex items-center justify-between">
-        <div><p className="text-xs uppercase tracking-[0.18em] text-muted">Lab Analytics</p><h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">التحليلات 📊</h1></div>
+        <div><p className="text-xs uppercase tracking-[0.18em] text-muted">Lab Analytics</p><h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">الإحصائيات 📊</h1></div>
         <Link to="/lab" className="inline-flex items-center gap-2 text-sm text-teal hover:underline"><ArrowRight className="size-4" /> لوحة المعمل</Link>
       </header>
 

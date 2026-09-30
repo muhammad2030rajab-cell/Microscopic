@@ -1,13 +1,11 @@
-// @ts-check
-import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 /**
- * Absolute path of the project root (the folder that contains `migrations/`
- * and `scripts/`). The script tests import it; it was missing from the
- * source archive, which made `npm test` fail before running anything.
- * @returns {string}
+ * كان ملف migration-plan.test.mjs بيستورد projectRoot من هنا، لكن الملف ده
+ * نفسه كان ناقص من المشروع أصلًا — فكان أي تشغيل لـ `npm test` بيفشل فورًا
+ * بخطأ "Cannot find module './with-app-env.mjs'" قبل ما يوصل لأي اختبار حقيقي.
  */
 export function projectRoot() {
-  return resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  return join(dirname(fileURLToPath(import.meta.url)), "..");
 }

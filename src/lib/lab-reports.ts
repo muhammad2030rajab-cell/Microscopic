@@ -1,6 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { effectiveCreatedAt } from "@/lib/offline/created-at";
-import { effectiveCatalogRange } from "@/lib/age-ranges";
 import { randomUUID } from "node:crypto";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
@@ -41,29 +39,12 @@ export type CreateLabReportInput = {
   notes?: string;
   collectedAt?: string;
   tests: DraftTest[];
-  /** Offline support: makes create idempotent across retries (see migration 0012). */
-  clientRequestId?: string;
-  /** When the report was actually entered on the device (ISO). Used if plausible. */
-  clientCreatedAt?: string;
-  /** Lab the device believed it was signed in to; a mismatch is rejected. */
-  expectedLabId?: string;
 };
 
 export const createLabReport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }: { context: { userId: string }; data: CreateLabReportInput }) => {
     const { sql, lab_user_id, lab_id } = await getLabContext(context.userId, "reports.create");
-    if (data.expectedLabId && data.expectedLabId !== lab_id) throw new Error("LAB_MISMATCH");
-    const clientRequestId = data.clientRequestId?.trim().slice(0, 64) || null;
-    if (clientRequestId) {
-      const existing = await sql<{ id: string; patient_name: string; status: "draft" }>`
-        select r.id, p.full_name as patient_name, r.status
-        from reports r inner join patients p on p.id = r.patient_id
-        where r.lab_id = ${lab_id} and r.client_request_id = ${clientRequestId}
-        limit 1
-      `;
-      if (existing.length) return { id: existing[0].id, patientName: existing[0].patient_name, status: "draft" as const };
-    }
     const patientName = data.patientName.trim();
     const age = Number(data.age);
     if (patientName.length < 2) throw new Error("اسم المريض غير صالح");
@@ -73,30 +54,30 @@ export const createLabReport = createServerFn({ method: "POST" })
     const entered = data.tests.filter((t) => t.value.trim());
     if (!entered.length) throw new Error("أدخل نتيجة تحليل واحدة على الأقل");
 
-    const catalogRows = await sql<{ test_name: string; unit: string; male_range: string; female_range: string; age_ranges: string | null; category_id: string; category_name_ar: string; category_name_en: string }>`
-      select test_name, unit, male_range, female_range, age_ranges, category_id, category_name_ar, category_name_en
+    const catalogRows = await sql<{ test_name: string; unit: string; male_range: string; female_range: string; category_id: string; category_name_ar: string; category_name_en: string }>`
+      select test_name, unit, male_range, female_range, category_id, category_name_ar, category_name_en
       from lab_test_catalog
       where lab_id = ${lab_id} and is_active = true
     `;
-    const catalogMap = new Map(catalogRows.map((row) => [`${row.category_id}:${row.test_name}`, row]));
+    const catalogMap = new Map(catalogRows.map((row) => [row.test_name, row]));
     for (const test of entered) {
-      if (!catalogMap.has(`${test.categoryId}:${test.name}`)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
+      if (!catalogMap.has(test.name)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
     }
     const catalogTests = entered.map((test) => {
-      const row = catalogMap.get(`${test.categoryId}:${test.name}`)!;
+      const row = catalogMap.get(test.name)!;
       return {
         ...test,
         categoryId: row.category_id,
         categoryAr: row.category_name_ar,
         categoryEn: row.category_name_en,
         unit: row.unit,
-        customRange: effectiveCatalogRange(row, data.gender, age) || test.customRange,
+        customRange: (data.gender === "ذكر" ? row.male_range : row.female_range) || test.customRange,
       };
     });
     const tests = addCalculatedTests(catalogTests, data.gender, age);
     const patientId = randomUUID();
     const reportId = randomUUID();
-    const now = effectiveCreatedAt(data.clientCreatedAt);
+    const now = new Date();
     const dateKey = now.toISOString().slice(0, 10).replaceAll("-", "");
     const patientCode = data.patientCode?.trim() || `P-${dateKey}-${randomUUID().slice(0, 4).toUpperCase()}`;
     const sampleId = `S-${dateKey}-${randomUUID().slice(0, 6).toUpperCase()}`;
@@ -108,14 +89,14 @@ export const createLabReport = createServerFn({ method: "POST" })
     );
 
     await sql.query(
-      `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by, created_at, client_request_id)
-       values ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10)`,
-      [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id, now.toISOString(), clientRequestId],
+      `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by)
+       values ($1,$2,$3,$4,$5,'draft',$6,$7,$8)`,
+      [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id],
     );
 
     for (let i = 0; i < tests.length; i += 1) {
       const test = tests[i];
-      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, test.categoryId);
+      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, data.age);
       const critical = isCritical(test.name, test.value);
       const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
       await sql.query(
@@ -126,7 +107,7 @@ export const createLabReport = createServerFn({ method: "POST" })
         [
           randomUUID(), reportId, `${test.categoryId}:${test.name}`, test.name,
           test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null,
-          test.customRange?.trim() || getNormalRange(test.name, data.gender, test.categoryId), flag,
+          test.customRange?.trim() || getNormalRange(test.name, data.gender, data.age), flag,
           interpretation.note, i,
         ],
       );
@@ -180,15 +161,15 @@ export const updateLabReport = createServerFn({ method: "POST" })
     const entered = data.tests.filter((t) => t.value.trim());
     if (!entered.length) throw new Error("أدخل نتيجة تحليل واحدة على الأقل");
 
-    const catalogRows = await sql<{ test_name: string; unit: string; male_range: string; female_range: string; age_ranges: string | null; category_id: string; category_name_ar: string; category_name_en: string }>`
-      select test_name, unit, male_range, female_range, age_ranges, category_id, category_name_ar, category_name_en
+    const catalogRows = await sql<{ test_name: string; unit: string; male_range: string; female_range: string; category_id: string; category_name_ar: string; category_name_en: string }>`
+      select test_name, unit, male_range, female_range, category_id, category_name_ar, category_name_en
       from lab_test_catalog where lab_id = ${lab_id} and is_active = true
     `;
-    const catalogMap = new Map(catalogRows.map((row) => [`${row.category_id}:${row.test_name}`, row]));
-    for (const test of entered) if (!catalogMap.has(`${test.categoryId}:${test.name}`)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
+    const catalogMap = new Map(catalogRows.map((row) => [row.test_name, row]));
+    for (const test of entered) if (!catalogMap.has(test.name)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
     const catalogTests = entered.map((test) => {
-      const row = catalogMap.get(`${test.categoryId}:${test.name}`)!;
-      return { ...test, categoryId: row.category_id, categoryAr: row.category_name_ar, categoryEn: row.category_name_en, unit: row.unit, customRange: effectiveCatalogRange(row, data.gender, age) || test.customRange };
+      const row = catalogMap.get(test.name)!;
+      return { ...test, categoryId: row.category_id, categoryAr: row.category_name_ar, categoryEn: row.category_name_en, unit: row.unit, customRange: (data.gender === "ذكر" ? row.male_range : row.female_range) || test.customRange };
     });
     const tests = addCalculatedTests(catalogTests, data.gender, age);
 
@@ -203,12 +184,12 @@ export const updateLabReport = createServerFn({ method: "POST" })
     await sql.query(`delete from report_results where report_id=$1`, [data.id]);
     for (let i = 0; i < tests.length; i += 1) {
       const test = tests[i];
-      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, test.categoryId);
+      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, data.age);
       const critical = isCritical(test.name, test.value);
       const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
       await sql.query(
         `insert into report_results (id, report_id, test_id, test_name, category_id, category_ar, category_en, result_value, unit, reference_range, flag, interpretation, sort_order) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [randomUUID(), data.id, `${test.categoryId}:${test.name}`, test.name, test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null, test.customRange?.trim() || getNormalRange(test.name, data.gender, test.categoryId), flag, interpretation.note, i],
+        [randomUUID(), data.id, `${test.categoryId}:${test.name}`, test.name, test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null, test.customRange?.trim() || getNormalRange(test.name, data.gender, data.age), flag, interpretation.note, i],
       );
     }
     await sql.query(
@@ -234,65 +215,12 @@ export const listLabReports = createServerFn({ method: "GET" })
       where r.lab_id = ${lab_id}
       order by r.created_at desc
     `;
-    // The archive needs "how many tests / how many flagged / any critical" per report.
-    // Aggregate in SQL from the stored flags instead of shipping every result row.
-    const counts = await sql<{ report_id: string; total: number; flagged: number; critical: number }>`
-      select rr.report_id,
-             count(*)::int as total,
-             count(*) filter (where rr.flag in ('high', 'low', 'abnormal'))::int as flagged,
-             count(*) filter (where rr.flag = 'critical')::int as critical
-      from report_results rr
-      inner join reports r on r.id = rr.report_id
-      where r.lab_id = ${lab_id}
-      group by rr.report_id
-    `;
-    const byReport = new Map(counts.map((c) => [c.report_id, c]));
-    return rows.map((r) => {
-      const c = byReport.get(r.id);
-      return {
-        id: r.id, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), gender: r.gender,
-        phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "",
-        doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), collectedAt: r.collected_at ? String(r.collected_at).slice(0, 10) : undefined,
-        tests: [], notes: r.notes || undefined,
-        status: r.status, reviewedBy: r.reviewed_by || undefined, approvedAt: r.approved_at ? String(r.approved_at) : undefined,
-        testCount: Number(c?.total ?? 0), flaggedCount: Number(c?.flagged ?? 0), criticalCount: Number(c?.critical ?? 0),
-      };
-    });
-  });
-
-export type RecentReport = {
-  id: string;
-  patientName: string;
-  age: number;
-  gender: "ذكر" | "أنثى";
-  status: "draft" | "pending_review" | "approved" | "cancelled";
-  createdAt: string;
-  criticalCount: number;
-  flaggedCount: number;
-};
-
-/** The latest few reports, for the home screen. Cheap: LIMIT in SQL, one aggregate over just those rows. */
-export const getRecentLabReports = createServerFn({ method: "GET" })
-  .middleware([authMiddleware])
-  .handler(async ({ context }): Promise<RecentReport[]> => {
-    const { sql, lab_id } = await getLabContext(context.userId, "reports.view");
-    const rows = await sql<{
-      id: string; full_name: string; age: number; gender: "ذكر" | "أنثى";
-      status: RecentReport["status"]; created_at: string | Date; total: number; flagged: number; critical: number;
-    }>`
-      select r.id, p.full_name, p.age, p.gender, r.status, r.created_at,
-             (select count(*)::int from report_results rr where rr.report_id = r.id) as total,
-             (select count(*)::int from report_results rr where rr.report_id = r.id and rr.flag in ('high', 'low', 'abnormal')) as flagged,
-             (select count(*)::int from report_results rr where rr.report_id = r.id and rr.flag = 'critical') as critical
-      from reports r
-      inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
-      where r.lab_id = ${lab_id} and r.status <> 'cancelled'
-      order by r.created_at desc
-      limit 5
-    `;
     return rows.map((r) => ({
-      id: r.id, patientName: r.full_name, age: Number(r.age), gender: r.gender, status: r.status,
-      createdAt: String(r.created_at), criticalCount: Number(r.critical), flaggedCount: Number(r.flagged),
+      id: r.id, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), gender: r.gender,
+      phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "",
+      doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), collectedAt: r.collected_at ? String(r.collected_at).slice(0, 10) : undefined,
+      tests: [], notes: r.notes || undefined,
+      status: r.status, reviewedBy: r.reviewed_by || undefined, approvedAt: r.approved_at ? String(r.approved_at) : undefined,
     }));
   });
 
@@ -404,4 +332,38 @@ export const deleteLabReport = createServerFn({ method: "POST" })
       [randomUUID(), lab_id, lab_user_id, context.userId, "report.deleted", "report", data.id],
     );
     return { ok: true };
+  });
+
+export type PreviousResults = {
+  reportDate: string;
+  values: Record<string, string>;
+};
+
+/** آخر نتائج معتمدة لنفس المريض (غير التقرير الحالي) — لمقارنة الاتجاه بين الزيارات. */
+export const getPreviousResults = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }: { context: { userId: string }; data: { reportId: string } }): Promise<PreviousResults | null> => {
+    const { sql, lab_id } = await getLabContext(context.userId, "reports.view");
+
+    const current = await sql<{ patient_id: string; created_at: string | Date }>`
+      select patient_id, created_at from reports where id = ${data.reportId} and lab_id = ${lab_id} limit 1
+    `;
+    if (!current.length) return null;
+
+    const previous = await sql<{ id: string; created_at: string | Date }>`
+      select id, created_at from reports
+      where patient_id = ${current[0].patient_id} and lab_id = ${lab_id}
+        and id != ${data.reportId} and status = 'approved' and created_at < ${current[0].created_at}
+      order by created_at desc
+      limit 1
+    `;
+    if (!previous.length) return null;
+
+    const results = await sql<{ test_name: string; result_value: string | null }>`
+      select test_name, result_value from report_results where report_id = ${previous[0].id}
+    `;
+    const values: Record<string, string> = {};
+    for (const r of results) if (r.result_value) values[r.test_name] = r.result_value;
+
+    return { reportDate: String(previous[0].created_at), values };
   });

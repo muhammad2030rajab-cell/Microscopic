@@ -1,11 +1,10 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { Search, Settings2 } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { listLabCatalog, updateLabCatalogItem, type LabCatalogRow } from "@/lib/lab-catalog";
 import { getCurrentLab } from "@/lib/lab-access";
-import { parseAgeRanges } from "@/lib/age-ranges";
 
 export const Route = createFileRoute("/catalog")({
   loader: async () => {
@@ -29,8 +28,6 @@ function CatalogPage() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [saving, setSaving] = useState<string | null>(null);
-  const [openAge, setOpenAge] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<{ id: string; message: string } | null>(null);
 
   const categories = useMemo(() => Array.from(new Map(items.map((x) => [x.category_id, { id: x.category_id, ar: x.category_name_ar }])).values()), [items]);
   const results = useMemo(() => items.filter((x) =>
@@ -41,18 +38,9 @@ function CatalogPage() {
   if (!lab) return <NavigateToLogin />;
 
   async function save(item: LabCatalogRow) {
-    setSaveError(null);
-    const parsed = parseAgeRanges(item.age_ranges);
-    if (!parsed.ok) {
-      setOpenAge(item.id);
-      setSaveError({ id: item.id, message: parsed.error });
-      return;
-    }
     setSaving(item.id);
     try {
-      await updateLabCatalogItem({ data: { id: item.id, unit: item.unit, maleRange: item.male_range, femaleRange: item.female_range, ageRanges: item.age_ranges, isActive: item.is_active } });
-    } catch (error) {
-      setSaveError({ id: item.id, message: error instanceof Error ? error.message : "تعذر الحفظ" });
+      await updateLabCatalogItem({ data: { id: item.id, unit: item.unit, maleRange: item.male_range, femaleRange: item.female_range, isActive: item.is_active } });
     } finally { setSaving(null); }
   }
 
@@ -83,21 +71,14 @@ function CatalogPage() {
         <div className="mt-5 overflow-x-auto rounded-xl border border-line bg-elevated">
           <table className="w-full min-w-[850px] text-sm">
             <thead className="bg-paper-2/70 text-[11px] text-muted"><tr><th className="px-4 py-3 text-start">التحليل</th><th className="px-4 py-3 text-start">الوحدة</th><th className="px-4 py-3 text-start">ذكر</th><th className="px-4 py-3 text-start">أنثى</th><th className="px-4 py-3 text-start">الحالة</th><th className="px-4 py-3 text-start">إجراء</th></tr></thead>
-            <tbody>{results.map((item) => <Fragment key={item.id}><tr className="border-t border-line align-top">
-              <td className="px-4 py-3"><div className="font-medium">{item.test_name}</div><Badge className="mt-1">{item.category_name_ar}</Badge>{lab.role === "owner" || item.age_ranges ? <button type="button" onClick={() => setOpenAge(openAge === item.id ? null : item.id)} aria-expanded={openAge === item.id} className="mt-2 block text-xs text-teal underline-offset-2 hover:underline">{item.age_ranges ? `نطاقات حسب السن (${(parseAgeRanges(item.age_ranges).ok ? (parseAgeRanges(item.age_ranges) as { bands: unknown[] }).bands.length : "!")})` : "+ نطاقات حسب السن"}</button> : null}</td>
+            <tbody>{results.map((item) => <tr key={item.id} className="border-t border-line align-top">
+              <td className="px-4 py-3"><div className="font-medium">{item.test_name}</div><Badge className="mt-1">{item.category_name_ar}</Badge></td>
               <td className="px-4 py-3">{lab.role === "owner" ? <Input value={item.unit} onChange={(e) => patch(item.id, { unit: e.target.value })} /> : item.unit || "—"}</td>
               <td className="px-4 py-3">{lab.role === "owner" ? <Input value={item.male_range} onChange={(e) => patch(item.id, { male_range: e.target.value })} /> : item.male_range}</td>
               <td className="px-4 py-3">{lab.role === "owner" ? <Input value={item.female_range} onChange={(e) => patch(item.id, { female_range: e.target.value })} /> : item.female_range}</td>
               <td className="px-4 py-3">{lab.role === "owner" ? <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={item.is_active} onChange={(e) => patch(item.id, { is_active: e.target.checked })} /> {item.is_active ? "مفعل" : "متوقف"}</label> : <Badge>{item.is_active ? "مفعل" : "متوقف"}</Badge>}</td>
               <td className="px-4 py-3">{lab.role === "owner" ? <button disabled={saving === item.id} onClick={() => save(item)} className="rounded-lg bg-ink px-3 py-2 text-xs text-paper disabled:opacity-50">{saving === item.id ? "جارٍ الحفظ…" : "حفظ"}</button> : <span className="text-xs text-muted">عرض فقط</span>}</td>
-            </tr>
-            {openAge === item.id ? <tr className="bg-paper-2/40"><td colSpan={6} className="px-4 py-3">
-              <label className="block text-xs font-medium" htmlFor={`age-${item.id}`}>نطاقات حسب السن — {item.test_name}</label>
-              {lab.role === "owner" ? <textarea id={`age-${item.id}`} dir="ltr" rows={4} value={item.age_ranges ?? ""} onChange={(e) => { patch(item.id, { age_ranges: e.target.value }); setSaveError(null); }} placeholder={"1-12: 11.5-15.5\n12-18 ذكر: 13-16\n12-18 أنثى: 12-16\n65+: 12-16.5"} className="mt-1 w-full rounded-sm border border-line bg-elevated p-2 font-mono text-xs" /> : <pre dir="ltr" className="mt-1 whitespace-pre-wrap font-mono text-xs">{item.age_ranges}</pre>}
-              <p className="mt-1 text-[11px] leading-5 text-muted">سطر لكل نطاق: <span dir="ltr" className="font-mono">من-إلى: المدى</span> بالسنوات، والحد الأعلى غير مشمول (12-18 = من 12 لحد 17). للنوع أضف ذكر أو أنثى بعد السن. لو السن مش مغطى بيتطبق مدى الذكر/الأنثى العادي. اكتب المدى من كيت/جهاز معملك.</p>
-              {(() => { const v = parseAgeRanges(item.age_ranges); const msg = saveError?.id === item.id ? saveError.message : !v.ok ? v.error : null; return msg ? <p role="alert" className="mt-1 text-xs text-high">{msg}</p> : null; })()}
-            </td></tr> : null}
-            </Fragment>)}</tbody>
+            </tr>)}</tbody>
           </table>
         </div>
         <div className="mt-4 flex items-center gap-2 text-xs text-muted"><Settings2 className="size-4" /> التعديلات محفوظة لكل معمل بشكل مستقل.</div>

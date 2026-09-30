@@ -1216,32 +1216,50 @@ export const CATEGORIES: Category[] = [
 ];
 
 export const TEST_INDEX: Record<string, { test: TestDef; category: Category }> = {};
-// Some names repeat across categories ("Color", "Blood", "RBCs"), so the plain
-// name index is ambiguous. This one is exact: `${categoryId}:${testName}`.
-export const TEST_BY_CATEGORY: Record<string, { test: TestDef; category: Category }> = {};
 for (const category of CATEGORIES) {
   for (const test of category.tests) {
     TEST_INDEX[test.name] = { test, category };
-    TEST_BY_CATEGORY[`${category.id}:${test.name}`] = { test, category };
   }
 }
 
-function lookupTest(testName: string, categoryId?: string) {
-  return (categoryId && TEST_BY_CATEGORY[`${categoryId}:${testName}`]) || TEST_INDEX[testName];
-}
+/**
+ * مدى مرجعي حسب السن لبعض التحاليل المعروف تأثرها الواضح بالعمر (نقطة بداية،
+ * وليست قائمة شاملة). القيم دي شائعة في المراجع الطبية، لكن ينصح بمراجعتها من
+ * مدير المعمل قبل الاعتماد عليها في تقارير الأطفال أو كبار السن.
+ */
+const AGE_BAND_OVERRIDES: Record<string, { maxAge: number; male: string; female: string }[]> = {
+  Hemoglobin: [
+    { maxAge: 0.04, male: "13.5-24.0", female: "13.5-24.0" }, // حديثي الولادة (أول أسبوعين)
+    { maxAge: 1, male: "9.5-14.0", female: "9.5-14.0" }, // رضّع حتى سنة
+    { maxAge: 12, male: "11.0-14.5", female: "11.0-14.5" }, // أطفال
+    { maxAge: 18, male: "13.0-16.0", female: "12.0-15.0" }, // مراهقون
+  ],
+  ALP: [
+    { maxAge: 2, male: "حتى 350", female: "حتى 350" },
+    { maxAge: 10, male: "حتى 300", female: "حتى 300" },
+    { maxAge: 18, male: "حتى 390", female: "حتى 320" }, // ارتفاع طبيعي وقت البلوغ والنمو
+  ],
+};
 
-export function getNormalRange(testName: string, gender: Gender, categoryId?: string): string {
-  const hit = lookupTest(testName, categoryId);
+export function getNormalRange(testName: string, gender: Gender, age?: number): string {
+  const hit = TEST_INDEX[testName];
   if (!hit) return "غير محدد";
+
+  if (typeof age === "number" && Number.isFinite(age) && age >= 0) {
+    const bands = AGE_BAND_OVERRIDES[testName];
+    const band = bands?.find((b) => age <= b.maxAge);
+    if (band) return gender === "أنثى" ? band.female : band.male;
+  }
+
   return gender === "أنثى" ? hit.test.female : hit.test.male;
 }
 
-export function getTestUnit(testName: string, categoryId?: string): string {
-  return lookupTest(testName, categoryId)?.test.unit ?? "";
+export function getTestUnit(testName: string): string {
+  return TEST_INDEX[testName]?.test.unit ?? "";
 }
 
-export function getCategoryForTest(testName: string, categoryId?: string): Category | undefined {
-  return lookupTest(testName, categoryId)?.category;
+export function getCategoryForTest(testName: string): Category | undefined {
+  return TEST_INDEX[testName]?.category;
 }
 
 export function searchTests(query: string) {

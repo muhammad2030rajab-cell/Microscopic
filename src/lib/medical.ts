@@ -4,8 +4,6 @@ import {
   getNormalRange,
   getTestUnit,
 } from "./tests-catalog";
-import { qualitativeVerdict } from "./qualitative-options";
-import { toNumberText } from "./numerals";
 
 export type Flag = "normal" | "high" | "low" | "abnormal" | "unknown";
 
@@ -33,11 +31,11 @@ const QUALITATIVE_NORMAL = new Set([
 
 export function parseRange(text: string): NumericRange | null {
   if (!text) return null;
-  const t = toNumberText(text).trim();
+  const t = text.trim();
   if (!t || t.includes(":") || QUALITATIVE_NORMAL.has(t.toLowerCase())) return null;
 
   const firstNum = (s: string) => {
-    const m = s.match(/-?\d+(?:\.\d+)?/);
+    const m = s.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
     return m ? Number(m[0]) : undefined;
   };
 
@@ -55,8 +53,7 @@ export function parseRange(text: string): NumericRange | null {
 }
 
 export function parseValue(value: string): number | null {
-  // Handles Arabic digits (٥٫٢) and decimal commas (5,2) as well as 1,200.
-  const m = toNumberText(value).match(/-?\d+(?:\.\d+)?/);
+  const m = value.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
   if (!m) return null;
   const n = Number(m[0]);
   return Number.isFinite(n) ? n : null;
@@ -117,29 +114,12 @@ export function interpretResult(
   value: string,
   gender: Gender,
   customRange?: string,
-  categoryId?: string,
+  age?: number,
 ): Interpretation {
-  const defaultRange = getNormalRange(testName, gender, categoryId);
-  const rangeText = customRange?.trim() || defaultRange;
+  const rangeText = customRange?.trim() || getNormalRange(testName, gender, age);
   const trimmed = value.trim();
   if (!trimmed) {
     return { flag: "unknown", label: "بدون قيمة", note: "لم تُدخل نتيجة بعد." };
-  }
-
-  // Pick-list tests (urine / stool): the chosen option carries its own verdict,
-  // unless the lab overrode the reference range for this test.
-  if (rangeText.toLowerCase() === defaultRange.trim().toLowerCase()) {
-    const verdict = qualitativeVerdict(categoryId, testName, trimmed);
-    if (verdict === "normal") {
-      return { flag: "normal", label: "طبيعي", note: "النتيجة ضمن المتوقع." };
-    }
-    if (verdict === "abnormal") {
-      return {
-        flag: "abnormal",
-        label: "غير طبيعي",
-        note: `المتوقع: ${defaultRange}`,
-      };
-    }
   }
 
   const qualitative = QUALITATIVE_NORMAL.has(rangeText.toLowerCase());
@@ -177,21 +157,32 @@ export function interpretResult(
   return { flag: "normal", label: "طبيعي", note: "النتيجة ضمن المعدل الطبيعي." };
 }
 
+/**
+ * قيم حرجة (Critical / Panic Values) شائعة ومنشورة في المراجع الطبية (زي قوائم
+ * CAP والمعامل الجامعية). دي نقطة بداية معقولة، لكن لازم مدير المعمل يراجعها
+ * ويعدّلها حسب بروتوكول معمله الخاص — القيم الحرجة بتختلف شوية من معمل لمعمل.
+ */
+const CRITICAL_RULES: Record<string, { high?: number; low?: number }> = {
+  "Fasting Glucose": { high: 300, low: 50 },
+  "Random Glucose": { high: 300, low: 50 },
+  Glucose: { high: 300, low: 50 },
+  Potassium: { high: 6.5, low: 2.5 },
+  Sodium: { high: 155, low: 120 },
+  Hemoglobin: { low: 7 },
+  "Troponin I": { high: 0.04 },
+  "Troponin T": { high: 0.01 },
+  Creatinine: { high: 4 },
+  Calcium: { high: 13, low: 6.5 },
+  "Ionized Calcium": { high: 6.2, low: 2.8 },
+  INR: { high: 5 },
+  WBCs: { high: 30, low: 2 },
+  Platelets: { low: 20 },
+};
+
 export function isCritical(testName: string, value: string): boolean {
   const num = parseValue(value);
   if (num == null) return false;
-  const rules: Record<string, { high?: number; low?: number }> = {
-    "Fasting Glucose": { high: 300, low: 50 },
-    "Random Glucose": { high: 300, low: 50 },
-    Glucose: { high: 300, low: 50 },
-    Potassium: { high: 6.5, low: 2.5 },
-    Sodium: { high: 155, low: 120 },
-    Hemoglobin: { low: 7 },
-    "Troponin I": { high: 0.04 },
-    "Troponin T": { high: 0.01 },
-    Creatinine: { high: 4 },
-  };
-  const rule = rules[testName];
+  const rule = CRITICAL_RULES[testName];
   if (!rule) return false;
   if (rule.high != null && num > rule.high) return true;
   if (rule.low != null && num < rule.low) return true;

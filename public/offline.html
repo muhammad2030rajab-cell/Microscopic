@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8fafc">
+  <title>لا يوجد اتصال</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f8fafc; --ink:#0f2942; --muted:#5b6b7c; --card:#fff; --line:#d6dee6; --accent:#0f6b63; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#0e1a26; --ink:#e8eef4; --muted:#9db0c2; --card:#15263a; --line:#26405a; --accent:#5fd0c4; } }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100dvh; display:grid; place-items:center; padding:1.5rem; background:var(--bg); color:var(--ink);
+           font-family: "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
+    main { width:100%; max-width:26rem; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:1.5rem; }
+    h1 { margin:0 0 .5rem; font-size:1.25rem; }
+    p { margin:0 0 1rem; line-height:1.8; color:var(--muted); font-size:.95rem; }
+    a, button { display:flex; align-items:center; justify-content:center; width:100%; min-height:2.75rem; border-radius:8px;
+                font:inherit; font-weight:600; text-decoration:none; cursor:pointer; }
+    a { background:var(--accent); color:#fff; border:0; margin-bottom:.6rem; }
+    button { background:transparent; color:var(--ink); border:1px solid var(--line); }
+    @media (prefers-color-scheme: dark) { a { color:#08211e; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>لا يوجد اتصال بالإنترنت</h1>
+    <p>الصفحة دي محتاجة اتصال. تقدر تكمل إنشاء تقارير جديدة، وهتتحفظ على جهازك وتتبعت تلقائيًا أول ما الاتصال يرجع.</p>
+    <a href="/new">إنشاء تقرير جديد</a>
+    <button type="button" onclick="location.reload()">إعادة المحاولة</button>
+  </main>
+</body>
+</html>

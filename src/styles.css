@@ -109,6 +109,13 @@
   pointer-events: none;
 }
 
+/* Arabic (RTL) sheet: mirror the corner to the left edge */
+[dir="rtl"] > .lab-corner {
+  right: auto;
+  left: 0;
+  transform: scaleX(-1);
+}
+
 .lab-corner-navy,
 .lab-corner-red {
   position: absolute;
@@ -202,21 +209,12 @@
   unicode-bidi: isolate;
 }
 
-.lab-barcode {
-  display: inline-block;
-  vertical-align: middle;
-  width: 7rem;
-  height: 1.4rem;
-  margin-inline-start: 0.5rem;
-  background: repeating-linear-gradient(
-    90deg,
-    var(--color-ink) 0 2px,
-    transparent 2px 3px,
-    var(--color-ink) 3px 4px,
-    transparent 4px 7px,
-    var(--color-ink) 7px 10px,
-    transparent 10px 12px
-  );
+.lab-barcode-svg {
+  display: block;
+  width: 15rem;
+  max-width: 100%;
+  height: 2.25rem;
+  background: #fff;
 }
 
 .lab-nested {
@@ -344,12 +342,12 @@
 .lab-info-cell {
   min-height: 3.8rem;
   padding: 0.55rem 0.7rem;
-  border-right: 1px solid var(--color-ink);
+  border-inline-end: 1px solid var(--color-ink);
   border-bottom: 1px solid var(--color-ink);
 }
 
 .lab-info-cell:nth-child(3n) {
-  border-right: 0;
+  border-inline-end: 0;
 }
 
 .lab-info-cell:nth-last-child(-n + 3) {
@@ -440,11 +438,11 @@
   }
 
   .lab-info-cell:nth-child(3n) {
-    border-right: 1px solid var(--color-ink);
+    border-inline-end: 1px solid var(--color-ink);
   }
 
   .lab-info-cell:nth-child(2n) {
-    border-right: 0;
+    border-inline-end: 0;
   }
 
   .lab-info-cell:nth-last-child(-n + 3) {
@@ -549,7 +547,7 @@
   }
 
   .lab-info-cell:nth-child(3n) {
-    border-right: 0;
+    border-inline-end: 0;
   }
 
   .lab-info-cell:nth-last-child(-n + 3) {
@@ -569,12 +567,17 @@
   }
 
   .lab-corner,
-  .lab-barcode,
+  .lab-barcode-svg,
   .lab-band-dm td,
   .lab-band-pre td,
   .lab-band-ok td {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  .lab-barcode-svg {
+    width: 62mm;
+    height: 9mm;
   }
 
   .lab-final-grid {

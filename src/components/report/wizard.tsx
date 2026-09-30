@@ -1,12 +1,14 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Check, ChevronLeft, ChevronRight, Search, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Check, ChevronLeft, ChevronRight, Loader2, Search, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
-import { getQualitativeOptions } from "@/lib/qualitative-options";
+import { getNormalDefault, getQualitativeOptions } from "@/lib/qualitative-options";
+import { effectiveCatalogRange } from "@/lib/age-ranges";
+import { normalizeNumerals } from "@/lib/numerals";
 import { FlagBadge } from "@/components/report/flag-badge";
 import { interpretResult } from "@/lib/medical";
 import { useLabStore, type Draft } from "@/lib/store";
@@ -20,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { createLabReport, updateLabReport } from "@/lib/lab-reports";
 import type { LabCatalogRow } from "@/lib/lab-catalog";
 import { searchLabPatients, type PatientSummary } from "@/lib/patients";
+import { isOffline, newRequestId, queueReport } from "@/lib/offline/sync";
 
 const STEPS = ["المريض", "التحاليل", "النتائج", "المراجعة"];
 
@@ -34,13 +37,15 @@ const PACKS: { label: string; ids: string[] }[] = [
   { label: "كشف شامل", ids: ["c1", "c2", "c3", "c4", "c5"] },
 ];
 
-export function ReportWizard({ catalog, editReport }: { catalog: LabCatalogRow[]; editReport?: { id: string; draft: Draft } }) {
+export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatalogRow[]; editReport?: { id: string; draft: Draft }; labId?: string }) {
   const draft = useLabStore((s) => s.draft);
   const setDraft = useLabStore((s) => s.setDraft);
   const resetDraft = useLabStore((s) => s.resetDraft);
   const save = useLabStore((s) => s.saveDraftAsReport);
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const [saving, setSaving] = useState(false);
+  const submitting = useRef(false);
 
   useEffect(() => {
     if (editReport) setDraft({ ...editReport.draft });
@@ -70,18 +75,40 @@ export function ReportWizard({ catalog, editReport }: { catalog: LabCatalogRow[]
     setDraft({ step: Math.max(0, Math.min(STEPS.length - 1, next)) });
   }
 
-  function canNext() {
-    if (step === 0) {
-      return (
-        draft.patientName.trim().length > 1 &&
-        Number(draft.age) > 0 &&
-        (draft.gender === "ذكر" || draft.gender === "أنثى")
-      );
+  /** Why this step cannot be left yet, in words the user can act on; null = fine. */
+  function stepBlock(s: number): string | null {
+    if (s === 0) {
+      if (draft.patientName.trim().length < 2) return "اكتب اسم المريض";
+      const age = Number(draft.age);
+      if (!Number.isInteger(age) || age < 1 || age > 130) return "اكتب السن بالسنوات (من 1 إلى 130)";
+      if (draft.gender !== "ذكر" && draft.gender !== "أنثى") return "اختر النوع";
     }
-    if (step === 1) return draft.tests.length > 0;
-    if (step === 2) return draft.tests.some((t) => t.value.trim());
-    return true;
+    if (s === 1 && draft.tests.length === 0) return "اختر تحليلًا واحدًا على الأقل";
+    if (s === 2 && !draft.tests.some((t) => t.value.trim())) return "أدخل نتيجة واحدة على الأقل";
+    return null;
   }
+
+  const blockReason = stepBlock(step);
+  const canNext = () => blockReason === null;
+
+  /** Step-bar taps: going back is free; going forward needs the steps in between to be complete. */
+  function goStep(target: number) {
+    if (target <= step) return go(target);
+    for (let s = step; s < target; s += 1) {
+      const why = stepBlock(s);
+      if (why) {
+        go(s);
+        toast.error(why);
+        return;
+      }
+    }
+    go(target);
+  }
+
+  // Every step starts at the top; otherwise the next step opens scrolled to the bottom on a phone.
+  useEffect(() => {
+    if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+  }, [step]);
 
   function toggleCategory(id: string) {
     const on = draft.selectedCategoryIds.includes(id);
@@ -92,9 +119,22 @@ export function ReportWizard({ catalog, editReport }: { catalog: LabCatalogRow[]
     setDraft({ selectedCategoryIds, tests });
   }
 
+  /** A ready-made pack selects its categories AND all their tests (undo from the toast). */
   function applyPack(ids: string[]) {
+    const before = { selectedCategoryIds: draft.selectedCategoryIds, tests: draft.tests };
     const selectedCategoryIds = Array.from(new Set([...draft.selectedCategoryIds, ...ids]));
-    setDraft({ selectedCategoryIds });
+    const have = new Set(draft.tests.map((t) => `${t.categoryId}:${t.name}`));
+    const added = catalogCategories
+      .filter((c) => ids.includes(c.id))
+      .flatMap((c) =>
+        c.tests
+          .filter((t) => !have.has(`${c.id}:${t.name}`))
+          .map((def) => ({ name: def.name, categoryId: c.id, categoryAr: c.nameAr, categoryEn: c.nameEn, value: "", unit: def.unit })),
+      );
+    setDraft({ selectedCategoryIds, tests: [...draft.tests, ...added] });
+    if (added.length) {
+      toast.success(`تمت إضافة ${added.length} تحليل`, { action: { label: "تراجع", onClick: () => setDraft(before) } });
+    }
   }
 
   function toggleTest(category: Category, name: string) {
@@ -139,6 +179,24 @@ export function ReportWizard({ catalog, editReport }: { catalog: LabCatalogRow[]
     setDraft({ tests: [...draft.tests, ...added] });
   }
 
+  /** Fill every EMPTY urine/stool pick-list with its normal value; undo from the toast. */
+  function fillNormals() {
+    const before = draft.tests;
+    let filled = 0;
+    const tests = before.map((t) => {
+      if (t.value.trim()) return t;
+      const preset = getNormalDefault(t.categoryId, t.name);
+      if (!preset) return t;
+      filled += 1;
+      return { ...t, value: preset };
+    });
+    if (!filled) return;
+    setDraft({ tests });
+    toast.success(`تمت تعبئة ${filled} خانة بالقيم الطبيعية — راجعها على الفحص الفعلي`, {
+      action: { label: "تراجع", onClick: () => setDraft({ tests: before }) },
+    });
+  }
+
   function setValue(name: string, categoryId: string, value: string) {
     setDraft({
       tests: draft.tests.map((t) =>
@@ -156,30 +214,69 @@ export function ReportWizard({ catalog, editReport }: { catalog: LabCatalogRow[]
   }
 
   async function finish() {
+    if (submitting.current) return; // a second tap while saving must not create a second report
     const age = Number(draft.age);
     const entered = draft.tests.filter((t) => t.value.trim());
     if (!draft.patientName.trim() || !age || !draft.gender || !entered.length) {
       toast.error("أكمل بيانات المريض وأدخل نتيجة واحدة على الأقل.");
       return;
     }
+    const payload = {
+      patientName: draft.patientName, patientCode: draft.patientCode, age, gender: draft.gender,
+      phone: draft.phone, nationalId: draft.nationalId, doctor: draft.doctor, notes: draft.notes,
+      collectedAt: draft.collectedAt, tests: draft.tests,
+    };
+    // One id per save attempt: if the request reaches the server but the answer
+    // is lost, the queued retry carries the same id and the server ignores it.
+    const requestId = newRequestId();
+    const enteredAt = new Date().toISOString();
+    submitting.current = true;
+    setSaving(true);
     try {
-      const payload = {
-        patientName: draft.patientName, patientCode: draft.patientCode, age, gender: draft.gender,
-        phone: draft.phone, nationalId: draft.nationalId, doctor: draft.doctor, notes: draft.notes,
-        collectedAt: draft.collectedAt, tests: draft.tests,
-      };
       const report = editReport
         ? await updateLabReport({ data: { ...payload, id: editReport.id } })
-        : await createLabReport({ data: payload });
+        : await createLabReport({ data: { ...payload, clientRequestId: requestId, clientCreatedAt: enteredAt, expectedLabId: labId } });
       resetDraft();
       toast.success(editReport ? "تم تحديث المسودة" : "تم حفظ التقرير في قاعدة بيانات المعمل");
       void navigate({ to: "/reports/$id", params: { id: report.id } });
     } catch (error) {
+      if (!editReport && labId && isOffline(error)) {
+        try {
+          await queueReport({ requestId, labId, payload, createdAt: enteredAt });
+          resetDraft();
+          toast.success("لا يوجد اتصال — تم حفظ التقرير على الجهاز وسيُرسل تلقائيًا عند عودة الاتصال.");
+          return;
+        } catch {
+          toast.error("تعذر الحفظ على الجهاز. لا تغلق الصفحة، وأعد المحاولة عند عودة الاتصال.");
+          return;
+        }
+      }
+      if (editReport && isOffline(error)) {
+        toast.error("تعديل المسودة يحتاج اتصالًا بالإنترنت.");
+        return;
+      }
       toast.error(error instanceof Error ? error.message : "تعذر حفظ التقرير");
+    } finally {
+      submitting.current = false;
+      setSaving(false);
     }
   }
 
   const gender = (draft.gender || "ذكر") as Gender;
+
+  /** "Clear draft" is one tap away from losing everything typed, so it can be undone. */
+  function clearDraft() {
+    const snapshot = draft;
+    resetDraft();
+    toast("تم مسح المسودة", { action: { label: "تراجع", onClick: () => setDraft(snapshot) } });
+  }
+
+  // The range the saved report will use: the lab's age band, else the lab's
+  // male/female range. Keeps the live flags identical to the saved report.
+  const catalogIndex = useMemo(() => new Map(catalog.map((r) => [`${r.category_id}:${r.test_name}`, r])), [catalog]);
+  const ageNumber = Number(draft.age);
+  const rangeFor = (t: { name: string; categoryId: string }): string | undefined =>
+    effectiveCatalogRange(catalogIndex.get(`${t.categoryId}:${t.name}`), gender, ageNumber);
   const filteredCats = query.trim()
     ? selectedCats
         .map((c) => ({
@@ -201,7 +298,8 @@ export function ReportWizard({ catalog, editReport }: { catalog: LabCatalogRow[]
           <li key={label}>
             <button
               type="button"
-              onClick={() => go(i)}
+              onClick={() => goStep(i)}
+              aria-current={i === step ? "step" : undefined}
               className={cn(
                 "flex h-12 w-full flex-col items-center justify-center rounded-md border text-xs transition-colors duration-150 sm:text-sm",
                 i === step
@@ -236,6 +334,8 @@ export function ReportWizard({ catalog, editReport }: { catalog: LabCatalogRow[]
         <ResultsStep
           draft={draft}
           gender={gender}
+          rangeFor={rangeFor}
+          fillNormals={fillNormals}
           setValue={setValue}
           setCustomRange={setCustomRange}
           remove={(name, categoryId) =>
@@ -245,10 +345,12 @@ export function ReportWizard({ catalog, editReport }: { catalog: LabCatalogRow[]
           }
         />
       )}
-      {step === 3 && <ReviewStep draft={draft} gender={gender} />}
+      {step === 3 && <ReviewStep draft={draft} gender={gender} rangeFor={rangeFor} />}
 
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
-        <Button variant="ghost" onClick={() => (step === 0 ? resetDraft() : go(step - 1))}>
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 mt-8 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:bottom-0 lg:mx-0 lg:px-0">
+      {blockReason ? <p role="status" className="mb-2 text-xs text-muted">{blockReason}</p> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button variant="ghost" onClick={() => (step === 0 ? clearDraft() : go(step - 1))} disabled={saving}>
           {step === 0 ? (
             "مسح المسودة"
           ) : (
@@ -264,11 +366,12 @@ export function ReportWizard({ catalog, editReport }: { catalog: LabCatalogRow[]
             <ChevronLeft className="size-4" />
           </Button>
         ) : (
-          <Button onClick={finish} disabled={!canNext()}>
-            <Check className="size-4" />
-            {editReport ? "حفظ التعديلات" : "حفظ وإصدار التقرير"}
+          <Button onClick={finish} disabled={!canNext() || saving}>
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+            {saving ? "جارٍ الحفظ…" : editReport ? "حفظ التعديلات" : "حفظ وإصدار التقرير"}
           </Button>
         )}
+      </div>
       </div>
     </div>
   );
@@ -290,8 +393,8 @@ function PatientStep({
     setSearching(true);
     try {
       setPatients(await searchLabPatients({ data: { query: patientQuery } }));
-    } catch {
-      toast.error("تعذر البحث عن المرضى");
+    } catch (error) {
+      toast.error(isOffline(error) ? "البحث عن المرضى يحتاج اتصالًا — اكتب بيانات المريض يدويًا." : "تعذر البحث عن المرضى");
     } finally {
       setSearching(false);
     }
@@ -365,7 +468,7 @@ function PatientStep({
             id="age"
             inputMode="numeric"
             value={draft.age}
-            onChange={(e) => setDraft({ age: e.target.value.replace(/[^\d]/g, "") })}
+            onChange={(e) => setDraft({ age: normalizeNumerals(e.target.value).replace(/[^\d]/g, "").slice(0, 3) })}
             placeholder="بالسنوات"
           />
         </div>
@@ -374,7 +477,7 @@ function PatientStep({
           <Input
             id="phone"
             value={draft.phone}
-            onChange={(e) => setDraft({ phone: e.target.value })}
+            onChange={(e) => setDraft({ phone: normalizeNumerals(e.target.value) })}
             placeholder="01xxxxxxxxx"
             inputMode="tel"
             dir="ltr"
@@ -388,6 +491,7 @@ function PatientStep({
                 key={g}
                 type="button"
                 onClick={() => setDraft({ gender: g })}
+                aria-pressed={draft.gender === g}
                 className={cn(
                   "h-11 rounded-sm border text-sm transition-colors duration-150",
                   draft.gender === g
@@ -405,7 +509,7 @@ function PatientStep({
           <Input
             id="nid"
             value={draft.nationalId}
-            onChange={(e) => setDraft({ nationalId: e.target.value.replace(/[^\d]/g, "").slice(0, 14) })}
+            onChange={(e) => setDraft({ nationalId: normalizeNumerals(e.target.value).replace(/[^\d]/g, "").slice(0, 14) })}
             placeholder="14 رقم"
             inputMode="numeric"
             dir="ltr"
@@ -579,6 +683,27 @@ function TestsStep({
 const CUSTOM = "__custom__";
 
 /**
+ * Enter in a result field jumps to the next result field (DOM order), so a full
+ * panel can be typed without touching the screen between tests. On the last
+ * field it just closes the keyboard. Shift+Enter and IME composition are left
+ * alone.
+ */
+function focusNextResultOnEnter(e: ReactKeyboardEvent<HTMLElement>) {
+  if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+  const target = e.target as HTMLElement;
+  if (!target.matches("[data-result-field]")) return;
+  e.preventDefault();
+  const fields: HTMLElement[] = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-result-field]"));
+  const next = fields[fields.indexOf(target) + 1];
+  if (next) {
+    next.focus();
+    if (next instanceof HTMLInputElement) next.select();
+  } else {
+    target.blur();
+  }
+}
+
+/**
  * Result entry. Urine / stool tests get a pick-list (with "other" for anything
  * unusual, and for old values that are not in the list); everything else stays
  * a plain input.
@@ -597,9 +722,12 @@ function ResultField({
     return (
       <Input
         value={test.value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(normalizeNumerals(e.target.value))}
         placeholder="قيمة"
         className="tabular-nums"
+        inputMode="text"
+        data-result-field
+        enterKeyHint="next"
       />
     );
   }
@@ -610,6 +738,7 @@ function ResultField({
   return (
     <div className="space-y-2">
       <NativeSelect
+        data-result-field
         value={showText ? CUSTOM : test.value}
         aria-label={`نتيجة ${test.name}`}
         onChange={(e) => {
@@ -634,9 +763,11 @@ function ResultField({
       {showText ? (
         <Input
           value={test.value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => onChange(normalizeNumerals(e.target.value))}
           placeholder="اكتب النتيجة"
           autoFocus={custom && test.value === ""}
+          data-result-field
+          enterKeyHint="next"
         />
       ) : null}
     </div>
@@ -646,12 +777,16 @@ function ResultField({
 function ResultsStep({
   draft,
   gender,
+  rangeFor,
+  fillNormals,
   setValue,
   setCustomRange,
   remove,
 }: {
   draft: Draft;
   gender: Gender;
+  rangeFor: (t: { name: string; categoryId: string }) => string | undefined;
+  fillNormals: () => void;
   setValue: (name: string, categoryId: string, value: string) => void;
   setCustomRange: (name: string, categoryId: string, range: string) => void;
   remove: (name: string, categoryId: string) => void;
@@ -659,14 +794,44 @@ function ResultsStep({
   if (draft.tests.length === 0) {
     return <p className="text-sm text-muted">لا توجد تحاليل مختارة.</p>;
   }
+  const fillable = draft.tests.filter((t) => !t.value.trim() && getNormalDefault(t.categoryId, t.name)).length;
+  const filledCount = draft.tests.filter((t) => t.value.trim()).length;
+  const emptyCount = draft.tests.length - filledCount;
+
+  function jumpToFirstEmpty() {
+    const el = document.querySelector<HTMLElement>('[data-results-list] li[data-empty="true"] [data-result-field]');
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.focus({ preventScroll: true });
+  }
+
   return (
     <div className="overflow-hidden rounded-lg border border-line bg-elevated">
-      <ul className="divide-y divide-line">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-paper px-4 py-3">
+        <p className="text-sm font-medium" aria-live="polite">
+          تم إدخال {filledCount} من {draft.tests.length}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {emptyCount > 0 && filledCount > 0 ? (
+            <Button type="button" size="sm" variant="ghost" onClick={jumpToFirstEmpty}>أول خانة فاضية</Button>
+          ) : null}
+          {fillable > 0 ? (
+            <Button type="button" size="sm" variant="secondary" onClick={fillNormals}>كله طبيعي ({fillable})</Button>
+          ) : null}
+        </div>
+      </div>
+      {fillable > 0 ? (
+        <p className="border-b border-line px-4 py-2 text-xs leading-5 text-muted">
+          "كله طبيعي" بيملأ خانات البول والبراز الفاضية بالقيم الطبيعية. عدّل اللي مختلف بس، وراجعها على الفحص الفعلي.
+        </p>
+      ) : null}
+      <ul data-results-list className="divide-y divide-line" onKeyDown={focusNextResultOnEnter}>
         {draft.tests.map((t) => {
-          const range = t.customRange || getNormalRange(t.name, gender, t.categoryId);
-          const interp = t.value ? interpretResult(t.name, t.value, gender, t.customRange, t.categoryId) : null;
+          const effective = t.customRange || rangeFor(t);
+          const range = effective || getNormalRange(t.name, gender, t.categoryId);
+          const interp = t.value ? interpretResult(t.name, t.value, gender, effective, t.categoryId) : null;
           return (
-            <li key={`${t.categoryId}-${t.name}`} className="grid gap-3 p-4 sm:grid-cols-[1fr_11rem_8rem_auto] sm:items-end">
+            <li key={`${t.categoryId}-${t.name}`} data-empty={!t.value.trim()} className="grid gap-3 p-4 sm:grid-cols-[1fr_11rem_8rem_auto] sm:items-end">
               <div>
                 <p className="text-sm font-medium">{t.name}</p>
                 <p className="text-[11px] text-muted">
@@ -704,9 +869,9 @@ function ResultsStep({
   );
 }
 
-function ReviewStep({ draft, gender }: { draft: Draft; gender: Gender }) {
+function ReviewStep({ draft, gender, rangeFor }: { draft: Draft; gender: Gender; rangeFor: (t: { name: string; categoryId: string }) => string | undefined }) {
   const filled = draft.tests.filter((t) => t.value.trim());
-  const flags = filled.map((t) => interpretResult(t.name, t.value, gender, t.customRange, t.categoryId));
+  const flags = filled.map((t) => interpretResult(t.name, t.value, gender, t.customRange || rangeFor(t), t.categoryId));
   const abnormal = flags.filter((f) => f.flag === "high" || f.flag === "low" || f.flag === "abnormal").length;
 
   return (
@@ -731,7 +896,7 @@ function ReviewStep({ draft, gender }: { draft: Draft; gender: Gender }) {
           </thead>
           <tbody>
             {filled.map((t) => {
-              const interp = interpretResult(t.name, t.value, gender, t.customRange, t.categoryId);
+              const interp = interpretResult(t.name, t.value, gender, t.customRange || rangeFor(t), t.categoryId);
               return (
                 <tr key={`${t.categoryId}-${t.name}`} className="border-t border-line">
                   <td className="px-4 py-2.5">{t.name}</td>

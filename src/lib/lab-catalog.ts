@@ -3,6 +3,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { CATEGORIES } from "@/lib/tests-catalog";
 import { logAudit } from "@/lib/audit";
+import { parseAgeRanges } from "@/lib/age-ranges";
 
 async function getLabUserId(sql: Awaited<ReturnType<typeof getSql>>, userId: string): Promise<string | null> {
   const rows = await sql<{ id: string }>`select id from lab_users where auth_user_id = ${userId} limit 1`;
@@ -18,6 +19,8 @@ export type LabCatalogRow = {
   unit: string;
   male_range: string;
   female_range: string;
+  /** Age-specific ranges as plain text (see age-ranges.ts), or null. */
+  age_ranges: string | null;
   is_active: boolean;
 };
 
@@ -63,7 +66,7 @@ export const listLabCatalog = createServerFn({ method: "GET" })
     await ensureSeeded(sql, lab.lab_id);
     return sql<LabCatalogRow>`
       select id, test_name, category_id, category_name_ar, category_name_en,
-             unit, male_range, female_range, is_active
+             unit, male_range, female_range, age_ranges, is_active
       from lab_test_catalog
       where lab_id = ${lab.lab_id}
       order by category_id, test_name
@@ -72,15 +75,22 @@ export const listLabCatalog = createServerFn({ method: "GET" })
 
 export const updateLabCatalogItem = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .handler(async ({ context, data }: { context: { userId: string }; data: { id: string; unit: string; maleRange: string; femaleRange: string; isActive: boolean } }) => {
+  .handler(async ({ context, data }: { context: { userId: string }; data: { id: string; unit: string; maleRange: string; femaleRange: string; ageRanges?: string | null; isActive: boolean } }) => {
     const sql = await getSql();
     const lab = await getLab(sql, context.userId);
     if (lab.role !== "owner") throw new Error("OWNER_ACCESS_REQUIRED");
+
+    // Validate on the server too: the page validates for feedback, this is the gate.
+    const ageText = (data.ageRanges ?? "").trim();
+    if (ageText) {
+      const parsed = parseAgeRanges(ageText);
+      if (!parsed.ok) throw new Error(parsed.error);
+    }
     await sql.query(
       `update lab_test_catalog
-       set unit=$1, male_range=$2, female_range=$3, is_active=$4, updated_at=current_timestamp
-       where id=$5 and lab_id=$6`,
-      [data.unit.trim(), data.maleRange.trim(), data.femaleRange.trim(), Boolean(data.isActive), data.id, lab.lab_id],
+       set unit=$1, male_range=$2, female_range=$3, age_ranges=$4, is_active=$5, updated_at=current_timestamp
+       where id=$6 and lab_id=$7`,
+      [data.unit.trim(), data.maleRange.trim(), data.femaleRange.trim(), ageText || null, Boolean(data.isActive), data.id, lab.lab_id],
     );
 
     await logAudit(sql, {

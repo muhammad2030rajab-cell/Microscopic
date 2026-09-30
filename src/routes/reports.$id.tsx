@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, FileDown, Loader2, Mail, MessageCircle, Pencil, Printer, Send, Trash2, TriangleAlert } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -14,6 +14,8 @@ import { downloadReportPdf } from "@/lib/generate-report-pdf";
 import { visitIdFrom } from "@/lib/utils";
 import { listReportAttachments, type ReportAttachment } from "@/lib/attachments";
 import { AttachmentsPanel } from "@/components/report/attachments-panel";
+import { ShareDialog, type ShareChannel } from "@/components/report/share-dialog";
+import { REPORT_LANGS, isReportLang, type ReportLang } from "@/lib/report-strings";
 
 export const Route = createFileRoute("/reports/$id")({
   loader: async ({ params }) => {
@@ -36,6 +38,21 @@ function ReportDetail() {
   const [loading, setLoading] = useState<"submit" | "approve" | "delete" | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [error, setError] = useState("");
+  const [shareChannel, setShareChannel] = useState<ShareChannel | null>(null);
+  const [lang, setLang] = useState<ReportLang>("bi");
+
+  // Remembered per device. Read after mount so server and client HTML match.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("rajab:report-lang");
+      if (isReportLang(saved)) setLang(saved);
+    } catch { /* storage blocked: keep the default */ }
+  }, []);
+
+  function chooseLang(next: ReportLang) {
+    setLang(next);
+    try { localStorage.setItem("rajab:report-lang", next); } catch { /* ignore */ }
+  }
   const printRef = useRef<HTMLDivElement>(null);
 
   if (!lab) return <Navigate to="/login" replace />;
@@ -101,29 +118,6 @@ function ReportDetail() {
   const canApprove = permissions["reports.approve"] === true && ["draft", "pending_review"].includes(report.status);
   const canDelete = permissions["reports.delete"] === true && report.status !== "approved";
 
-  function shareSummaryText() {
-    const lines = [
-      `تقرير تحليل — ${labProfile.name}`,
-      `المريض: ${report.patientName} (${report.age} ${report.gender})`,
-      report.doctor ? `الطبيب المحيل: ${report.doctor}` : null,
-      "",
-      ...report.tests.map((t) => `${t.name}: ${t.value} ${t.unit}`),
-      critical.length ? `\n⚠️ قيم حرجة: ${critical.map((t) => `${t.name} (${t.value})`).join("، ")}` : null,
-    ].filter(Boolean);
-    return lines.join("\n");
-  }
-
-  function shareOnWhatsapp() {
-    const text = encodeURIComponent(shareSummaryText());
-    window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
-  }
-
-  function shareByEmail() {
-    const subject = encodeURIComponent(`تقرير تحليل — ${report.patientName}`);
-    const body = encodeURIComponent(shareSummaryText());
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-  }
-
   const visit = visitIdFrom(report.id);
 
   return <div className="print-root min-h-dvh bg-paper">
@@ -156,13 +150,30 @@ function ReportDetail() {
           {error ? <div role="alert" className="mb-4 rounded-lg border border-high/20 bg-high/5 p-4 text-sm text-high">{error}</div> : null}
 
           <section className="mb-4 rounded-lg border border-line bg-elevated p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-ink-soft" id="report-lang-label">لغة التقرير (للطباعة وPDF)</span>
+              <div role="radiogroup" aria-labelledby="report-lang-label" className="inline-flex overflow-hidden rounded-md border border-line">
+                {REPORT_LANGS.map((l) => (
+                  <button
+                    key={l.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={lang === l.value}
+                    onClick={() => chooseLang(l.value)}
+                    className={`min-h-11 px-4 text-sm transition-colors ${lang === l.value ? "bg-ink text-paper" : "bg-elevated text-ink hover:bg-paper-2"}`}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid grid-cols-4 gap-2">
               <ShareAction icon={pdfLoading ? <Loader2 className="size-5 animate-spin" /> : <FileDown className="size-5" />} label={pdfLoading ? "جارٍ الإنشاء…" : "حفظ PDF"} color="bg-red-500/10 text-red-600" onClick={downloadPdf} disabled={pdfLoading} />
               <ShareAction icon={<Printer className="size-5" />} label="طباعة" color="bg-slate-500/10 text-slate-600" onClick={() => window.print()} />
-              <ShareAction icon={<MessageCircle className="size-5" />} label="واتساب" color="bg-emerald-500/10 text-emerald-600" onClick={shareOnWhatsapp} />
-              <ShareAction icon={<Mail className="size-5" />} label="بريد" color="bg-teal/10 text-teal" onClick={shareByEmail} />
+              <ShareAction icon={<MessageCircle className="size-5" />} label="واتساب" color="bg-emerald-500/10 text-emerald-600" onClick={() => setShareChannel("whatsapp")} />
+              <ShareAction icon={<Mail className="size-5" />} label="بريد" color="bg-teal/10 text-teal" onClick={() => setShareChannel("email")} />
             </div>
-            <p className="mt-2.5 px-1 text-xs leading-5 text-muted">واتساب والبريد بيرسلوا ملخص النتائج كنص فقط. لإرسال التقرير بشكله الكامل استخدم "حفظ PDF" وأرفق الملف يدويًا.</p>
+            <p className="mt-2.5 px-1 text-xs leading-5 text-muted">واتساب والبريد بيبعتوا رابط تحقق (أو ملخص نصي بعد تأكيدك). لإرسال التقرير بشكله الكامل استخدم "حفظ PDF" وأرفق الملف يدويًا.</p>
           </section>
 
           <AttachmentsPanel reportId={report.id} canEdit={permissions["reports.edit"] === true} initial={attachments} />
@@ -177,11 +188,26 @@ function ReportDetail() {
         </div>
 
         <div ref={printRef} className="mx-auto w-full max-w-4xl">
-          <PrintView report={report} lab={labProfile} interactive />
+          <PrintView report={report} lab={labProfile} lang={lang} interactive />
         </div>
       </AppShell>
     </div>
-    <div className="hidden print:block"><PrintView report={report} lab={labProfile} /></div>
+    <ShareDialog
+      channel={shareChannel}
+      onClose={() => setShareChannel(null)}
+      input={{
+        labName: labProfile.name,
+        patientName: report.patientName,
+        age: report.age,
+        gender: report.gender,
+        doctor: report.doctor,
+        tests: report.tests,
+        critical,
+        verifyUrl: `${typeof window === "undefined" ? "" : window.location.origin}/verify/${report.id}`,
+        approved: report.status === "approved",
+      }}
+    />
+    <div className="hidden print:block"><PrintView report={report} lab={labProfile} lang={lang} /></div>
   </div>;
 }
 

@@ -28,5 +28,9 @@ export const authEnabled = import.meta.env.VITE_AUTH_ENABLED !== "false";
 export async function signOut(redirectTo = "/"): Promise<void> {
   const { error } = await authClient.signOut();
   if (error) throw new Error(error.message ?? "Sign-out failed");
+  // Forget the offline copy of the lab profile / pages. Reports still waiting
+  // to be sent stay on the device, tied to their lab, so nothing is lost.
+  const { clearOfflineCaches } = await import("../offline/sync");
+  await clearOfflineCaches();
   window.location.href = redirectTo;
 }

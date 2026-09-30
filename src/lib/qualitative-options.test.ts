@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getQualitativeOptions, qualitativeVerdict } from "./qualitative-options.ts";
+import { getNormalDefault, getQualitativeOptions, qualitativeVerdict } from "./qualitative-options.ts";
 
 test("same test name resolves per category", () => {
   const urine = getQualitativeOptions("c12", "Color")!.map((o) => o.value);
@@ -55,4 +55,24 @@ test("every catalog test in urine and stool has options", () => {
   const stool = ["Color","Consistency","Mucus","Blood","Pus Cells","RBCs","Ova & Parasites","Fat Globules","Undigested Food","Occult Blood"];
   for (const n of urine) assert.ok(getQualitativeOptions("c12", n), `c12 ${n}`);
   for (const n of stool) assert.ok(getQualitativeOptions("c13", n), `c13 ${n}`);
+});
+
+test("every normal default is a listed option that is judged normal", () => {
+  const urine = ["Color","Appearance","Protein","Glucose","Ketones","Bilirubin","Blood","Leukocytes","Nitrite","RBCs in Urine","WBCs in Urine","Casts","Crystals","Bacteria"];
+  const stool = ["Color","Consistency","Mucus","Blood","Pus Cells","RBCs","Ova & Parasites","Fat Globules","Undigested Food","Occult Blood"];
+  for (const [cat, names] of [["c12", urine], ["c13", stool]] as const) {
+    for (const n of names) {
+      const d = getNormalDefault(cat, n);
+      if (d === null) throw new Error(`${cat} ${n} has no default`);
+      assert.equal(qualitativeVerdict(cat, n, d), "normal", `${cat} ${n} = ${d}`);
+    }
+  }
+});
+
+test("numeric picks and non-pick-list tests have no preset", () => {
+  assert.equal(getNormalDefault("c12", "Specific Gravity"), null);
+  assert.equal(getNormalDefault("c12", "pH"), null);
+  assert.equal(getNormalDefault("c12", "Urobilinogen"), null);
+  assert.equal(getNormalDefault("c3", "RBCs"), null);
+  assert.equal(getNormalDefault(undefined, "Color"), null);
 });

@@ -117,6 +117,45 @@ const DEFS: Record<string, QualOption[]> = {
   [`${STOOL}:Occult Blood`]: POS_NEG,
 };
 
+/**
+ * The "everything normal" preset used by the fill-normals button. Only tests
+ * with an unambiguous normal option are listed; numeric picks (specific
+ * gravity, pH, urobilinogen) are left for the technician to read off.
+ * Every value here must be an option with abnormal === false (unit-tested).
+ */
+const NORMAL_DEFAULTS: Record<string, string> = {
+  [`${URINE}:Color`]: "Yellow",
+  [`${URINE}:Appearance`]: "Clear",
+  [`${URINE}:Protein`]: "Negative",
+  [`${URINE}:Glucose`]: "Negative",
+  [`${URINE}:Ketones`]: "Negative",
+  [`${URINE}:Bilirubin`]: "Negative",
+  [`${URINE}:Blood`]: "Negative",
+  [`${URINE}:Leukocytes`]: "Negative",
+  [`${URINE}:Nitrite`]: "Negative",
+  [`${URINE}:RBCs in Urine`]: "0-2",
+  [`${URINE}:WBCs in Urine`]: "0-2",
+  [`${URINE}:Casts`]: "Nil",
+  [`${URINE}:Crystals`]: "Negative",
+  [`${URINE}:Bacteria`]: "Negative",
+  [`${STOOL}:Color`]: "Brown",
+  [`${STOOL}:Consistency`]: "Formed",
+  [`${STOOL}:Mucus`]: "Negative",
+  [`${STOOL}:Blood`]: "Negative",
+  [`${STOOL}:Pus Cells`]: "0-2",
+  [`${STOOL}:RBCs`]: "0-2",
+  [`${STOOL}:Ova & Parasites`]: "Negative",
+  [`${STOOL}:Fat Globules`]: "Negative",
+  [`${STOOL}:Undigested Food`]: "Negative",
+  [`${STOOL}:Occult Blood`]: "Negative",
+};
+
+/** The preset normal value for a test, or null if it has none. */
+export function getNormalDefault(categoryId: string | undefined, testName: string): string | null {
+  if (!categoryId) return null;
+  return NORMAL_DEFAULTS[`${categoryId}:${testName}`] ?? null;
+}
+
 /** Options for a test, or null when it should be a free-entry field. */
 export function getQualitativeOptions(
   categoryId: string | undefined,

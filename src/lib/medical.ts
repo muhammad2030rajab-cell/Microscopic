@@ -5,6 +5,7 @@ import {
   getTestUnit,
 } from "./tests-catalog";
 import { qualitativeVerdict } from "./qualitative-options";
+import { toNumberText } from "./numerals";
 
 export type Flag = "normal" | "high" | "low" | "abnormal" | "unknown";
 
@@ -32,11 +33,11 @@ const QUALITATIVE_NORMAL = new Set([
 
 export function parseRange(text: string): NumericRange | null {
   if (!text) return null;
-  const t = text.trim();
+  const t = toNumberText(text).trim();
   if (!t || t.includes(":") || QUALITATIVE_NORMAL.has(t.toLowerCase())) return null;
 
   const firstNum = (s: string) => {
-    const m = s.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+    const m = s.match(/-?\d+(?:\.\d+)?/);
     return m ? Number(m[0]) : undefined;
   };
 
@@ -54,7 +55,8 @@ export function parseRange(text: string): NumericRange | null {
 }
 
 export function parseValue(value: string): number | null {
-  const m = value.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+  // Handles Arabic digits (٥٫٢) and decimal commas (5,2) as well as 1,200.
+  const m = toNumberText(value).match(/-?\d+(?:\.\d+)?/);
   if (!m) return null;
   const n = Number(m[0]);
   return Number.isFinite(n) ? n : null;

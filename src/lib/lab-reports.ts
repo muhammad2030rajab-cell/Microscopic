@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { effectiveCreatedAt } from "@/lib/offline/created-at";
+import { effectiveCatalogRange } from "@/lib/age-ranges";
 import { randomUUID } from "node:crypto";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
@@ -39,12 +41,29 @@ export type CreateLabReportInput = {
   notes?: string;
   collectedAt?: string;
   tests: DraftTest[];
+  /** Offline support: makes create idempotent across retries (see migration 0012). */
+  clientRequestId?: string;
+  /** When the report was actually entered on the device (ISO). Used if plausible. */
+  clientCreatedAt?: string;
+  /** Lab the device believed it was signed in to; a mismatch is rejected. */
+  expectedLabId?: string;
 };
 
 export const createLabReport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }: { context: { userId: string }; data: CreateLabReportInput }) => {
     const { sql, lab_user_id, lab_id } = await getLabContext(context.userId, "reports.create");
+    if (data.expectedLabId && data.expectedLabId !== lab_id) throw new Error("LAB_MISMATCH");
+    const clientRequestId = data.clientRequestId?.trim().slice(0, 64) || null;
+    if (clientRequestId) {
+      const existing = await sql<{ id: string; patient_name: string; status: "draft" }>`
+        select r.id, p.full_name as patient_name, r.status
+        from reports r inner join patients p on p.id = r.patient_id
+        where r.lab_id = ${lab_id} and r.client_request_id = ${clientRequestId}
+        limit 1
+      `;
+      if (existing.length) return { id: existing[0].id, patientName: existing[0].patient_name, status: "draft" as const };
+    }
     const patientName = data.patientName.trim();
     const age = Number(data.age);
     if (patientName.length < 2) throw new Error("اسم المريض غير صالح");
@@ -54,8 +73,8 @@ export const createLabReport = createServerFn({ method: "POST" })
     const entered = data.tests.filter((t) => t.value.trim());
     if (!entered.length) throw new Error("أدخل نتيجة تحليل واحدة على الأقل");
 
-    const catalogRows = await sql<{ test_name: string; unit: string; male_range: string; female_range: string; category_id: string; category_name_ar: string; category_name_en: string }>`
-      select test_name, unit, male_range, female_range, category_id, category_name_ar, category_name_en
+    const catalogRows = await sql<{ test_name: string; unit: string; male_range: string; female_range: string; age_ranges: string | null; category_id: string; category_name_ar: string; category_name_en: string }>`
+      select test_name, unit, male_range, female_range, age_ranges, category_id, category_name_ar, category_name_en
       from lab_test_catalog
       where lab_id = ${lab_id} and is_active = true
     `;
@@ -71,13 +90,13 @@ export const createLabReport = createServerFn({ method: "POST" })
         categoryAr: row.category_name_ar,
         categoryEn: row.category_name_en,
         unit: row.unit,
-        customRange: (data.gender === "ذكر" ? row.male_range : row.female_range) || test.customRange,
+        customRange: effectiveCatalogRange(row, data.gender, age) || test.customRange,
       };
     });
     const tests = addCalculatedTests(catalogTests, data.gender, age);
     const patientId = randomUUID();
     const reportId = randomUUID();
-    const now = new Date();
+    const now = effectiveCreatedAt(data.clientCreatedAt);
     const dateKey = now.toISOString().slice(0, 10).replaceAll("-", "");
     const patientCode = data.patientCode?.trim() || `P-${dateKey}-${randomUUID().slice(0, 4).toUpperCase()}`;
     const sampleId = `S-${dateKey}-${randomUUID().slice(0, 6).toUpperCase()}`;
@@ -89,9 +108,9 @@ export const createLabReport = createServerFn({ method: "POST" })
     );
 
     await sql.query(
-      `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by)
-       values ($1,$2,$3,$4,$5,'draft',$6,$7,$8)`,
-      [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id],
+      `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by, created_at, client_request_id)
+       values ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10)`,
+      [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id, now.toISOString(), clientRequestId],
     );
 
     for (let i = 0; i < tests.length; i += 1) {
@@ -161,15 +180,15 @@ export const updateLabReport = createServerFn({ method: "POST" })
     const entered = data.tests.filter((t) => t.value.trim());
     if (!entered.length) throw new Error("أدخل نتيجة تحليل واحدة على الأقل");
 
-    const catalogRows = await sql<{ test_name: string; unit: string; male_range: string; female_range: string; category_id: string; category_name_ar: string; category_name_en: string }>`
-      select test_name, unit, male_range, female_range, category_id, category_name_ar, category_name_en
+    const catalogRows = await sql<{ test_name: string; unit: string; male_range: string; female_range: string; age_ranges: string | null; category_id: string; category_name_ar: string; category_name_en: string }>`
+      select test_name, unit, male_range, female_range, age_ranges, category_id, category_name_ar, category_name_en
       from lab_test_catalog where lab_id = ${lab_id} and is_active = true
     `;
     const catalogMap = new Map(catalogRows.map((row) => [`${row.category_id}:${row.test_name}`, row]));
     for (const test of entered) if (!catalogMap.has(`${test.categoryId}:${test.name}`)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
     const catalogTests = entered.map((test) => {
       const row = catalogMap.get(`${test.categoryId}:${test.name}`)!;
-      return { ...test, categoryId: row.category_id, categoryAr: row.category_name_ar, categoryEn: row.category_name_en, unit: row.unit, customRange: (data.gender === "ذكر" ? row.male_range : row.female_range) || test.customRange };
+      return { ...test, categoryId: row.category_id, categoryAr: row.category_name_ar, categoryEn: row.category_name_en, unit: row.unit, customRange: effectiveCatalogRange(row, data.gender, age) || test.customRange };
     });
     const tests = addCalculatedTests(catalogTests, data.gender, age);
 

@@ -15,6 +15,7 @@ import { formatSlashDate, visitIdFrom } from "@/lib/utils";
 import { listReportAttachments, type ReportAttachment } from "@/lib/attachments";
 import { AttachmentsPanel } from "@/components/report/attachments-panel";
 import { ShareDialog, type ShareChannel } from "@/components/report/share-dialog";
+import { ageToYears, formatAge } from "@/lib/age";
 import { REPORT_LANGS, isReportLang, type ReportLang } from "@/lib/report-strings";
 
 export const Route = createFileRoute("/reports/$id")({
@@ -59,7 +60,7 @@ function ReportDetail() {
   if (!lab) return <Navigate to="/login" replace />;
   if (!report) return <AppShell><div className="mx-auto max-w-lg py-16 text-center"><h1 className="font-display text-2xl font-semibold">التقرير غير موجود</h1><Link to="/reports" className="mt-6 inline-flex text-sm text-teal hover:underline">العودة للأرشيف</Link></div></AppShell>;
 
-  const notes = report.tests.map((t) => ({ t, f: interpretResult(t.name, t.value, report.gender, t.customRange, report.age, t.categoryId) })).filter(({ f }) => f.flag !== "normal" && f.flag !== "unknown");
+  const notes = report.tests.map((t) => ({ t, f: interpretResult(t.name, t.value, report.gender, t.customRange, ageToYears(report.age, report.ageUnit), t.categoryId) })).filter(({ f }) => f.flag !== "normal" && f.flag !== "unknown");
   const critical = report.tests.filter((t) => isCritical(t.name, t.value));
   const labProfile = {
     name: lab.lab_name,
@@ -223,7 +224,7 @@ function ReportDetail() {
       input={{
         labName: labProfile.name,
         patientName: report.patientName,
-        age: report.age,
+        age: formatAge("ar", report.age, report.ageUnit),
         gender: report.gender,
         doctor: report.doctor,
         tests: report.tests,

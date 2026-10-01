@@ -9,6 +9,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { getNormalDefault, getQualitativeOptions } from "@/lib/qualitative-options";
 import { resolveRange } from "@/lib/range-resolution";
 import { normalizeNumerals } from "@/lib/numerals";
+import { AGE_UNITS, ageProblem, ageToYears, formatAge, parseAgeUnit } from "@/lib/age";
 import { FlagBadge } from "@/components/report/flag-badge";
 import { interpretResult } from "@/lib/medical";
 import { useLabStore, type Draft } from "@/lib/store";
@@ -79,8 +80,8 @@ export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatal
   function stepBlock(s: number): string | null {
     if (s === 0) {
       if (draft.patientName.trim().length < 2) return "اكتب اسم المريض";
-      const age = Number(draft.age);
-      if (!Number.isInteger(age) || age < 1 || age > 130) return "اكتب السن بالسنوات (من 1 إلى 130)";
+      const ageIssue = ageProblem(Number(draft.age), parseAgeUnit(draft.ageUnit));
+      if (ageIssue) return ageIssue;
       if (draft.gender !== "ذكر" && draft.gender !== "أنثى") return "اختر النوع";
     }
     if (s === 1 && draft.tests.length === 0) return "اختر تحليلًا واحدًا على الأقل";
@@ -222,7 +223,7 @@ export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatal
       return;
     }
     const payload = {
-      patientName: draft.patientName, patientCode: draft.patientCode, age, gender: draft.gender,
+      patientName: draft.patientName, patientCode: draft.patientCode, age, ageUnit: parseAgeUnit(draft.ageUnit), gender: draft.gender,
       phone: draft.phone, nationalId: draft.nationalId, doctor: draft.doctor, notes: draft.notes,
       collectedAt: draft.collectedAt, tests: draft.tests,
     };
@@ -274,7 +275,7 @@ export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatal
   // The range the saved report will use: the lab's age band, else the lab's
   // male/female range. Keeps the live flags identical to the saved report.
   const catalogIndex = useMemo(() => new Map(catalog.map((r) => [`${r.category_id}:${r.test_name}`, r])), [catalog]);
-  const ageNumber = Number(draft.age);
+  const ageNumber = ageToYears(Number(draft.age), parseAgeUnit(draft.ageUnit)) ?? Number.NaN;
   const rangeFor = (t: { name: string; categoryId: string }): string | undefined =>
     resolveRange(catalogIndex.get(`${t.categoryId}:${t.name}`), t, gender, ageNumber);
   const filteredCats = query.trim()
@@ -405,6 +406,7 @@ function PatientStep({
       patientName: patient.fullName,
       patientCode: patient.patientCode,
       age: String(patient.age || ""),
+      ageUnit: parseAgeUnit(patient.ageUnit),
       gender: patient.gender,
       phone: patient.phone || "",
       nationalId: patient.nationalId || "",
@@ -464,13 +466,27 @@ function PatientStep({
         </div>
         <div>
           <Label htmlFor="age">السن</Label>
-          <Input
-            id="age"
-            inputMode="numeric"
-            value={draft.age}
-            onChange={(e) => setDraft({ age: normalizeNumerals(e.target.value).replace(/[^\d]/g, "").slice(0, 3) })}
-            placeholder="بالسنوات"
-          />
+          <div className="flex gap-2">
+            <Input
+              id="age"
+              inputMode="numeric"
+              value={draft.age}
+              onChange={(e) => setDraft({ age: normalizeNumerals(e.target.value).replace(/[^\d]/g, "").slice(0, 3) })}
+              placeholder={draft.ageUnit === "months" ? "بالشهور" : draft.ageUnit === "days" ? "بالأيام" : "بالسنوات"}
+            />
+            <NativeSelect
+              aria-label="وحدة السن"
+              value={parseAgeUnit(draft.ageUnit)}
+              onChange={(e) => setDraft({ ageUnit: parseAgeUnit(e.target.value) })}
+              className="w-24 shrink-0"
+            >
+              {AGE_UNITS.map((u) => (
+                <option key={u.value} value={u.value}>
+                  {u.label}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
         </div>
         <div>
           <Label htmlFor="phone">رقم الهاتف (اختياري)</Label>
@@ -794,7 +810,7 @@ function ResultsStep({
   if (draft.tests.length === 0) {
     return <p className="text-sm text-muted">لا توجد تحاليل مختارة.</p>;
   }
-  const ageNumberOrUndefined = Number(draft.age) || undefined;
+  const ageNumberOrUndefined = ageToYears(Number(draft.age) || undefined, parseAgeUnit(draft.ageUnit));
   const fillable = draft.tests.filter((t) => !t.value.trim() && getNormalDefault(t.categoryId, t.name)).length;
   const filledCount = draft.tests.filter((t) => t.value.trim()).length;
   const emptyCount = draft.tests.length - filledCount;
@@ -871,7 +887,7 @@ function ResultsStep({
 }
 
 function ReviewStep({ draft, gender, rangeFor }: { draft: Draft; gender: Gender; rangeFor: (t: { name: string; categoryId: string }) => string | undefined }) {
-  const ageNumberOrUndefined = Number(draft.age) || undefined;
+  const ageNumberOrUndefined = ageToYears(Number(draft.age) || undefined, parseAgeUnit(draft.ageUnit));
   const filled = draft.tests.filter((t) => t.value.trim());
   const flags = filled.map((t) => interpretResult(t.name, t.value, gender, t.customRange || rangeFor(t), ageNumberOrUndefined, t.categoryId));
   const abnormal = flags.filter((f) => f.flag === "high" || f.flag === "low" || f.flag === "abnormal").length;
@@ -883,7 +899,7 @@ function ReviewStep({ draft, gender, rangeFor }: { draft: Draft; gender: Gender;
         <Stat label="كود المريض" value={draft.patientCode || "سيتم إنشاؤه تلقائيًا"} />
         <Stat label="الهاتف" value={draft.phone || "—"} />
         <Stat label="الرقم القومي" value={draft.nationalId || "—"} />
-        <Stat label="السن / النوع" value={`${draft.age || "—"} / ${draft.gender || "—"}`} />
+        <Stat label="السن / النوع" value={`${draft.age ? formatAge("ar", Number(draft.age), draft.ageUnit) : "—"} / ${draft.gender || "—"}`} />
         <Stat label="تحاليل" value={String(filled.length)} />
         <Stat label="غير طبيعية" value={String(abnormal)} />
       </div>

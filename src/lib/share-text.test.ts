@@ -6,7 +6,7 @@ const base: ShareInput = {
   mode: "link",
   labName: "معمل رجب",
   patientName: "أحمد حسن",
-  age: 52,
+  age: "52 سنة",
   gender: "ذكر",
   doctor: "د. سمير",
   tests: [
@@ -32,7 +32,7 @@ test("link mode omits the link until the report is approved", () => {
 
 test("results mode lists entered tests only, with units and critical values", () => {
   const m = buildShareMessage({ ...base, mode: "results" });
-  assert.ok(m.body.includes("المريض: أحمد حسن (52 ذكر)"));
+  assert.ok(m.body.includes("المريض: أحمد حسن (52 سنة · ذكر)"));
   assert.ok(m.body.includes("ALT: 80 U/L"));
   assert.ok(!m.body.includes("Notes"));
   assert.ok(m.body.includes("قيم حرجة: K (7.1)"));

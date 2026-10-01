@@ -87,3 +87,32 @@ test("built-in age band applies only while the lab range is still the built-in d
   // empty lab range + built-in band
   assert.equal(effectiveCatalogRange({ male_range: "", female_range: "" }, "ذكر", 8, builtin), "11-14.5");
 });
+
+test("months and days: units on bounds, inherited by the other bound", () => {
+  const b = ok("0-28d: 14-24\n28d-1y: 10-18\n1-12: 11-15");
+  assert.equal(pickAgeRange(b, 10 / 365.25, "ذكر"), "14-24"); // 10 days
+  assert.equal(pickAgeRange(b, 28 / 365.25, "ذكر"), "10-18"); // exactly 28 days: lower bound inclusive
+  assert.equal(pickAgeRange(b, 6 / 12, "ذكر"), "10-18"); // 6 months
+  assert.equal(pickAgeRange(b, 1, "ذكر"), "11-15"); // 1 year
+  const m = ok("1mo-12mo: 9.5-14");
+  assert.equal(pickAgeRange(m, 1 / 12, "أنثى"), "9.5-14");
+  assert.equal(pickAgeRange(m, 11 / 12, "أنثى"), "9.5-14");
+  assert.equal(pickAgeRange(m, 1, "أنثى"), null); // 12 months is excluded (exclusive)
+});
+
+test("M/F sex tokens still work next to unit letters", () => {
+  const b = ok("1-12 M: 5\n1-12 F: 6\n2mo-6mo ذكر: 7");
+  assert.equal(pickAgeRange(b, 5, "ذكر"), "5");
+  assert.equal(pickAgeRange(b, 5, "أنثى"), "6");
+  assert.equal(pickAgeRange(b, 3 / 12, "ذكر"), "7");
+});
+
+test("overlap messages quote the bounds as written", () => {
+  const r = parseAgeRanges("0-28d: 1\n10d-2mo: 2");
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.error, /0-28d/);
+});
+
+test("a day band inside a year band is NOT an overlap with a later year band", () => {
+  assert.equal(parseAgeRanges("0-28d: 1\n28d-1y: 2\n1-12: 3").ok, true);
+});

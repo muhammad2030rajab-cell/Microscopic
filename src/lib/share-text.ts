@@ -45,7 +45,7 @@ export function buildShareMessage(i: ShareInput): ShareMessage {
   const entered = i.tests.filter((t) => t.value.trim());
   const lines = [
     `تقرير تحليل — ${i.labName}`,
-    `المريض: ${i.patientName} (${i.age} ${i.gender})`,
+    `المريض: ${i.patientName} (${i.age} · ${i.gender})`,
     i.doctor ? `الطبيب المحيل: ${i.doctor}` : null,
     "",
     ...entered.map((t) => `${t.name}: ${t.value}${t.unit ? ` ${t.unit}` : ""}`),

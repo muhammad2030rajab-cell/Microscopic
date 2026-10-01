@@ -1,4 +1,5 @@
 import { SQL_FOLD_FROM, SQL_FOLD_TO, escapeLike, normalizeSearch } from "@/lib/search-text";
+import { ageProblem, parseAgeUnit, type AgeUnit } from "@/lib/age";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
@@ -25,6 +26,7 @@ export type PatientSummary = {
   patientCode: string;
   fullName: string;
   age: number;
+  ageUnit?: AgeUnit;
   gender: "ذكر" | "أنثى";
   phone?: string;
   nationalId?: string;
@@ -61,6 +63,7 @@ export const searchLabPatients = createServerFn({ method: "GET" })
         patient_code: string | null;
         full_name: string;
         age: number | null;
+        age_unit: string | null;
         gender: "ذكر" | "أنثى";
         phone: string | null;
         national_id: string | null;
@@ -72,6 +75,7 @@ export const searchLabPatients = createServerFn({ method: "GET" })
           p.patient_code,
           p.full_name,
           p.age,
+          p.age_unit,
           p.gender,
           p.phone,
           p.national_id,
@@ -98,6 +102,7 @@ export const searchLabPatients = createServerFn({ method: "GET" })
         patientCode: p.patient_code || "",
         fullName: p.full_name,
         age: Number(p.age || 0),
+        ageUnit: parseAgeUnit(p.age_unit),
         gender: p.gender,
         phone: p.phone || undefined,
         nationalId: p.national_id || undefined,
@@ -113,6 +118,7 @@ export type CreatePatientInput = {
   patientCode?: string;
   fullName: string;
   age: number;
+  ageUnit?: AgeUnit;
   gender: "ذكر" | "أنثى";
   phone?: string;
   nationalId?: string;
@@ -133,13 +139,15 @@ export const createPatient = createServerFn({ method: "POST" })
 
       const fullName = data.fullName.trim();
       const age = Number(data.age);
+      const ageUnit = parseAgeUnit(data.ageUnit);
 
       if (fullName.length < 2) {
         throw new Error("اسم المريض غير صالح");
       }
 
-      if (!Number.isInteger(age) || age <= 0 || age > 130) {
-        throw new Error("السن غير صالح");
+      const ageIssue = ageProblem(age, ageUnit);
+      if (ageIssue) {
+        throw new Error(ageIssue);
       }
 
       if (data.gender !== "ذكر" && data.gender !== "أنثى") {
@@ -175,18 +183,20 @@ export const createPatient = createServerFn({ method: "POST" })
           patient_code,
           full_name,
           age,
+          age_unit,
           gender,
           phone,
           national_id,
           notes
         )
-        values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           id,
           labId,
           patientCode,
           fullName,
           age,
+          ageUnit,
           data.gender,
           data.phone?.trim() || null,
           data.nationalId?.trim() || null,
@@ -230,6 +240,7 @@ export const createPatient = createServerFn({ method: "POST" })
         patientCode: patientCode || "",
         fullName,
         age,
+        ageUnit,
         gender: data.gender,
       };
     },

@@ -37,3 +37,11 @@ test("isReportLang guards stored values", () => {
   assert.equal(isReportLang("fr"), false);
   assert.equal(isReportLang(null), false);
 });
+
+test("age/sex value with months and days, singular and plural", () => {
+  assert.equal(ageSexValue("bi", 6, "أنثى", "months"), "6 Months / Female");
+  assert.equal(ageSexValue("en", 1, "ذكر", "years"), "1 Year / Male");
+  assert.equal(ageSexValue("ar", 3, "ذكر", "months"), "3 أشهر / ذكر");
+  assert.equal(ageSexValue("ar", 10, "أنثى", "days"), "10 أيام / أنثى");
+  assert.equal(ageSexValue("bi", 52, "ذكر"), "52 Years / Male"); // no unit = years
+});

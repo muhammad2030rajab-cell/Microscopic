@@ -29,7 +29,7 @@ function EditReportPage() {
   if (!lab) return <Navigate to="/login" replace />;
   if (!canEdit || !report || report.status !== "draft") return <Navigate to={report ? "/reports/$id" : "/reports"} params={report ? { id: report.id } : undefined} />;
   const draft: Draft = {
-    patientName: report.patientName, patientCode: report.patientCode, age: String(report.age), gender: report.gender,
+    patientName: report.patientName, patientCode: report.patientCode, age: String(report.age), ageUnit: report.ageUnit ?? "years", gender: report.gender,
     phone: report.phone || "", nationalId: report.nationalId || "", doctor: report.doctor,
     collectedAt: report.collectedAt || new Date().toISOString().slice(0, 10),
     selectedCategoryIds: Array.from(new Set(report.tests.map((t) => t.categoryId))),

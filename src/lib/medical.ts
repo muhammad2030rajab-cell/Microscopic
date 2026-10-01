@@ -293,7 +293,8 @@ export function addCalculatedTests(
   }
 
   const crea = numFrom(tests, "Creatinine");
-  if (crea != null && crea > 0 && age > 0) {
+  // CKD-EPI is an adult formula: never compute it for infants under 1 year.
+  if (crea != null && crea > 0 && age >= 1) {
     let egfr: number;
     if (gender === "أنثى") {
       egfr =

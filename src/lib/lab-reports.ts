@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { effectiveCreatedAt } from "@/lib/offline/created-at";
 import { resolveRange } from "@/lib/range-resolution";
+import { ageProblem, ageToYears, parseAgeUnit, type AgeUnit } from "@/lib/age";
 import { SQL_FOLD_FROM, SQL_FOLD_TO, normalizeSearch } from "@/lib/search-text";
 import { randomUUID } from "node:crypto";
 import { authMiddleware } from "@/lib/auth/middleware";
@@ -35,6 +36,8 @@ export type CreateLabReportInput = {
   patientName: string;
   patientCode?: string;
   age: number;
+  /** Unit of `age`. Missing = years (old clients / old offline-queued reports). */
+  ageUnit?: AgeUnit;
   gender: "ذكر" | "أنثى";
   phone?: string;
   nationalId?: string;
@@ -67,8 +70,11 @@ export const createLabReport = createServerFn({ method: "POST" })
     }
     const patientName = data.patientName.trim();
     const age = Number(data.age);
+    const ageUnit = parseAgeUnit(data.ageUnit);
+    const ageYears = ageToYears(age, ageUnit) ?? 0; // range logic works in fractional years
     if (patientName.length < 2) throw new Error("اسم المريض غير صالح");
-    if (!Number.isInteger(age) || age <= 0 || age > 130) throw new Error("السن غير صالح");
+    const ageIssue = ageProblem(age, ageUnit);
+    if (ageIssue) throw new Error(ageIssue);
     if (data.gender !== "ذكر" && data.gender !== "أنثى") throw new Error("النوع غير صالح");
 
     const entered = data.tests.filter((t) => t.value.trim());
@@ -91,10 +97,10 @@ export const createLabReport = createServerFn({ method: "POST" })
         categoryAr: row.category_name_ar,
         categoryEn: row.category_name_en,
         unit: row.unit,
-        customRange: resolveRange(row, test, data.gender, age) || test.customRange,
+        customRange: resolveRange(row, test, data.gender, ageYears) || test.customRange,
       };
     });
-    const tests = addCalculatedTests(catalogTests, data.gender, age);
+    const tests = addCalculatedTests(catalogTests, data.gender, ageYears);
     const patientId = randomUUID();
     const reportId = randomUUID();
     const now = effectiveCreatedAt(data.clientCreatedAt);
@@ -103,9 +109,9 @@ export const createLabReport = createServerFn({ method: "POST" })
     const sampleId = `S-${dateKey}-${randomUUID().slice(0, 6).toUpperCase()}`;
 
     await sql.query(
-      `insert into patients (id, lab_id, patient_code, full_name, age, gender, phone, national_id, notes)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [patientId, lab_id, patientCode, patientName, age, data.gender, data.phone?.trim() || null, data.nationalId?.trim() || null, data.notes?.trim() || null],
+      `insert into patients (id, lab_id, patient_code, full_name, age, age_unit, gender, phone, national_id, notes)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [patientId, lab_id, patientCode, patientName, age, ageUnit, data.gender, data.phone?.trim() || null, data.nationalId?.trim() || null, data.notes?.trim() || null],
     );
 
     await sql.query(
@@ -116,7 +122,7 @@ export const createLabReport = createServerFn({ method: "POST" })
 
     for (let i = 0; i < tests.length; i += 1) {
       const test = tests[i];
-      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, age, test.categoryId);
+      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, ageYears, test.categoryId);
       const critical = isCritical(test.name, test.value);
       const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
       await sql.query(
@@ -127,7 +133,7 @@ export const createLabReport = createServerFn({ method: "POST" })
         [
           randomUUID(), reportId, `${test.categoryId}:${test.name}`, test.name,
           test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null,
-          test.customRange?.trim() || getNormalRange(test.name, data.gender, age, test.categoryId), flag,
+          test.customRange?.trim() || getNormalRange(test.name, data.gender, ageYears, test.categoryId), flag,
           interpretation.note, i,
         ],
       );
@@ -147,6 +153,7 @@ export type LabReport = {
   patientName: string;
   patientCode: string;
   age: number;
+  ageUnit?: AgeUnit;
   gender: "ذكر" | "أنثى";
   phone?: string;
   nationalId?: string;
@@ -175,8 +182,11 @@ export const updateLabReport = createServerFn({ method: "POST" })
 
     const patientName = data.patientName.trim();
     const age = Number(data.age);
+    const ageUnit = parseAgeUnit(data.ageUnit);
+    const ageYears = ageToYears(age, ageUnit) ?? 0; // range logic works in fractional years
     if (patientName.length < 2) throw new Error("اسم المريض غير صالح");
-    if (!Number.isInteger(age) || age <= 0 || age > 130) throw new Error("السن غير صالح");
+    const ageIssue = ageProblem(age, ageUnit);
+    if (ageIssue) throw new Error(ageIssue);
     if (data.gender !== "ذكر" && data.gender !== "أنثى") throw new Error("النوع غير صالح");
     const entered = data.tests.filter((t) => t.value.trim());
     if (!entered.length) throw new Error("أدخل نتيجة تحليل واحدة على الأقل");
@@ -189,13 +199,13 @@ export const updateLabReport = createServerFn({ method: "POST" })
     for (const test of entered) if (!catalogMap.has(`${test.categoryId}:${test.name}`)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
     const catalogTests = entered.map((test) => {
       const row = catalogMap.get(`${test.categoryId}:${test.name}`)!;
-      return { ...test, categoryId: row.category_id, categoryAr: row.category_name_ar, categoryEn: row.category_name_en, unit: row.unit, customRange: resolveRange(row, test, data.gender, age) || test.customRange };
+      return { ...test, categoryId: row.category_id, categoryAr: row.category_name_ar, categoryEn: row.category_name_en, unit: row.unit, customRange: resolveRange(row, test, data.gender, ageYears) || test.customRange };
     });
-    const tests = addCalculatedTests(catalogTests, data.gender, age);
+    const tests = addCalculatedTests(catalogTests, data.gender, ageYears);
 
     await sql.query(
-      `update patients set patient_code=$1, full_name=$2, age=$3, gender=$4, phone=$5, national_id=$6, notes=$7, updated_at=current_timestamp where id=$8 and lab_id=$9`,
-      [data.patientCode?.trim() || null, patientName, age, data.gender, data.phone?.trim() || null, data.nationalId?.trim() || null, data.notes?.trim() || null, current[0].patient_id, lab_id],
+      `update patients set patient_code=$1, full_name=$2, age=$3, age_unit=$4, gender=$5, phone=$6, national_id=$7, notes=$8, updated_at=current_timestamp where id=$9 and lab_id=$10`,
+      [data.patientCode?.trim() || null, patientName, age, ageUnit, data.gender, data.phone?.trim() || null, data.nationalId?.trim() || null, data.notes?.trim() || null, current[0].patient_id, lab_id],
     );
     await sql.query(
       `update reports set referring_doctor=$1, notes=$2, collected_at=$3, updated_at=current_timestamp where id=$4 and lab_id=$5 and status='draft'`,
@@ -204,12 +214,12 @@ export const updateLabReport = createServerFn({ method: "POST" })
     await sql.query(`delete from report_results where report_id=$1`, [data.id]);
     for (let i = 0; i < tests.length; i += 1) {
       const test = tests[i];
-      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, age, test.categoryId);
+      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, ageYears, test.categoryId);
       const critical = isCritical(test.name, test.value);
       const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
       await sql.query(
         `insert into report_results (id, report_id, test_id, test_name, category_id, category_ar, category_en, result_value, unit, reference_range, flag, interpretation, sort_order) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [randomUUID(), data.id, `${test.categoryId}:${test.name}`, test.name, test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null, test.customRange?.trim() || getNormalRange(test.name, data.gender, age, test.categoryId), flag, interpretation.note, i],
+        [randomUUID(), data.id, `${test.categoryId}:${test.name}`, test.name, test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null, test.customRange?.trim() || getNormalRange(test.name, data.gender, ageYears, test.categoryId), flag, interpretation.note, i],
       );
     }
     await sql.query(
@@ -224,11 +234,11 @@ export const listLabReports = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { sql, lab_id } = await getLabContext(context.userId, "reports.view");
     const rows = await sql<{
-      id: string; patient_code: string | null; full_name: string; age: number; gender: "ذكر" | "أنثى"; phone: string | null; national_id: string | null;
+      id: string; patient_code: string | null; full_name: string; age: number; age_unit: string | null; gender: "ذكر" | "أنثى"; phone: string | null; national_id: string | null;
       sample_id: string | null; referring_doctor: string | null; created_at: string | Date; notes: string | null; collected_at: string | Date | null;
       status: "draft" | "pending_review" | "approved" | "cancelled"; reviewed_by: string | null; approved_at: string | Date | null;
     }>`
-      select r.id, p.patient_code, p.full_name, p.age, p.gender, p.phone, p.national_id,
+      select r.id, p.patient_code, p.full_name, p.age, p.age_unit, p.gender, p.phone, p.national_id,
              r.sample_id, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at
       from reports r
       inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
@@ -251,7 +261,7 @@ export const listLabReports = createServerFn({ method: "GET" })
     return rows.map((r) => {
       const c = byReport.get(r.id);
       return {
-        id: r.id, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), gender: r.gender,
+        id: r.id, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), ageUnit: parseAgeUnit(r.age_unit), gender: r.gender,
         phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "",
         doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), collectedAt: r.collected_at ? String(r.collected_at).slice(0, 10) : undefined,
         tests: [], notes: r.notes || undefined,
@@ -265,6 +275,7 @@ export type RecentReport = {
   id: string;
   patientName: string;
   age: number;
+  ageUnit?: AgeUnit;
   gender: "ذكر" | "أنثى";
   status: "draft" | "pending_review" | "approved" | "cancelled";
   createdAt: string;
@@ -278,10 +289,10 @@ export const getRecentLabReports = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<RecentReport[]> => {
     const { sql, lab_id } = await getLabContext(context.userId, "reports.view");
     const rows = await sql<{
-      id: string; full_name: string; age: number; gender: "ذكر" | "أنثى";
+      id: string; full_name: string; age: number; age_unit: string | null; gender: "ذكر" | "أنثى";
       status: RecentReport["status"]; created_at: string | Date; total: number; flagged: number; critical: number;
     }>`
-      select r.id, p.full_name, p.age, p.gender, r.status, r.created_at,
+      select r.id, p.full_name, p.age, p.age_unit, p.gender, r.status, r.created_at,
              (select count(*)::int from report_results rr where rr.report_id = r.id) as total,
              (select count(*)::int from report_results rr where rr.report_id = r.id and rr.flag in ('high', 'low', 'abnormal')) as flagged,
              (select count(*)::int from report_results rr where rr.report_id = r.id and rr.flag = 'critical') as critical
@@ -292,7 +303,7 @@ export const getRecentLabReports = createServerFn({ method: "GET" })
       limit 5
     `;
     return rows.map((r) => ({
-      id: r.id, patientName: r.full_name, age: Number(r.age), gender: r.gender, status: r.status,
+      id: r.id, patientName: r.full_name, age: Number(r.age), ageUnit: parseAgeUnit(r.age_unit), gender: r.gender, status: r.status,
       createdAt: String(r.created_at), criticalCount: Number(r.critical), flaggedCount: Number(r.flagged),
     }));
   });
@@ -302,11 +313,11 @@ export const getLabReport = createServerFn({ method: "GET" })
   .handler(async ({ context, data }: { context: { userId: string }; data: { id: string } }) => {
     const { sql, lab_id } = await getLabContext(context.userId, "reports.view");
     const rows = await sql<{
-      id: string; patient_code: string | null; full_name: string; age: number; gender: "ذكر" | "أنثى"; phone: string | null; national_id: string | null;
+      id: string; patient_code: string | null; full_name: string; age: number; age_unit: string | null; gender: "ذكر" | "أنثى"; phone: string | null; national_id: string | null;
       sample_id: string | null; referring_doctor: string | null; created_at: string | Date; notes: string | null; collected_at: string | Date | null;
       status: "draft" | "pending_review" | "approved" | "cancelled"; reviewed_by: string | null; approved_at: string | Date | null;
     }>`
-      select r.id, p.patient_code, p.full_name, p.age, p.gender, p.phone, p.national_id,
+      select r.id, p.patient_code, p.full_name, p.age, p.age_unit, p.gender, p.phone, p.national_id,
              r.sample_id, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at
       from reports r
       inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
@@ -325,7 +336,7 @@ export const getLabReport = createServerFn({ method: "GET" })
     `;
     const r = rows[0];
     return {
-      id: r.id, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), gender: r.gender,
+      id: r.id, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), ageUnit: parseAgeUnit(r.age_unit), gender: r.gender,
       phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "",
       doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), collectedAt: r.collected_at ? String(r.collected_at).slice(0, 10) : undefined,
       notes: r.notes || undefined,

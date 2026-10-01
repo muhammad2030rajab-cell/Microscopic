@@ -8,6 +8,8 @@
  *         Arabic names, and lab reports conventionally keep them that way)
  */
 
+import { formatAge, type AgeUnit } from "./age.ts";
+
 export type ReportLang = "bi" | "en" | "ar";
 
 export const REPORT_LANGS: { value: ReportLang; label: string }[] = [
@@ -97,10 +99,11 @@ export function text(lang: ReportLang, pair: Pair): string {
   return pair.biEnOnly ? pair.en : `${pair.en} / ${pair.ar}`;
 }
 
-/** "Age / Sex" value, e.g. "52 Years / Male" or "52 سنة / ذكر". */
-export function ageSexValue(lang: ReportLang, age: number | string, gender: string): string {
-  if (lang === "ar") return `${age} ${S.years.ar} / ${gender}`;
-  return `${age} ${S.years.en} / ${gender === "أنثى" ? "Female" : "Male"}`;
+/** "Age / Sex" value, e.g. "52 Years / Male", "6 Months / Female" or "3 أشهر / ذكر". */
+export function ageSexValue(lang: ReportLang, age: number | string, gender: string, unit?: AgeUnit | null): string {
+  const n = Number(age);
+  if (lang === "ar") return `${formatAge("ar", n, unit)} / ${gender}`;
+  return `${formatAge("en", n, unit)} / ${gender === "أنثى" ? "Female" : "Male"}`;
 }
 
 export function summaryLine(

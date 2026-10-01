@@ -27,6 +27,7 @@ import { UserButton, useCurrentUserState } from "@/lib/auth/gates";
 import { getCurrentLab, getLabDashboardStats } from "@/lib/lab-access";
 import { getRecentLabReports, type RecentReport } from "@/lib/lab-reports";
 import { getCurrentLabPermissions, type LabPermissions } from "@/lib/lab-users";
+import { formatAge } from "@/lib/age";
 import { presetReportFilters, type ReportFilters } from "@/lib/reports-filters";
 import { reportStatusClasses, reportStatusLabels } from "@/lib/report-workflow";
 import { cn, formatListDate } from "@/lib/utils";
@@ -221,7 +222,7 @@ function LabDashboard() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{r.patientName}</p>
                       <p className="mt-0.5 text-xs text-muted">
-                        {r.age} {r.gender} · {formatListDate(r.createdAt)}
+                        {formatAge("ar", r.age, r.ageUnit)} · {r.gender} · {formatListDate(r.createdAt)}
                       </p>
                     </div>
 

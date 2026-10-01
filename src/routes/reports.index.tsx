@@ -3,6 +3,7 @@ import { Search, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { FlagDot } from "@/components/report/flag-badge";
+import { formatAge } from "@/lib/age";
 import { matchesSearch } from "@/lib/search-text";
 import { loadReportFilters, saveReportFilters, type ReportPeriodFilter, type ReportStatusFilter } from "@/lib/reports-filters";
 import { Input } from "@/components/ui/input";
@@ -145,7 +146,7 @@ function ReportsList({ reports }: { reports: LabReportSummary[] }) {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{r.patientName}</p>
                     <p className="text-xs text-muted">
-                      {r.age} {r.gender} · {r.doctor} · {formatListDate(r.createdAt)}
+                      {formatAge("ar", r.age, r.ageUnit)} · {r.gender} · {r.doctor} · {formatListDate(r.createdAt)}
                     </p>
                     <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[11px] sm:hidden ${reportStatusClasses[r.status]}`}>{reportStatusLabels[r.status]}</span>
                   </div>

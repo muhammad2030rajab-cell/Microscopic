@@ -3,13 +3,17 @@
  * per band, on the catalog page. No medical values are built in: the lab
  * enters the ranges of its own method / kit insert.
  *
- * Line format (age in whole years, upper bound EXCLUSIVE):
+ * Line format (upper bound EXCLUSIVE; bounds are years unless a unit follows):
  *
- *     1-12: 11.5-15.5             children from 1 up to (not incl.) 12
+ *     1-12: 11.5-15.5             children from 1 up to (not incl.) 12 years
  *     12-18 ذكر: 13.0-16.0        males 12 to 17
  *     12-18 أنثى: 12.0-16.0       females 12 to 17
  *     65+: 12.0-16.5              65 and over
+ *     0-28d: 14-24                newborns, in DAYS   (d = days)
+ *     1mo-12mo: 9.5-14            infants, in MONTHS  (mo = months)
  *
+ * One unit on either bound applies to both ("0-28d", "1-12mo"); a bound may
+ * also carry its own ("28d-1y" is 28 days up to 1 year).
  * The sex word may be ذكر / أنثى / M / F. A band with a sex wins over a band
  * without one for that sex. Anything not covered falls back to the lab's
  * normal male/female range. Pure functions, no imports.
@@ -18,9 +22,12 @@
 export type Sex = "ذكر" | "أنثى";
 
 export interface AgeBand {
+  /** Fractional years (see ageToYears), so months and days compare correctly. */
   min: number;
   /** Exclusive. null = no upper limit. */
   max: number | null;
+  /** The bounds as the lab wrote them, for error messages ("0-28d"). */
+  text: string;
   sex: Sex | null;
   range: string;
 }
@@ -28,6 +35,12 @@ export interface AgeBand {
 export type ParseResult = { ok: true; bands: AgeBand[] } | { ok: false; error: string };
 
 const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+
+// Same conversion as ageToYears() in age.ts, repeated here so this file stays
+// import-free (runs under plain node in tests). age.test.ts asserts they agree.
+type Unit = "years" | "months" | "days";
+const UNIT_OF: Record<string, Unit> = { y: "years", mo: "months", d: "days" };
+const toYears = (n: number, unit: Unit) => (unit === "months" ? n / 12 : unit === "days" ? n / 365.25 : n);
 
 function normalizeDigits(s: string): string {
   return s
@@ -61,18 +74,28 @@ export function parseAgeRanges(text: string | null | undefined): ParseResult {
     if (!range) return { ok: false, error: `سطر ${n}: اكتب المدى بعد النقطتين` };
     if (range.length > 60) return { ok: false, error: `سطر ${n}: المدى طويل جدًا` };
 
-    const m = head.match(/^(\d+)\s*(?:(\+)|-\s*(\d+))\s*(.*)$/);
-    if (!m) return { ok: false, error: `سطر ${n}: السن يُكتب "1-12" أو "65+" (بالسنوات)` };
+    const m = head.match(/^(\d+)(y|mo|d)?\s*(?:(\+)|-\s*(\d+)(y|mo|d)?)\s*(.*)$/i);
+    if (!m) {
+      return { ok: false, error: `سطر ${n}: السن يُكتب "1-12" أو "65+" (بالسنوات) أو "0-28d" (أيام) أو "1mo-12mo" (شهور)` };
+    }
 
-    const min = Number(m[1]);
-    const max = m[2] ? null : Number(m[3]);
+    // One unit on either bound applies to both; with none, years.
+    const unitA = m[2]?.toLowerCase();
+    const unitB = m[5]?.toLowerCase();
+    const minUnit = UNIT_OF[unitA ?? unitB ?? "y"];
+    const maxUnit = UNIT_OF[unitB ?? unitA ?? "y"];
+
+    const minNum = Number(m[1]);
+    const maxNum = m[3] ? null : Number(m[4]);
+    const min = toYears(minNum, minUnit);
+    const max = maxNum === null ? null : toYears(maxNum, maxUnit);
     if (max !== null && !(max > min)) return { ok: false, error: `سطر ${n}: الحد الأعلى يجب أن يكون أكبر من الأدنى` };
     if (min > 130 || (max !== null && max > 130)) return { ok: false, error: `سطر ${n}: السن غير منطقي` };
 
-    const sex = parseSex(m[4]);
-    if (sex === undefined) return { ok: false, error: `سطر ${n}: النوع "${m[4].trim()}" غير مفهوم — استخدم ذكر أو أنثى` };
+    const sex = parseSex(m[6]);
+    if (sex === undefined) return { ok: false, error: `سطر ${n}: النوع "${m[6].trim()}" غير مفهوم — استخدم ذكر أو أنثى` };
 
-    bands.push({ min, max, sex, range });
+    bands.push({ min, max, text: head.replace(/\s+(?=[^\d\s+\-]).*$/, "").replace(/\s+/g, ""), sex, range });
   }
 
   // Overlap check, separately per sex group ("any" overlaps with everything of the same group only).
@@ -84,7 +107,7 @@ export function parseAgeRanges(text: string | null | undefined): ParseResult {
         const label = group ?? "";
         return {
           ok: false,
-          error: `نطاقان متداخلان${label ? ` (${label})` : ""}: ${prev.min}${prev.max === null ? "+" : `-${prev.max}`} و ${g[i].min}${g[i].max === null ? "+" : `-${g[i].max}`}`,
+          error: `نطاقان متداخلان${label ? ` (${label})` : ""}: ${prev.text} و ${g[i].text}`,
         };
       }
     }

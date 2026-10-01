@@ -22,6 +22,7 @@ import { ReportQrCode } from "./report-qr-code";
 import { RangeBar } from "./range-bar";
 import { SampleBarcode } from "./sample-barcode";
 import { S, ageSexValue, summaryLine, text, type Pair, type ReportLang } from "@/lib/report-strings";
+import { ageToYears } from "@/lib/age";
 
 /* =========================================
    BILINGUAL LABEL
@@ -119,7 +120,7 @@ function summarize(report: LabReport) {
       test.value,
       report.gender,
       test.customRange,
-      report.age,
+      ageToYears(report.age, report.ageUnit),
       test.categoryId,
     );
     const isCrit = isCritical(test.name, test.value);
@@ -306,7 +307,7 @@ export function PrintView({
 
         <InfoCell
           label={S.ageSex} lang={lang}
-          value={ageSexValue(lang, report.age, report.gender)}
+          value={ageSexValue(lang, report.age, report.gender, report.ageUnit)}
         />
 
         <InfoCell
@@ -465,7 +466,7 @@ export function PrintView({
                         getNormalRange(
                           test.name,
                           report.gender,
-                          report.age,
+                          ageToYears(report.age, report.ageUnit),
                           test.categoryId,
                         );
 
@@ -475,7 +476,7 @@ export function PrintView({
                           test.value,
                           report.gender,
                           test.customRange,
-                          report.age,
+                          ageToYears(report.age, report.ageUnit),
                           test.categoryId,
                         );
 

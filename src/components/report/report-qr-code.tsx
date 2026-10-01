@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 
 /** يولّد QR Code في المتصفح فقط (بدون أي اتصال شبكة) يشير لصفحة التحقق العامة من التقرير. */
-export function ReportQrCode({ reportId, caption = "Scan to verify" }: { reportId: string; caption?: string }) {
+export function ReportQrCode({ reportId }: { reportId: string }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -17,7 +17,7 @@ export function ReportQrCode({ reportId, caption = "Scan to verify" }: { reportI
   return (
     <div className="mt-2 flex flex-col items-center gap-1">
       <img src={dataUrl} alt="رمز التحقق من التقرير" className="size-16 rounded-md border border-line/60 bg-white p-1" />
-      <span className="text-[0.55rem] text-muted">{caption}</span>
+      <span className="text-[0.55rem] text-muted">Scan to verify</span>
     </div>
   );
 }

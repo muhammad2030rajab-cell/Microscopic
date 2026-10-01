@@ -7,43 +7,31 @@ import {
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import {
-  BarChart3,
-  CheckCircle2,
-  ChevronLeft,
-  CircleHelp,
-  ClipboardCheck,
-  ClipboardList,
-  FilePlus2,
   FileText,
-  Files,
+  FlaskConical,
+  Microscope,
   Settings2,
-  TriangleAlert,
   UserRoundSearch,
-  Users,
+  ClipboardList,
+  BarChart3,
+  CircleHelp,
 } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { UserButton, useCurrentUserState } from "@/lib/auth/gates";
 import { getCurrentLab, getLabDashboardStats } from "@/lib/lab-access";
-import { getRecentLabReports, type RecentReport } from "@/lib/lab-reports";
 import { getCurrentLabPermissions, type LabPermissions } from "@/lib/lab-users";
-import { formatAge } from "@/lib/age";
-import { presetReportFilters, type ReportFilters } from "@/lib/reports-filters";
-import { reportStatusClasses, reportStatusLabels } from "@/lib/report-workflow";
-import { cn, formatListDate } from "@/lib/utils";
 
 export const Route = createFileRoute("/lab")({
   loader: async () => {
     try {
-      const [lab, stats, access, recent] = await Promise.all([
+      const [lab, stats, access] = await Promise.all([
         getCurrentLab(),
         getLabDashboardStats(),
         getCurrentLabPermissions(),
-        // Not everyone may view reports; the home screen must still load for them.
-        getRecentLabReports().catch(() => [] as RecentReport[]),
       ]);
 
-      return { lab, stats, permissions: access.permissions, recent };
+      return { lab, stats, permissions: access.permissions };
     } catch {
       return {
         lab: null,
@@ -55,7 +43,6 @@ export const Route = createFileRoute("/lab")({
           critical: 0,
         },
         permissions: {} as LabPermissions,
-        recent: [] as RecentReport[],
       };
     }
   },
@@ -70,10 +57,14 @@ function LabDashboard() {
 
   const { user, isPending } = useCurrentUserState();
 
-  const { lab, stats, permissions, recent } = Route.useLoaderData();
+  const { lab, stats, permissions } = Route.useLoaderData();
 
   /*
-   * Child routes such as /lab/setup are rendered through Outlet.
+   * Child routes such as:
+   * /lab/setup
+   * /lab/...
+   *
+   * are rendered through Outlet.
    */
   if (pathname !== "/lab") {
     return <Outlet />;
@@ -99,243 +90,206 @@ function LabDashboard() {
     ? `د. ${lab.doctor_name}`
     : lab.lab_name;
 
-  const canView = permissions["reports.view"] === true;
-
   return (
     <AppShell>
       <header className="mb-4 flex items-center justify-between gap-3 lg:hidden">
-        <div className="min-w-0">
+        <div>
           <p className="text-[11px] uppercase tracking-[0.2em] text-muted">
             Medical Laboratory
           </p>
 
-          <h1 className="mt-0.5 truncate font-display text-lg font-semibold">
+          <h1 className="mt-0.5 font-display text-lg font-semibold">
             {lab.lab_name}
           </h1>
         </div>
 
-        <UserButton compact />
+        <UserButton />
       </header>
 
-      {/* Greeting + the one thing people open the app to do */}
-      <section className="relative overflow-hidden rounded-2xl bg-ink p-5 text-paper sm:p-7">
+      <section className="relative overflow-hidden rounded-2xl bg-ink p-6 text-paper sm:p-8">
         <div className="relative z-10">
-          <p className="text-sm text-paper/60">مرحبًا 👋</p>
+          <p className="text-sm text-paper/60">
+            مرحبًا 👋
+          </p>
 
-          <h2 className="mt-1 font-display text-xl font-semibold sm:text-3xl">
+          <h2 className="mt-2 font-display text-2xl font-semibold sm:text-3xl">
             {greetingName}
           </h2>
 
-          <p className="mt-2 hidden max-w-sm text-sm leading-7 text-paper/65 sm:block">
+          <p className="mt-3 max-w-sm text-sm leading-7 text-paper/65">
             دقة في التحليل .. ثقة في النتيجة
           </p>
+        </div>
 
-          {permissions["reports.create"] ? (
-            <Link
-              to="/new"
-              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-paper text-base font-semibold text-ink transition active:scale-[0.99] sm:w-auto sm:px-7"
-            >
-              <FilePlus2 className="size-5" />
-              تقرير جديد
-            </Link>
-          ) : null}
+        <div className="pointer-events-none absolute -left-6 -top-6 grid size-32 place-items-center rounded-full bg-teal/25 sm:size-40">
+          <Microscope
+            className="size-14 text-paper/80 sm:size-16"
+            strokeWidth={1.2}
+          />
         </div>
       </section>
 
-      {/* Today at a glance — each card opens the archive already filtered */}
-      <section aria-label="ملخص اليوم" className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <StatLink
+      <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {permissions["reports.create"] ? (
+          <GridAction
+            to="/new"
+            icon={<FlaskConical />}
+            color="teal"
+            label="تقرير جديد"
+          />
+        ) : null}
+
+        <GridAction
           to="/reports"
-          preset={{ period: "today" }}
-          disabled={!canView}
-          label="تقارير اليوم"
-          value={stats.reportsToday}
-          icon={<FileText className="size-4" />}
+          icon={<FileText />}
+          color="indigo"
+          label="أرشيف التقارير"
         />
 
-        <StatLink
-          to="/reports"
-          preset={{ status: "pending_review" }}
-          disabled={!canView}
-          label="تحت المراجعة"
-          value={stats.pendingReview}
-          icon={<ClipboardCheck className="size-4" />}
-          tone={stats.pendingReview > 0 ? "warn" : undefined}
+        <GridAction
+          to="/catalog"
+          icon={<ClipboardList />}
+          color="violet"
+          label="قائمة التحاليل"
         />
 
-        <StatLink
-          to="/reports"
-          preset={{ period: "today", onlyCritical: true }}
-          disabled={!canView}
-          label="حرجة اليوم"
-          value={stats.critical}
-          icon={<TriangleAlert className="size-4" />}
-          tone={stats.critical > 0 ? "danger" : undefined}
-        />
-
-        <StatLink
-          to="/reports"
-          preset={{ status: "approved" }}
-          disabled={!canView}
-          label="معتمدة"
-          value={stats.approved}
-          icon={<CheckCircle2 className="size-4" />}
-        />
-
-        <StatLink
+        <GridAction
           to="/patients"
+          icon={<UserRoundSearch />}
+          color="amber"
           label="المرضى"
-          value={stats.patients}
-          icon={<Users className="size-4" />}
-          className="col-span-2 sm:col-span-1"
+        />
+
+        <GridAction
+          to="/analytics"
+          icon={<BarChart3 />}
+          color="sky"
+          label="التحليلات"
+        />
+
+        {lab.role === "owner" ? (
+          <GridAction
+            to="/settings"
+            icon={<Settings2 />}
+            color="slate"
+            label="الإعدادات"
+          />
+        ) : null}
+
+        <GridAction
+          to="/help"
+          icon={<CircleHelp />}
+          color="rose"
+          label="مساعدة"
         />
       </section>
 
-      {/* Latest reports */}
-      {canView ? (
-        <section className="mt-5">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">آخر التقارير</h2>
-            <Link
-              to="/reports"
-              onClick={() => presetReportFilters({})}
-              className="inline-flex min-h-9 items-center gap-1 text-sm text-teal"
-            >
-              كل التقارير
-              <ChevronLeft className="size-4" />
-            </Link>
-          </div>
+      <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <StatCard
+          label="إجمالي المرضى"
+          value={stats.patients}
+          icon="👥"
+        />
 
-          {recent.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
-              لا توجد تقارير بعد. ابدأ بإنشاء أول تقرير.
-            </p>
-          ) : (
-            <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-elevated">
-              {recent.map((r) => (
-                <li key={r.id}>
-                  <Link
-                    to="/reports/$id"
-                    params={{ id: r.id }}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-paper-2/50"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{r.patientName}</p>
-                      <p className="mt-0.5 text-xs text-muted">
-                        {formatAge("ar", r.age, r.ageUnit)} · {r.gender} · {formatListDate(r.createdAt)}
-                      </p>
-                    </div>
+        <StatCard
+          label="تقارير اليوم"
+          value={stats.reportsToday}
+          icon="🧾"
+        />
 
-                    {r.criticalCount > 0 ? (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-high-bg px-2 py-1 text-[11px] font-medium text-high">
-                        <TriangleAlert className="size-3" />
-                        حرج
-                      </span>
-                    ) : r.flaggedCount > 0 ? (
-                      <span className="shrink-0 text-[11px] text-high">{r.flaggedCount} علامة</span>
-                    ) : null}
+        <StatCard
+          label="تحت المراجعة"
+          value={stats.pendingReview}
+          icon="🔎"
+          emphasis={stats.pendingReview > 0}
+        />
 
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full px-2 py-1 text-[11px]",
-                        reportStatusClasses[r.status],
-                      )}
-                    >
-                      {reportStatusLabels[r.status]}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
+        <StatCard
+          label="تقارير معتمدة"
+          value={stats.approved}
+          icon="✅"
+        />
 
-      {/* Everything else: small tiles, so they do not push the useful parts off-screen */}
-      <section aria-label="اختصارات" className="mt-5 grid grid-cols-3 gap-2.5 sm:grid-cols-6">
-        <Shortcut to="/reports" icon={<Files />} label="الأرشيف" onClick={() => presetReportFilters({})} />
-        <Shortcut to="/patients" icon={<UserRoundSearch />} label="المرضى" />
-        <Shortcut to="/catalog" icon={<ClipboardList />} label="دليل التحاليل" />
-        <Shortcut to="/analytics" icon={<BarChart3 />} label="الإحصائيات" />
-        {lab.role === "owner" ? <Shortcut to="/settings" icon={<Settings2 />} label="الإعدادات" /> : null}
-        <Shortcut to="/help" icon={<CircleHelp />} label="مساعدة" />
+        <StatCard
+          label="نتائج حرجة"
+          value={stats.critical}
+          icon="🚨"
+          emphasis={stats.critical > 0}
+        />
       </section>
     </AppShell>
   );
 }
 
-function StatLink({
+const GRID_COLORS = {
+  teal: "bg-teal/10 text-teal",
+  indigo: "bg-indigo-500/10 text-indigo-600",
+  violet: "bg-violet-500/10 text-violet-600",
+  amber: "bg-amber-500/10 text-amber-600",
+  slate: "bg-slate-500/10 text-slate-600",
+  rose: "bg-rose-500/10 text-rose-600",
+  sky: "bg-sky-500/10 text-sky-600",
+} as const;
+
+function GridAction({
   to,
-  preset,
-  label,
-  value,
   icon,
-  tone,
-  disabled = false,
-  className,
+  color,
+  label,
 }: {
   to: string;
-  preset?: Partial<ReportFilters>;
-  label: string;
-  value: number;
   icon: ReactNode;
-  tone?: "warn" | "danger";
-  disabled?: boolean;
-  className?: string;
+  color: keyof typeof GRID_COLORS;
+  label: string;
 }) {
-  const body = (
-    <>
-      <span
-        className={cn(
-          "inline-flex items-center gap-1.5 text-xs",
-          tone === "danger" ? "text-high" : tone === "warn" ? "text-amber-700" : "text-muted",
-        )}
-      >
-        {icon}
-        {label}
-      </span>
-      <span className="mt-1 block font-display text-3xl font-semibold leading-none">{value}</span>
-    </>
-  );
-
-  const box = cn(
-    "block rounded-xl border bg-elevated p-3.5",
-    tone === "danger" ? "border-high/40 bg-high-bg/40" : tone === "warn" ? "border-amber-300" : "border-line",
-    className,
-  );
-
-  if (disabled) return <div className={box}>{body}</div>;
-
   return (
     <Link
       to={to}
-      onClick={preset ? () => presetReportFilters(preset) : undefined}
-      className={cn(box, "transition active:scale-[0.99] hover:shadow-sm")}
+      className="flex flex-col items-center gap-2.5 rounded-xl border border-line bg-elevated p-4 text-center transition hover:-translate-y-0.5 hover:shadow-sm sm:p-5"
     >
-      {body}
+      <span
+        className={`grid size-12 place-items-center rounded-2xl ${GRID_COLORS[color]}`}
+      >
+        {icon}
+      </span>
+
+      <span className="text-sm font-medium">
+        {label}
+      </span>
     </Link>
   );
 }
 
-function Shortcut({
-  to,
-  icon,
+function StatCard({
   label,
-  onClick,
+  value,
+  icon,
+  emphasis = false,
 }: {
-  to: string;
-  icon: ReactNode;
   label: string;
-  onClick?: () => void;
+  value: number;
+  icon: string;
+  emphasis?: boolean;
 }) {
   return (
-    <Link
-      to={to}
-      onClick={onClick}
-      className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-elevated p-2 text-center text-xs font-medium text-ink-soft transition hover:shadow-sm active:scale-[0.98] [&_svg]:size-5 [&_svg]:text-teal"
+    <div
+      className={`rounded-xl border bg-elevated p-4 ${
+        emphasis ? "border-amber-300" : "border-line"
+      }`}
     >
-      {icon}
-      {label}
-    </Link>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xl" aria-hidden="true">
+          {icon}
+        </span>
+
+        <span className="font-display text-2xl font-semibold">
+          {value}
+        </span>
+      </div>
+
+      <p className="mt-2 text-xs text-muted">
+        {label}
+      </p>
+    </div>
   );
 }

@@ -73,6 +73,7 @@ export type LabProfileData = {
   doctor_degree: string | null;
   doctor_specialty: string | null;
   logo_url: string | null;
+  report_language: "bilingual" | "ar" | "en";
   is_profile_complete: boolean;
 };
 
@@ -83,7 +84,7 @@ export const getCurrentLab = createServerFn({ method: "GET" })
     const rows = await sql<LabProfileData>`
       select l.id as lab_id, l.name as lab_name, l.name_en as lab_name_en,
              lu.username, lu.role, l.phone, l.whatsapp, l.email, l.website,
-             l.address, l.doctor_name, l.doctor_degree, l.doctor_specialty, l.logo_url,
+             l.address, l.doctor_name, l.doctor_degree, l.doctor_specialty, l.logo_url, l.report_language,
              (length(trim(coalesce(l.name, ''))) >= 2
               and length(trim(coalesce(l.phone, ''))) >= 5
               and length(trim(coalesce(l.address, ''))) >= 5) as is_profile_complete
@@ -111,6 +112,7 @@ export type UpdateLabProfileInput = {
   doctorDegree?: string;
   doctorSpecialty?: string;
   logoUrl?: string | null;
+  reportLanguage?: "bilingual" | "ar" | "en";
 };
 
 export const updateCurrentLabProfile = createServerFn({ method: "POST" })
@@ -133,13 +135,14 @@ export const updateCurrentLabProfile = createServerFn({ method: "POST" })
     const logoUrl = data.logoUrl?.trim() || null;
     // بيتخزن كـ data URI (base64) — نحدد سقف معقول عشان صف المعمل في القاعدة يفضل خفيف.
     if (logoUrl && logoUrl.length > 700_000) throw new Error("حجم الشعار كبير جدًا، اختر صورة أصغر");
+    const reportLanguage = data.reportLanguage && ["bilingual", "ar", "en"].includes(data.reportLanguage) ? data.reportLanguage : "bilingual";
 
     await sql.query(
       `update labs
        set name=$1, name_en=$2, phone=$3, whatsapp=$4, email=$5, website=$6,
            address=$7, doctor_name=$8, doctor_degree=$9, doctor_specialty=$10,
-           logo_url=$11, updated_at=current_timestamp
-       where id=$12`,
+           logo_url=$11, report_language=$12, updated_at=current_timestamp
+       where id=$13`,
       [
         name,
         data.nameEn?.trim() || null,
@@ -152,6 +155,7 @@ export const updateCurrentLabProfile = createServerFn({ method: "POST" })
         data.doctorDegree?.trim() || null,
         data.doctorSpecialty?.trim() || null,
         logoUrl,
+        reportLanguage,
         rows[0].lab_id,
       ],
     );
@@ -159,15 +163,11 @@ export const updateCurrentLabProfile = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** The lab's local time zone: "today" must roll over at local midnight, not UTC midnight. */
-const LAB_TIME_ZONE = "Africa/Cairo";
-
 export type LabDashboardStats = {
   patients: number;
   reportsToday: number;
   pendingReview: number;
   approved: number;
-  /** Reports created today that contain at least one critical result. */
   critical: number;
 };
 
@@ -190,10 +190,10 @@ export const getLabDashboardStats = createServerFn({ method: "GET" })
     const rows = await sql<LabDashboardStats>`
       select
         (select count(*)::int from patients where lab_id = ${labId}) as patients,
-        (select count(*)::int from reports where lab_id = ${labId} and (created_at at time zone ${LAB_TIME_ZONE})::date = (now() at time zone ${LAB_TIME_ZONE})::date and status <> 'cancelled') as "reportsToday",
+        (select count(*)::int from reports where lab_id = ${labId} and created_at::date = current_date) as "reportsToday",
         (select count(*)::int from reports where lab_id = ${labId} and status = 'pending_review') as "pendingReview",
         (select count(*)::int from reports where lab_id = ${labId} and status = 'approved') as approved,
-        (select count(distinct r.id)::int from report_results rr inner join reports r on r.id = rr.report_id where r.lab_id = ${labId} and rr.flag = 'critical' and r.status <> 'cancelled' and (r.created_at at time zone ${LAB_TIME_ZONE})::date = (now() at time zone ${LAB_TIME_ZONE})::date) as critical
+        (select count(*)::int from report_results rr inner join reports r on r.id = rr.report_id where r.lab_id = ${labId} and rr.flag = 'critical') as critical
     `;
     return rows[0] ?? { patients: 0, reportsToday: 0, pendingReview: 0, approved: 0, critical: 0 };
   });

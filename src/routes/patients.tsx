@@ -14,8 +14,6 @@ import {
 } from "@/lib/patients";
 import { getCurrentLabPermissions } from "@/lib/lab-users";
 import { formatArDate } from "@/lib/utils";
-import { AGE_UNITS, formatAge, parseAgeUnit, type AgeUnit } from "@/lib/age";
-import { normalizeNumerals } from "@/lib/numerals";
 
 export const Route = createFileRoute("/patients")({
   loader: async () => {
@@ -155,7 +153,7 @@ function PatientsPage() {
 
                   <p className="text-xs text-muted">
                     {p.patientCode || "بدون كود"} ·{" "}
-                    {p.age ? formatAge("ar", p.age, p.ageUnit) : "-"} · {p.gender}
+                    {p.age || "-"} سنة · {p.gender}
                   </p>
 
                   <p className="text-xs text-muted">
@@ -207,7 +205,7 @@ function PatientsPage() {
 
                   <p className="mt-1 text-xs text-muted">
                     {selected.patientCode || "بدون كود"} ·{" "}
-                    {selected.gender} · {formatAge("ar", selected.age, selected.ageUnit)}
+                    {selected.gender} · {selected.age} سنة
                   </p>
                 </div>
               </div>
@@ -341,7 +339,6 @@ function NewPatientModal({
     fullName: "",
     patientCode: "",
     age: "",
-    ageUnit: "years" as AgeUnit,
     gender: "ذكر" as "ذكر" | "أنثى",
     phone: "",
     nationalId: "",
@@ -369,7 +366,6 @@ function NewPatientModal({
         data: {
           ...form,
           age: Number(form.age),
-          ageUnit: form.ageUnit,
         },
       });
 
@@ -378,7 +374,6 @@ function NewPatientModal({
         patientCode: patient.patientCode,
         fullName: patient.fullName,
         age: patient.age,
-        ageUnit: patient.ageUnit,
         gender: patient.gender,
         phone: form.phone || undefined,
         nationalId: form.nationalId || undefined,
@@ -459,34 +454,18 @@ function NewPatientModal({
           <div>
             <Label>السن</Label>
 
-            <div className="flex gap-2">
-              <Input
-                required
-                value={form.age}
-                onChange={(e) =>
-                  set(
-                    "age",
-                    normalizeNumerals(e.target.value).replace(/\D/g, "").slice(0, 3),
-                  )
-                }
-                inputMode="numeric"
-                placeholder="35"
-                aria-label="السن"
-              />
-
-              <select
-                value={form.ageUnit}
-                onChange={(e) => set("ageUnit", parseAgeUnit(e.target.value))}
-                aria-label="وحدة السن"
-                className="h-10 shrink-0 rounded-md border border-line bg-paper px-2 text-sm"
-              >
-                {AGE_UNITS.map((u) => (
-                  <option key={u.value} value={u.value}>
-                    {u.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Input
+              required
+              value={form.age}
+              onChange={(e) =>
+                set(
+                  "age",
+                  e.target.value.replace(/\D/g, ""),
+                )
+              }
+              inputMode="numeric"
+              placeholder="35"
+            />
           </div>
 
           <div>

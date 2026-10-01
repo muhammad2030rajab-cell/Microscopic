@@ -1,4 +1,3 @@
-import { ageToYears, parseAgeUnit, type AgeUnit } from "@/lib/age";
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -17,6 +16,7 @@ export interface LabProfile {
   doctorDegree: string;
   doctorSpecialty: string;
   logoUrl?: string;
+  reportLanguage?: "bilingual" | "ar" | "en";
 }
 
 export interface SavedTest {
@@ -35,8 +35,6 @@ export interface Report {
   patientName: string;
   patientCode?: string;
   age: number;
-  /** Unit of `age`; missing = years. */
-  ageUnit?: AgeUnit;
   gender: Gender;
   phone?: string;
   nationalId?: string;
@@ -52,8 +50,6 @@ export interface Draft {
   patientName: string;
   patientCode: string;
   age: string;
-  /** Unit of `age`. Drafts saved before this existed have none: read it with parseAgeUnit(). */
-  ageUnit: AgeUnit;
   gender: Gender | "";
   phone: string;
   nationalId: string;
@@ -75,6 +71,7 @@ const defaultLab: LabProfile = {
   doctorName: "د. رجب عبد الرحمن",
   doctorDegree: "دكتوراه الكيمياء الحيوية",
   doctorSpecialty: "الباثولوجيا الإكلينيكية",
+  reportLanguage: "bilingual",
 };
 
 function mkTest(
@@ -185,7 +182,6 @@ const emptyDraft = (): Draft => ({
   patientName: "",
   patientCode: "",
   age: "",
-  ageUnit: "years",
   gender: "",
   phone: "",
   nationalId: "",
@@ -221,19 +217,17 @@ export const useLabStore = create<LabState>()(
       saveDraftAsReport: () => {
         const { draft, reports } = get();
         const age = Number(draft.age);
-        const ageUnit = parseAgeUnit(draft.ageUnit);
         if (!draft.patientName.trim() || !draft.gender || !age) return null;
         const tests = addCalculatedTests(
           draft.tests.filter((t) => t.value.trim()),
           draft.gender,
-          ageToYears(age, ageUnit) ?? age,
+          age,
         );
         if (tests.length === 0) return null;
         const report: Report = {
           id: uid("rep"),
           patientName: draft.patientName.trim(),
           age,
-          ageUnit,
           gender: draft.gender,
           doctor: draft.doctor.trim() || "Himself",
           createdAt: new Date().toISOString(),

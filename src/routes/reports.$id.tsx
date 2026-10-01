@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { ArrowDown, ArrowRight, ArrowUp, CheckCircle2, ChevronDown, ClipboardCheck, FileDown, Loader2, Mail, MessageCircle, Minus, Pencil, Printer, Send, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowRight, CheckCircle2, ClipboardCheck, FileDown, Loader2, Mail, MessageCircle, Pencil, Printer, Send, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PrintView } from "@/components/report/print-view";
 import { Button } from "@/components/ui/button";
@@ -14,9 +14,7 @@ import { downloadReportPdf } from "@/lib/generate-report-pdf";
 import { formatSlashDate, visitIdFrom } from "@/lib/utils";
 import { listReportAttachments, type ReportAttachment } from "@/lib/attachments";
 import { AttachmentsPanel } from "@/components/report/attachments-panel";
-import { ShareDialog, type ShareChannel } from "@/components/report/share-dialog";
-import { ageToYears, formatAge } from "@/lib/age";
-import { REPORT_LANGS, isReportLang, type ReportLang } from "@/lib/report-strings";
+import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 
 export const Route = createFileRoute("/reports/$id")({
   loader: async ({ params }) => {
@@ -40,27 +38,12 @@ function ReportDetail() {
   const [loading, setLoading] = useState<"submit" | "approve" | "delete" | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [error, setError] = useState("");
-  const [shareChannel, setShareChannel] = useState<ShareChannel | null>(null);
-  const [lang, setLang] = useState<ReportLang>("bi");
-
-  // Remembered per device. Read after mount so server and client HTML match.
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("rajab:report-lang");
-      if (isReportLang(saved)) setLang(saved);
-    } catch { /* storage blocked: keep the default */ }
-  }, []);
-
-  function chooseLang(next: ReportLang) {
-    setLang(next);
-    try { localStorage.setItem("rajab:report-lang", next); } catch { /* ignore */ }
-  }
   const printRef = useRef<HTMLDivElement>(null);
 
   if (!lab) return <Navigate to="/login" replace />;
   if (!report) return <AppShell><div className="mx-auto max-w-lg py-16 text-center"><h1 className="font-display text-2xl font-semibold">التقرير غير موجود</h1><Link to="/reports" className="mt-6 inline-flex text-sm text-teal hover:underline">العودة للأرشيف</Link></div></AppShell>;
 
-  const notes = report.tests.map((t) => ({ t, f: interpretResult(t.name, t.value, report.gender, t.customRange, ageToYears(report.age, report.ageUnit), t.categoryId) })).filter(({ f }) => f.flag !== "normal" && f.flag !== "unknown");
+  const notes = report.tests.map((t) => ({ t, f: interpretResult(t.name, t.value, report.gender, t.customRange, report.age) })).filter(({ f }) => f.flag !== "normal" && f.flag !== "unknown");
   const critical = report.tests.filter((t) => isCritical(t.name, t.value));
   const labProfile = {
     name: lab.lab_name,
@@ -73,6 +56,7 @@ function ReportDetail() {
     doctorDegree: lab.doctor_degree || "",
     doctorSpecialty: lab.doctor_specialty || "",
     logoUrl: lab.logo_url || "",
+    reportLanguage: lab.report_language || "bilingual",
   };
 
   async function submitForReview() {
@@ -120,120 +104,99 @@ function ReportDetail() {
   const canApprove = permissions["reports.approve"] === true && ["draft", "pending_review"].includes(report.status);
   const canDelete = permissions["reports.delete"] === true && report.status !== "approved";
 
-  const visit = visitIdFrom(report.id);
+  function shareSummaryText() {
+    const lines = [
+      `تقرير تحليل — ${labProfile.name}`,
+      `المريض: ${report.patientName} (${report.age} ${report.gender})`,
+      report.doctor ? `الطبيب المحيل: ${report.doctor}` : null,
+      "",
+      ...report.tests.map((t) => `${t.name}: ${t.value} ${t.unit}`),
+      critical.length ? `\n⚠️ قيم حرجة: ${critical.map((t) => `${t.name} (${t.value})`).join("، ")}` : null,
+    ].filter(Boolean);
+    return lines.join("\n");
+  }
+
+  function shareOnWhatsapp() {
+    if (!window.confirm("هيتبعت اسم المريض ونتائج التحاليل كنص واضح عبر واتساب. متابعة؟")) return;
+    const text = encodeURIComponent(shareSummaryText());
+    window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
+  }
+
+  function shareByEmail() {
+    if (!window.confirm("هيتبعت اسم المريض ونتائج التحاليل كنص واضح عبر البريد الإلكتروني. متابعة؟")) return;
+    const subject = encodeURIComponent(`تقرير تحليل — ${report.patientName}`);
+    const body = encodeURIComponent(shareSummaryText());
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  }
 
   return <div className="print-root min-h-dvh bg-paper">
     <div className="no-print">
       <AppShell>
-        <div className="mx-auto w-full max-w-4xl">
-          <Link to="/reports" className="mb-3 inline-flex h-11 items-center gap-2 text-sm text-ink-soft"><ArrowRight className="size-4" />الأرشيف</Link>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <Link to="/reports" className="inline-flex h-11 items-center gap-2 text-sm text-ink-soft"><ArrowRight className="size-4" />الأرشيف</Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {report.status === "draft" ? <Button variant="secondary" asChild><Link to="/reports/edit/$id" params={{ id: report.id }}><Pencil className="size-4" />تعديل المسودة</Link></Button> : null}
+            {canSubmit ? <Button variant="secondary" onClick={submitForReview} disabled={loading !== null}><Send className="size-4" />{loading === "submit" ? "جارٍ الإرسال…" : "إرسال للمراجعة"}</Button> : null}
+            {canApprove ? <Button onClick={approve} disabled={loading !== null}><ClipboardCheck className="size-4" />{loading === "approve" ? "جارٍ الاعتماد…" : "اعتماد التقرير"}</Button> : null}
+            {canDelete ? <Button variant="danger" onClick={remove} disabled={loading !== null}><Trash2 className="size-4" />{loading === "delete" ? "جارٍ الحذف…" : "حذف التقرير"}</Button> : null}
+          </div>
+        </div>
 
-          <section className="mb-4 rounded-lg border border-line bg-elevated p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h1 className="font-display text-xl font-semibold leading-tight">{report.patientName}</h1>
-                <p dir="ltr" className="mt-0.5 text-start font-mono text-xs text-muted">{visit}</p>
-              </div>
-              <span className={`inline-flex rounded-full px-3 py-1 text-xs ${reportStatusClasses[report.status]}`}>{reportStatusLabels[report.status]}</span>
-            </div>
-            {report.status === "pending_review" ? <p className="mt-3 text-sm text-high">التقرير في انتظار مراجعة واعتماد المسؤول.</p> : null}
-            {report.status === "approved" ? <p className="mt-3 inline-flex items-center gap-1.5 text-sm text-ok"><CheckCircle2 className="size-4" />التقرير معتمد وجاهز كنسخة نهائية.</p> : null}
-            {report.status === "draft" ? <p className="mt-3 text-sm text-muted">يمكن تعديل التقرير ثم إرساله للمراجعة.</p> : null}
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              {canApprove ? <Button onClick={approve} disabled={loading !== null}><ClipboardCheck className="size-4" />{loading === "approve" ? "جارٍ الاعتماد…" : "اعتماد التقرير"}</Button> : null}
-              {canSubmit ? <Button variant="secondary" onClick={submitForReview} disabled={loading !== null}><Send className="size-4" />{loading === "submit" ? "جارٍ الإرسال…" : "إرسال للمراجعة"}</Button> : null}
-              {report.status === "draft" ? <Button variant="secondary" asChild><Link to="/reports/edit/$id" params={{ id: report.id }}><Pencil className="size-4" />تعديل المسودة</Link></Button> : null}
-              {canDelete ? <Button variant="danger" onClick={remove} disabled={loading !== null}><Trash2 className="size-4" />{loading === "delete" ? "جارٍ الحذف…" : "حذف التقرير"}</Button> : null}
-            </div>
-          </section>
+        <div className="mx-auto mb-5 flex max-w-[820px] flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-elevated p-4">
+          <div><p className="text-xs text-muted">حالة التقرير</p><span className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs ${reportStatusClasses[report.status]}`}>{reportStatusLabels[report.status]}</span></div>
+          {report.status === "pending_review" ? <p className="text-sm text-high">التقرير في انتظار مراجعة واعتماد المسؤول.</p> : null}
+          {report.status === "approved" ? <p className="inline-flex items-center gap-1.5 text-sm text-ok"><CheckCircle2 className="size-4" />التقرير معتمد وجاهز كنسخة نهائية.</p> : null}
+          {report.status === "draft" ? <p className="text-sm text-muted">يمكن تعديل مسار التقرير ثم إرساله للمراجعة.</p> : null}
+        </div>
 
-          {critical.length > 0 ? <div role="alert" className="mb-4 flex items-start gap-2 rounded-lg border border-high/30 bg-high-bg p-4 text-sm text-high"><TriangleAlert className="mt-0.5 size-4 shrink-0" /><p><span className="font-semibold">قيم حرجة: </span>{critical.map((t) => `${t.name} (${t.value})`).join("، ")}</p></div> : null}
+        <div className="mx-auto mb-5 max-w-[820px] rounded-lg border border-line bg-elevated p-4">
+          <p className="mb-3 text-sm font-medium">مشاركة التقرير</p>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            <ShareAction icon={pdfLoading ? <Loader2 className="size-5 animate-spin" /> : <FileDown className="size-5" />} label={pdfLoading ? "جارٍ الإنشاء…" : "حفظ PDF"} color="bg-red-500/10 text-red-600" onClick={downloadPdf} disabled={pdfLoading} />
+            <ShareAction icon={<MessageCircle className="size-5" />} label="واتساب" color="bg-emerald-500/10 text-emerald-600" onClick={shareOnWhatsapp} />
+            <ShareAction icon={<Mail className="size-5" />} label="بريد إلكتروني" color="bg-teal/10 text-teal" onClick={shareByEmail} />
+            <ShareAction icon={<Printer className="size-5" />} label="طباعة" color="bg-slate-500/10 text-slate-600" onClick={() => window.print()} />
+          </div>
+          <p className="mt-3 text-xs leading-5 text-muted">مشاركة واتساب والبريد بترسل ملخص نتائج التقرير كنص. لإرسال التقرير بشكله الكامل (PDF)، استخدم زر "حفظ PDF" ثم أرفق الملف يدويًا.</p>
+        </div>
+        {error ? <div className="mx-auto mb-5 max-w-[820px] rounded-lg border border-high/20 bg-high/5 p-4 text-sm text-high">{error}</div> : null}
 
-          {error ? <div role="alert" className="mb-4 rounded-lg border border-high/20 bg-high/5 p-4 text-sm text-high">{error}</div> : null}
+        <AttachmentsPanel reportId={report.id} canEdit={permissions["reports.edit"] === true} initial={attachments} />
 
-          <section className="mb-4 rounded-lg border border-line bg-elevated p-3">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm text-ink-soft" id="report-lang-label">لغة التقرير (للطباعة وPDF)</span>
-              <div role="radiogroup" aria-labelledby="report-lang-label" className="inline-flex overflow-hidden rounded-md border border-line">
-                {REPORT_LANGS.map((l) => (
-                  <button
-                    key={l.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={lang === l.value}
-                    onClick={() => chooseLang(l.value)}
-                    className={`min-h-11 px-4 text-sm transition-colors ${lang === l.value ? "bg-ink text-paper" : "bg-elevated text-ink hover:bg-paper-2"}`}
-                  >
-                    {l.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              <ShareAction icon={pdfLoading ? <Loader2 className="size-5 animate-spin" /> : <FileDown className="size-5" />} label={pdfLoading ? "جارٍ الإنشاء…" : "حفظ PDF"} color="bg-red-500/10 text-red-600" onClick={downloadPdf} disabled={pdfLoading} />
-              <ShareAction icon={<Printer className="size-5" />} label="طباعة" color="bg-slate-500/10 text-slate-600" onClick={() => window.print()} />
-              <ShareAction icon={<MessageCircle className="size-5" />} label="واتساب" color="bg-emerald-500/10 text-emerald-600" onClick={() => setShareChannel("whatsapp")} />
-              <ShareAction icon={<Mail className="size-5" />} label="بريد" color="bg-teal/10 text-teal" onClick={() => setShareChannel("email")} />
-            </div>
-            <p className="mt-2.5 px-1 text-xs leading-5 text-muted">واتساب والبريد بيبعتوا رابط تحقق (أو ملخص نصي بعد تأكيدك). لإرسال التقرير بشكله الكامل استخدم "حفظ PDF" وأرفق الملف يدويًا.</p>
-          </section>
-
-          <AttachmentsPanel reportId={report.id} canEdit={permissions["reports.edit"] === true} initial={attachments} />
-
-          {previous ? <section className="mb-4 rounded-lg border border-line bg-elevated p-4 print:hidden">
+        {previous ? (
+          <div className="mx-auto mb-5 max-w-[820px] rounded-lg border border-line bg-elevated p-4 print:hidden">
             <p className="text-sm font-medium">مقارنة بالزيارة السابقة</p>
             <p className="mt-0.5 text-xs text-muted">آخر تقرير معتمد بتاريخ {formatSlashDate(previous.reportDate)}</p>
             <ul className="mt-3 divide-y divide-line/60">
-              {report.tests.filter((t) => t.value && previous.values[`${t.categoryId}:${t.name}`]).map((t) => {
-                const before = previous.values[`${t.categoryId}:${t.name}`];
+              {report.tests.filter((t) => t.value && previous.values[t.name]).map((t) => {
                 const curNum = parseValue(t.value);
-                const prevNum = parseValue(before);
+                const prevNum = parseValue(previous.values[t.name]);
                 let trend: "up" | "down" | "same" | null = null;
-                if (curNum != null && prevNum != null) trend = curNum > prevNum ? "up" : curNum < prevNum ? "down" : "same";
+                if (curNum != null && prevNum != null) {
+                  trend = curNum > prevNum ? "up" : curNum < prevNum ? "down" : "same";
+                }
                 return (
-                  <li key={`${t.categoryId}-${t.name}`} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <li key={t.name} className="flex items-center justify-between gap-3 py-2 text-sm">
                     <span className="text-ink-soft">{t.name}</span>
                     <span className="flex items-center gap-2 tabular-nums">
-                      <span className="text-xs text-muted">{before}</span>
-                      {trend === "up" ? <ArrowUp className="size-3.5 text-high" aria-label="ارتفع" /> : trend === "down" ? <ArrowDown className="size-3.5 text-teal" aria-label="انخفض" /> : trend === "same" ? <Minus className="size-3.5 text-muted" aria-label="بدون تغيير" /> : null}
+                      <span className="text-xs text-muted">{previous.values[t.name]}</span>
+                      {trend === "up" ? <ArrowUp className="size-3.5 text-high" /> : trend === "down" ? <ArrowDown className="size-3.5 text-teal" /> : trend === "same" ? <Minus className="size-3.5 text-muted" /> : null}
                       <span className="font-medium">{t.value}</span>
                     </span>
                   </li>
                 );
               })}
             </ul>
-          </section> : null}
+          </div>
+        ) : null}
 
-          {notes.length > 0 ? <details className="group mb-5 rounded-lg border border-line bg-elevated">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium">
-              <span>ملخص طبي <span className="ms-1 rounded-full bg-paper-2 px-2 py-0.5 text-xs text-ink-soft">{notes.length}</span></span>
-              <ChevronDown className="size-4 text-muted transition-transform group-open:rotate-180" />
-            </summary>
-            <ul className="space-y-1.5 border-t border-line px-4 py-3 text-sm text-ink-soft">{notes.map(({ f, t }) => <li key={`${t.categoryId}-${t.name}`}><span className="font-medium text-ink">{t.name}:</span> {f.note}</li>)}</ul>
-          </details> : null}
-        </div>
-
+        {(critical.length || notes.length) ? <aside className="mx-auto mb-6 w-full max-w-[820px] rounded-lg border border-line bg-elevated p-4"><h2 className="text-sm font-medium">ملخص طبي</h2>{critical.length > 0 && <p className="mt-2 text-sm text-high">قيم حرجة: {critical.map((t) => `${t.name} (${t.value})`).join("، ")}</p>}<ul className="mt-2 space-y-1.5 text-sm text-ink-soft">{notes.slice(0, 6).map(({ f, t }) => <li key={`${t.categoryId}-${t.name}`}><span className="font-medium text-ink">{t.name}:</span> {f.note}</li>)}</ul></aside> : null}
         <div ref={printRef} className="mx-auto w-full max-w-4xl">
-          <PrintView report={report} lab={labProfile} lang={lang} interactive />
+          <PrintView report={report} lab={labProfile} interactive />
         </div>
       </AppShell>
     </div>
-    <ShareDialog
-      channel={shareChannel}
-      onClose={() => setShareChannel(null)}
-      input={{
-        labName: labProfile.name,
-        patientName: report.patientName,
-        age: formatAge("ar", report.age, report.ageUnit),
-        gender: report.gender,
-        doctor: report.doctor,
-        tests: report.tests,
-        critical,
-        verifyUrl: `${typeof window === "undefined" ? "" : window.location.origin}/verify/${report.id}`,
-        approved: report.status === "approved",
-      }}
-    />
-    <div className="hidden print:block"><PrintView report={report} lab={labProfile} lang={lang} /></div>
+    <div className="hidden print:block"><PrintView report={report} lab={labProfile} /></div>
   </div>;
 }
 
@@ -255,9 +218,9 @@ function ShareAction({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-line bg-elevated p-2 text-center transition hover:bg-paper disabled:pointer-events-none disabled:opacity-60"
+      className="flex flex-col items-center gap-2 rounded-lg border border-line bg-elevated p-3 text-center transition hover:-translate-y-0.5 hover:shadow-sm disabled:pointer-events-none disabled:opacity-60"
     >
-      <span className={`grid size-9 place-items-center rounded-full ${color}`}>{icon}</span>
+      <span className={`grid size-10 place-items-center rounded-full ${color}`}>{icon}</span>
       <span className="text-xs font-medium">{label}</span>
     </button>
   );

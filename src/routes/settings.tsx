@@ -37,6 +37,7 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
   const [doctorDegree, setDoctorDegree] = useState(lab.doctor_degree ?? "");
   const [doctorSpecialty, setDoctorSpecialty] = useState(lab.doctor_specialty ?? "");
   const [logoUrl, setLogoUrl] = useState(lab.logo_url ?? "");
+  const [reportLanguage, setReportLanguage] = useState(lab.report_language ?? "bilingual");
   const [saving, setSaving] = useState(false);
 
   if (lab.role !== "owner") {
@@ -60,7 +61,7 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
     setSaving(true);
     try {
       await updateCurrentLabProfile({
-        data: { name, nameEn, phone, whatsapp, email, website, address, doctorName, doctorDegree, doctorSpecialty, logoUrl },
+        data: { name, nameEn, phone, whatsapp, email, website, address, doctorName, doctorDegree, doctorSpecialty, logoUrl, reportLanguage },
       });
       toast.success("تم حفظ بيانات المعمل على النظام");
     } catch (error) {
@@ -90,6 +91,19 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
             <input id="lab-logo" type="file" accept="image/*" onChange={onLogoChange} className="mt-1 block text-xs text-muted file:mr-2 file:rounded-md file:border-0 file:bg-teal/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-teal" />
             <p className="mt-1 text-[11px] text-muted">هيظهر تلقائيًا في كل تقرير تطبعه (حد أقصى 500 كيلوبايت)</p>
           </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="report-language">لغة التقرير المطبوع</Label>
+          <select
+            id="report-language"
+            value={reportLanguage}
+            onChange={(e) => setReportLanguage(e.target.value as typeof reportLanguage)}
+            className="flex h-10 w-full rounded-md border border-line bg-paper px-3 text-sm"
+          >
+            <option value="bilingual">ثنائي اللغة (عربي + إنجليزي، الوضع الحالي)</option>
+            <option value="ar">عربي بالكامل</option>
+            <option value="en">إنجليزي بالكامل</option>
+          </select>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="اسم المعمل" value={name} onChange={setName} required />

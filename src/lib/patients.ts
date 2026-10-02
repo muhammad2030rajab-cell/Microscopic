@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { isValidPhone, phoneDigits } from "@/lib/phone";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { requireLabPermission, type LabPermission } from "@/lib/lab-users";
@@ -141,6 +142,10 @@ export const createPatient = createServerFn({ method: "POST" })
         throw new Error("النوع غير صالح");
       }
 
+      if (!isValidPhone(data.phone)) {
+        throw new Error("رقم هاتف المريض مطلوب (10 أرقام على الأقل)");
+      }
+
       const patientCode =
         data.patientCode?.trim().toUpperCase() || null;
 
@@ -183,7 +188,7 @@ export const createPatient = createServerFn({ method: "POST" })
           fullName,
           age,
           data.gender,
-          data.phone?.trim() || null,
+          phoneDigits(data.phone),
           data.nationalId?.trim() || null,
           data.notes?.trim() || null,
         ],

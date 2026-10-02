@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Loader2, LogOut } from "lucide-react";
 import { Navigate } from "@tanstack/react-router";
 import { authEnabled, signOut } from "./client";
 import { resolveSignInGateState } from "./sign-in-gate";
@@ -83,26 +84,34 @@ export function UserButton() {
         <img
           src={user.profileImageUrl}
           alt=""
-          className="h-8 w-8 rounded-full object-cover"
+          className="size-9 shrink-0 rounded-full object-cover"
         />
       ) : (
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-black/10 text-sm font-medium dark:bg-white/20">
+        <span
+          aria-hidden="true"
+          className="grid size-9 shrink-0 place-items-center rounded-full bg-teal/10 text-sm font-semibold text-teal"
+        >
           {label.charAt(0).toUpperCase()}
         </span>
       )}
-      <span className="text-sm font-medium">{label}</span>
+      <span className="hidden max-w-[12rem] truncate text-sm font-medium sm:block" title={label}>
+        {label}
+      </span>
       {authEnabled && (
         <button
           type="button"
           disabled={signingOut}
+          aria-label="تسجيل الخروج"
+          title="تسجيل الخروج"
           onClick={() => {
             setSigningOut(true);
             // Success navigates away; on failure re-enable so it can be retried.
             void signOut().catch(() => setSigningOut(false));
           }}
-          className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline disabled:cursor-wait disabled:no-underline"
+          className="inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-sm border border-line px-3 text-sm text-ink-soft transition-colors hover:border-line-strong hover:bg-paper-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-60"
         >
-          {signingOut ? "Signing out…" : "Sign out"}
+          {signingOut ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
+          <span className="hidden sm:inline">{signingOut ? "جارٍ الخروج…" : "تسجيل الخروج"}</span>
         </button>
       )}
     </div>

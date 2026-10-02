@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import { toWhatsAppNumber } from "@/lib/phone";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { ArrowRight, CheckCircle2, ClipboardCheck, FileDown, Loader2, Mail, MessageCircle, Pencil, Printer, Send, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -22,9 +23,9 @@ export const Route = createFileRoute("/reports/$id")({
       const [report, lab, access] = await Promise.all([getLabReport({ data: { id: params.id } }), getCurrentLab(), getCurrentLabPermissions()]);
       const attachments = await listReportAttachments({ data: { reportId: params.id } }).catch(() => [] as ReportAttachment[]);
       const previous = await getPreviousResults({ data: { reportId: params.id } }).catch(() => null as PreviousResults | null);
-      return { report, lab, permissions: access.permissions, attachments, previous };
+      return { report, lab, permissions: access.permissions, role: access.role as string, attachments, previous };
     } catch {
-      return { report: null, lab: null as LabProfileData | null, permissions: {} as Record<string, boolean | undefined>, attachments: [] as ReportAttachment[], previous: null as PreviousResults | null };
+      return { report: null, lab: null as LabProfileData | null, permissions: {} as Record<string, boolean | undefined>, role: "" as string, attachments: [] as ReportAttachment[], previous: null as PreviousResults | null };
     }
   },
   component: ReportDetail,
@@ -32,7 +33,7 @@ export const Route = createFileRoute("/reports/$id")({
 
 function ReportDetail() {
   const data = Route.useLoaderData();
-  const { lab, permissions, attachments, previous } = data;
+  const { lab, permissions, role, attachments, previous } = data;
   const navigate = useNavigate();
   const [report, setReport] = useState(data.report);
   const [loading, setLoading] = useState<"submit" | "approve" | "delete" | null>(null);
@@ -78,7 +79,10 @@ function ReportDetail() {
   }
 
   async function remove() {
-    if (!window.confirm("هل أنت متأكد من حذف هذا التقرير؟ لا يمكن التراجع عن هذا الإجراء.")) return;
+    const message = report!.status === "approved"
+      ? "هذا تقرير معتمد. حذفه نهائي ولا يمكن استرجاعه، وسيُسجَّل في سجل المراجعة. هل تريد المتابعة؟"
+      : "هل أنت متأكد من حذف هذا التقرير؟ لا يمكن التراجع عن هذا الإجراء.";
+    if (!window.confirm(message)) return;
     setError(""); setLoading("delete");
     try {
       await deleteLabReport({ data: { id: report.id } });
@@ -102,7 +106,7 @@ function ReportDetail() {
 
   const canSubmit = permissions["reports.edit"] === true && report.status === "draft";
   const canApprove = permissions["reports.approve"] === true && ["draft", "pending_review"].includes(report.status);
-  const canDelete = permissions["reports.delete"] === true && report.status !== "approved";
+  const canDelete = permissions["reports.delete"] === true && (report.status !== "approved" || role === "owner");
 
   function shareSummaryText() {
     const lines = [
@@ -117,9 +121,14 @@ function ReportDetail() {
   }
 
   function shareOnWhatsapp() {
-    if (!window.confirm("هيتبعت اسم المريض ونتائج التحاليل كنص واضح عبر واتساب. متابعة؟")) return;
-    const text = encodeURIComponent(shareSummaryText());
-    window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
+    const number = toWhatsAppNumber(report!.phone);
+    const confirmMessage = number
+      ? `هيتفتح واتساب على رقم المريض (${report!.phone}) ومعاه ملخص النتائج كنص. متابعة؟`
+      : "مفيش رقم هاتف مسجل للمريض، هتختار جهة الاتصال بنفسك في واتساب. متابعة؟";
+    if (!window.confirm(confirmMessage)) return;
+    const verifyLink = report!.status === "approved" ? `\n\nللتحقق من التقرير: ${window.location.origin}/verify/${report!.id}` : "";
+    const text = encodeURIComponent(shareSummaryText() + verifyLink);
+    window.open(`https://wa.me/${number ?? ""}?text=${text}`, "_blank", "noopener,noreferrer");
   }
 
   function shareByEmail() {
@@ -157,7 +166,7 @@ function ReportDetail() {
             <ShareAction icon={<Mail className="size-5" />} label="بريد إلكتروني" color="bg-teal/10 text-teal" onClick={shareByEmail} />
             <ShareAction icon={<Printer className="size-5" />} label="طباعة" color="bg-slate-500/10 text-slate-600" onClick={() => window.print()} />
           </div>
-          <p className="mt-3 text-xs leading-5 text-muted">مشاركة واتساب والبريد بترسل ملخص نتائج التقرير كنص. لإرسال التقرير بشكله الكامل (PDF)، استخدم زر "حفظ PDF" ثم أرفق الملف يدويًا.</p>
+          <p className="mt-3 text-xs leading-5 text-muted">واتساب بيفتح محادثة المريض على رقمه المسجّل، والبريد بيرسل ملخص نتائج التقرير كنص. لإرسال التقرير بشكله الكامل (PDF)، استخدم زر "حفظ PDF" ثم أرفق الملف يدويًا.</p>
         </div>
         {error ? <div className="mx-auto mb-5 max-w-[820px] rounded-lg border border-high/20 bg-high/5 p-4 text-sm text-high">{error}</div> : null}
 

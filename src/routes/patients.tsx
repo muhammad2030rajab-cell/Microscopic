@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { isValidPhone, phoneDigits } from "@/lib/phone";
 import { Plus, Search, UserRound, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
@@ -115,7 +116,7 @@ function PatientsPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void search();
                   }}
-                  placeholder="الاسم، الكود، الهاتف أو الرقم القومي"
+                  placeholder="الاسم أو الكود أو الهاتف"
                 />
               </div>
 
@@ -216,10 +217,6 @@ function PatientsPage() {
                   value={selected.phone || "غير مسجل"}
                 />
 
-                <Info
-                  label="الرقم القومي"
-                  value={selected.nationalId || "غير مسجل"}
-                />
               </div>
 
               <Link
@@ -341,7 +338,6 @@ function NewPatientModal({
     age: "",
     gender: "ذكر" as "ذكر" | "أنثى",
     phone: "",
-    nationalId: "",
     notes: "",
   });
 
@@ -359,6 +355,12 @@ function NewPatientModal({
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+
+    if (!isValidPhone(form.phone)) {
+      toast.error("اكتب رقم هاتف صحيح (10 أرقام على الأقل)");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -375,8 +377,7 @@ function NewPatientModal({
         fullName: patient.fullName,
         age: patient.age,
         gender: patient.gender,
-        phone: form.phone || undefined,
-        nationalId: form.nationalId || undefined,
+        phone: phoneDigits(form.phone),
         reportCount: 0,
       });
     } catch (error) {
@@ -487,7 +488,7 @@ function NewPatientModal({
           </div>
 
           <div>
-            <Label>الهاتف</Label>
+            <Label>الهاتف (مطلوب)</Label>
 
             <Input
               value={form.phone}
@@ -495,24 +496,10 @@ function NewPatientModal({
                 set("phone", e.target.value)
               }
               inputMode="tel"
+              required
+              autoComplete="tel"
               dir="ltr"
               placeholder="01xxxxxxxxx"
-            />
-          </div>
-
-          <div>
-            <Label>الرقم القومي</Label>
-
-            <Input
-              value={form.nationalId}
-              onChange={(e) =>
-                set(
-                  "nationalId",
-                  e.target.value.replace(/\D/g, ""),
-                )
-              }
-              inputMode="numeric"
-              dir="ltr"
             />
           </div>
 

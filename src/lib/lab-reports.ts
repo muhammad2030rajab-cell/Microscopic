@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { isValidPhone, phoneDigits } from "@/lib/phone";
 import { randomUUID } from "node:crypto";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
@@ -50,6 +51,7 @@ export const createLabReport = createServerFn({ method: "POST" })
     if (patientName.length < 2) throw new Error("اسم المريض غير صالح");
     if (!Number.isInteger(age) || age <= 0 || age > 130) throw new Error("السن غير صالح");
     if (data.gender !== "ذكر" && data.gender !== "أنثى") throw new Error("النوع غير صالح");
+    if (!isValidPhone(data.phone)) throw new Error("رقم هاتف المريض مطلوب (10 أرقام على الأقل)");
 
     const entered = data.tests.filter((t) => t.value.trim());
     if (!entered.length) throw new Error("أدخل نتيجة تحليل واحدة على الأقل");
@@ -85,7 +87,7 @@ export const createLabReport = createServerFn({ method: "POST" })
     await sql.query(
       `insert into patients (id, lab_id, patient_code, full_name, age, gender, phone, national_id, notes)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [patientId, lab_id, patientCode, patientName, age, data.gender, data.phone?.trim() || null, data.nationalId?.trim() || null, data.notes?.trim() || null],
+      [patientId, lab_id, patientCode, patientName, age, data.gender, phoneDigits(data.phone), data.nationalId?.trim() || null, data.notes?.trim() || null],
     );
 
     await sql.query(
@@ -158,6 +160,7 @@ export const updateLabReport = createServerFn({ method: "POST" })
     if (patientName.length < 2) throw new Error("اسم المريض غير صالح");
     if (!Number.isInteger(age) || age <= 0 || age > 130) throw new Error("السن غير صالح");
     if (data.gender !== "ذكر" && data.gender !== "أنثى") throw new Error("النوع غير صالح");
+    if (!isValidPhone(data.phone)) throw new Error("رقم هاتف المريض مطلوب (10 أرقام على الأقل)");
     const entered = data.tests.filter((t) => t.value.trim());
     if (!entered.length) throw new Error("أدخل نتيجة تحليل واحدة على الأقل");
 
@@ -174,8 +177,8 @@ export const updateLabReport = createServerFn({ method: "POST" })
     const tests = addCalculatedTests(catalogTests, data.gender, age);
 
     await sql.query(
-      `update patients set patient_code=$1, full_name=$2, age=$3, gender=$4, phone=$5, national_id=$6, notes=$7, updated_at=current_timestamp where id=$8 and lab_id=$9`,
-      [data.patientCode?.trim() || null, patientName, age, data.gender, data.phone?.trim() || null, data.nationalId?.trim() || null, data.notes?.trim() || null, current[0].patient_id, lab_id],
+      `update patients set patient_code=$1, full_name=$2, age=$3, gender=$4, phone=$5, national_id=coalesce($6, national_id), notes=$7, updated_at=current_timestamp where id=$8 and lab_id=$9`,
+      [data.patientCode?.trim() || null, patientName, age, data.gender, phoneDigits(data.phone), data.nationalId?.trim() || null, data.notes?.trim() || null, current[0].patient_id, lab_id],
     );
     await sql.query(
       `update reports set referring_doctor=$1, notes=$2, collected_at=$3, updated_at=current_timestamp where id=$4 and lab_id=$5 and status='draft'`,
@@ -307,8 +310,9 @@ export const approveLabReport = createServerFn({ method: "POST" })
 export const deleteLabReport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }: { context: { userId: string }; data: { id: string } }) => {
-    const { sql, lab_user_id, lab_id, report } = await getReportForAction(context.userId, data.id, "reports.delete");
-    if (report.status === "approved") throw new Error("APPROVED_REPORT_CANNOT_BE_DELETED");
+    const { sql, lab_user_id, lab_id, role, report } = await getReportForAction(context.userId, data.id, "reports.delete");
+    // التقرير المعتمد وثيقة نهائية: مالك المعمل بس هو اللي يقدر يحذفه.
+    if (report.status === "approved" && role !== "owner") throw new Error("APPROVED_REPORT_CANNOT_BE_DELETED");
 
     const patientRows = await sql<{ patient_id: string }>`
       select patient_id from reports where id = ${data.id} and lab_id = ${lab_id} limit 1
@@ -329,7 +333,7 @@ export const deleteLabReport = createServerFn({ method: "POST" })
 
     await sql.query(
       `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
-      [randomUUID(), lab_id, lab_user_id, context.userId, "report.deleted", "report", data.id],
+      [randomUUID(), lab_id, lab_user_id, context.userId, report.status === "approved" ? "report.approved_deleted" : "report.deleted", "report", data.id],
     );
     return { ok: true };
   });

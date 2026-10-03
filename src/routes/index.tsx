@@ -43,6 +43,11 @@ function WelcomePage() {
     getCurrentAccess()
       .then((access) => {
         if (cancelled) return;
+        if (access.type === "suspended") {
+          // حساب موقوف: صفحة الدخول بتعرض الرسالة وتطلّع المستخدم
+          void navigate({ to: "/login", replace: true });
+          return;
+        }
         const to = postLoginPath(access);
         if (to) void navigate({ to, replace: true });
         else setRouting(false); // signed in but not linked to a lab/admin: show the welcome page

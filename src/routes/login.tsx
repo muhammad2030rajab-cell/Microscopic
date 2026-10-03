@@ -15,6 +15,7 @@ import {
 
 import { authClient } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/gates";
+import { accountExists } from "@/lib/account-check";
 import { getCurrentAccess } from "@/lib/lab-access";
 import { postLoginPath } from "@/lib/post-login-path";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,8 @@ type AccountType = "admin" | "user";
 
 const WHATSAPP_NUMBER = "201120660398";
 const ACCOUNT_TYPE_KEY = "microscopic:login-account-type";
+// رابط واتساب مباشر بدون أي رسالة جاهزة
+const CONTACT_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
 
 const WHATSAPP_MESSAGE = `السلام عليكم د. محمد رجب 👋
 أرغب في إنشاء حساب على Microscopic System.
@@ -78,6 +81,7 @@ function Login() {
   const [capsLock, setCapsLock] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [suspended, setSuspended] = useState(false);
 
   const isAdmin = accountType === "admin";
 
@@ -87,9 +91,16 @@ function Login() {
     if (isPending || !user) return;
     let cancelled = false;
     getCurrentAccess()
-      .then((access) => {
+      .then(async (access) => {
+        if (cancelled) return;
+        if (access.type === "suspended") {
+          // الحساب اتوقف وهو داخل: نطلّعه ونعرض رسالة التواصل مع المدير
+          await authClient.signOut().catch(() => undefined);
+          if (!cancelled) setSuspended(true);
+          return;
+        }
         const to = postLoginPath(access);
-        if (!cancelled && to) void navigate({ to, replace: true });
+        if (to) void navigate({ to, replace: true });
       })
       .catch(() => {
         /* أوفلاين أو خطأ سيرفر: نسيب الفورم ظاهرة */
@@ -131,6 +142,7 @@ function Login() {
     event.preventDefault();
 
     setError("");
+    setSuspended(false);
     setLoading(true);
 
     try {
@@ -147,11 +159,37 @@ function Login() {
       );
 
       if (result.error) {
+        const badCredentials =
+          result.error.status === 401 || result.error.code === "INVALID_EMAIL_OR_PASSWORD";
+        if (badCredentials) {
+          // نفرّق بين "لا يوجد حساب" و"كلمة المرور غير صحيحة"
+          const exists = await withTimeout(accountExists({ data: { email } }), 10_000).catch(
+            () => null,
+          );
+          if (exists === false) {
+            setError(
+              isAdmin
+                ? "لا يوجد حساب بهذا البريد الإلكتروني."
+                : "لا يوجد حساب بهذا الاسم.",
+            );
+          } else if (exists === true) {
+            setError("كلمة المرور غير صحيحة.");
+          } else {
+            setError("بيانات الدخول غير صحيحة.");
+          }
+          return;
+        }
         setError(result.error.message ?? "بيانات الدخول غير صحيحة");
         return;
       }
 
       const access = await withTimeout(getCurrentAccess(), 20_000);
+
+      if (access.type === "suspended") {
+        await authClient.signOut();
+        setSuspended(true);
+        return;
+      }
 
       const destination = postLoginPath(access);
       if (destination) {
@@ -307,7 +345,27 @@ function Login() {
               ) : null}
             </div>
 
-            <div aria-live="polite">
+            <div aria-live="polite" className="space-y-3">
+              {suspended ? (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900"
+                >
+                  <p className="flex items-start gap-2 font-semibold">
+                    <CircleAlert className="mt-0.5 size-4 shrink-0" />
+                    <span>تم إيقاف هذا الحساب. برجاء التواصل مع المدير.</span>
+                  </p>
+                  <a
+                    href={CONTACT_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/10 px-4 text-sm font-semibold text-[#128C7E] transition-colors hover:bg-[#25D366]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  >
+                    <MessageCircle className="size-4" />
+                    تواصل معي عبر WhatsApp
+                  </a>
+                </div>
+              ) : null}
               {error ? (
                 <p
                   role="alert"

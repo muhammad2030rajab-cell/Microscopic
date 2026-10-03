@@ -3,6 +3,7 @@ import {
   Navigate,
   Link,
   Outlet,
+  redirect,
   useRouterState,
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -25,7 +26,7 @@ import {
 
 import { AppShell } from "@/components/layout/app-shell";
 import { UserButton, useCurrentUserState } from "@/lib/auth/gates";
-import { getCurrentLab, getLabDashboardStats } from "@/lib/lab-access";
+import { getCurrentAccess, getCurrentLab, getLabDashboardStats } from "@/lib/lab-access";
 import { getRecentLabReports, type RecentReport } from "@/lib/lab-reports";
 import { getCurrentLabPermissions, type LabPermissions } from "@/lib/lab-users";
 import { formatAge } from "@/lib/age";
@@ -46,6 +47,10 @@ export const Route = createFileRoute("/lab")({
 
       return { lab, stats, permissions: access.permissions, recent };
     } catch {
+      // لو الحساب اتوقف وهو داخل، نحوّله لصفحة الدخول (فيها رسالة التواصل مع المدير)
+      const access = await getCurrentAccess().catch(() => null);
+      if (access?.type === "suspended") throw redirect({ to: "/login" });
+
       return {
         lab: null,
         stats: {

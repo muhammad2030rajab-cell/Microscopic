@@ -5,6 +5,7 @@ import { getSql } from "@/lib/db";
 export type CurrentAccess =
   | { type: "admin"; userId: string; name: string | null; email: string | null }
   | { type: "lab"; userId: string; labId: string; labName: string; username: string; role: string }
+  | { type: "suspended" }
   | { type: "none" };
 
 export const getCurrentAccess = createServerFn({ method: "GET" })
@@ -54,6 +55,17 @@ export const getCurrentAccess = createServerFn({ method: "GET" })
         role: lab[0].role,
       };
     }
+
+    // حساب معمل موجود لكن موقوف (المستخدم نفسه أو المعمل كله).
+    const suspended = await sql<{ id: string }>`
+      select lu.id
+      from lab_users lu
+      inner join labs l on l.id = lu.lab_id
+      where lu.auth_user_id = ${context.userId}
+        and (lu.is_active = false or l.is_active = false)
+      limit 1
+    `;
+    if (suspended.length) return { type: "suspended" };
 
     return { type: "none" };
   });

@@ -7,7 +7,7 @@ import { isPlatformAdmin } from "@/lib/platform-admin";
 
 const listAdminUsers = createServerFn({ method: "GET" }).middleware([authMiddleware]).handler(async ({ context }) => {
   const sql = await getSql();
-  const admin = await sql`select 1 from platform_admins where auth_user_id=${context.userId} limit 1`;
+  const admin = await sql`select 1 from platform_admins where auth_user_id=${context.userId} and is_active = true limit 1`;
   if (!admin.length) throw new Error("FORBIDDEN");
   return sql<{ username: string; role: string; lab_name: string; is_active: boolean }>`
     select lu.username, lu.role, l.name as lab_name, lu.is_active

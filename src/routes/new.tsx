@@ -22,7 +22,7 @@ function NewReportPage() {
   if (!lab) return <Navigate to="/login" replace />;
   if (!canCreate) return <Navigate to="/reports" replace />;
   return (
-    <AppShell>
+    <AppShell lab={{ name: lab.lab_name, nameEn: lab.lab_name_en, doctorName: lab.doctor_name, doctorSpecialty: lab.doctor_specialty }}>
       <ReportWizard catalog={catalog} />
     </AppShell>
   );

@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { isValidPhone, phoneDigits } from "@/lib/phone";
-import { Plus, Search, UserRound, X } from "lucide-react";
+import { Plus, Search, Trash2, UserRound, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/app-shell";
@@ -9,20 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
   createPatient,
+  deletePatient,
   getPatientReports,
   searchLabPatients,
   type PatientSummary,
 } from "@/lib/patients";
 import { getCurrentLabPermissions } from "@/lib/lab-users";
+import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
 import { formatArDate } from "@/lib/utils";
 
 export const Route = createFileRoute("/patients")({
   loader: async () => {
     try {
-      const access = await getCurrentLabPermissions();
-      return { canCreate: access.permissions["patients.create"] === true };
+      const [access, lab] = await Promise.all([getCurrentLabPermissions(), getCurrentLab()]);
+      return { canCreate: access.permissions["patients.create"] === true, canDelete: access.permissions["patients.delete"] === true, lab };
     } catch {
-      return { canCreate: false };
+      return { canCreate: false, canDelete: false, lab: null as LabProfileData | null };
     }
   },
   component: PatientsPage,
@@ -31,7 +32,8 @@ export const Route = createFileRoute("/patients")({
 type PatientReport = Awaited<ReturnType<typeof getPatientReports>>[number];
 
 function PatientsPage() {
-  const { canCreate } = Route.useLoaderData();
+  const { canCreate, canDelete, lab } = Route.useLoaderData();
+  const [deleting, setDeleting] = useState(false);
   const [q, setQ] = useState("");
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [selected, setSelected] = useState<PatientSummary | null>(null);
@@ -77,8 +79,28 @@ function PatientsPage() {
     }
   }
 
+  async function removeSelected() {
+    if (!selected) return;
+    const confirmed = window.confirm(
+      `هل أنت متأكد من حذف ملف "${selected.fullName}" بالكامل؟ سيتم حذف كل تقاريره غير المعتمدة أيضًا، ولا يمكن التراجع عن هذا الإجراء.`,
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      await deletePatient({ data: { patientId: selected.id } });
+      setPatients((current) => current.filter((p) => p.id !== selected.id));
+      setSelected(null);
+      setHistory([]);
+      toast.success("تم حذف ملف المريض");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذر حذف المريض");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
-    <AppShell>
+    <AppShell lab={lab ? { name: lab.lab_name, nameEn: lab.lab_name_en, doctorName: lab.doctor_name, doctorSpecialty: lab.doctor_specialty } : undefined}>
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-muted">
@@ -116,7 +138,7 @@ function PatientsPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void search();
                   }}
-                  placeholder="الاسم أو الكود أو الهاتف"
+                  placeholder="الاسم، الكود، الهاتف أو الرقم القومي"
                 />
               </div>
 
@@ -217,6 +239,10 @@ function PatientsPage() {
                   value={selected.phone || "غير مسجل"}
                 />
 
+                <Info
+                  label="الرقم القومي"
+                  value={selected.nationalId || "غير مسجل"}
+                />
               </div>
 
               <Link
@@ -225,6 +251,18 @@ function PatientsPage() {
               >
                 إنشاء تقرير جديد
               </Link>
+
+              {canDelete ? (
+                <button
+                  type="button"
+                  onClick={() => void removeSelected()}
+                  disabled={deleting}
+                  className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-md border border-high/30 text-sm font-medium text-high hover:bg-high/5 disabled:opacity-50"
+                >
+                  <Trash2 className="size-4" />
+                  {deleting ? "جارٍ الحذف…" : "حذف ملف المريض"}
+                </button>
+              ) : null}
 
               <div className="mt-6 border-t border-line pt-5">
                 <div className="flex items-center justify-between">
@@ -338,6 +376,7 @@ function NewPatientModal({
     age: "",
     gender: "ذكر" as "ذكر" | "أنثى",
     phone: "",
+    nationalId: "",
     notes: "",
   });
 
@@ -355,12 +394,6 @@ function NewPatientModal({
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-
-    if (!isValidPhone(form.phone)) {
-      toast.error("اكتب رقم هاتف صحيح (10 أرقام على الأقل)");
-      return;
-    }
-
     setSaving(true);
 
     try {
@@ -377,7 +410,8 @@ function NewPatientModal({
         fullName: patient.fullName,
         age: patient.age,
         gender: patient.gender,
-        phone: phoneDigits(form.phone),
+        phone: form.phone || undefined,
+        nationalId: form.nationalId || undefined,
         reportCount: 0,
       });
     } catch (error) {
@@ -488,7 +522,7 @@ function NewPatientModal({
           </div>
 
           <div>
-            <Label>الهاتف (مطلوب)</Label>
+            <Label>الهاتف</Label>
 
             <Input
               value={form.phone}
@@ -496,10 +530,24 @@ function NewPatientModal({
                 set("phone", e.target.value)
               }
               inputMode="tel"
-              required
-              autoComplete="tel"
               dir="ltr"
               placeholder="01xxxxxxxxx"
+            />
+          </div>
+
+          <div>
+            <Label>الرقم القومي</Label>
+
+            <Input
+              value={form.nationalId}
+              onChange={(e) =>
+                set(
+                  "nationalId",
+                  e.target.value.replace(/\D/g, ""),
+                )
+              }
+              inputMode="numeric"
+              dir="ltr"
             />
           </div>
 

@@ -1,11 +1,6 @@
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
-  ArrowLeft,
-  CircleAlert,
-  Eye,
-  EyeOff,
-  Loader2,
   LockKeyhole,
   MessageCircle,
   Microscope,
@@ -26,7 +21,6 @@ export const Route = createFileRoute("/login")({
 type AccountType = "admin" | "user";
 
 const WHATSAPP_NUMBER = "201120660398";
-const ACCOUNT_TYPE_KEY = "microscopic:login-account-type";
 
 const WHATSAPP_MESSAGE = `السلام عليكم د. محمد رجب 👋
 أرغب في إنشاء حساب على Microscopic System.
@@ -37,58 +31,16 @@ const WHATSAPP_MESSAGE = `السلام عليكم د. محمد رجب 👋
 
 شكرًا لكم.`;
 
-const ACCOUNT_TYPES: Array<{
-  value: AccountType;
-  label: string;
-  icon: typeof ShieldCheck;
-}> = [
-  { value: "user", label: "حساب معمل", icon: UserRound },
-  { value: "admin", label: "حساب المدير", icon: ShieldCheck },
-];
-
-const FIELD_CLASS =
-  "h-12 rounded-xl border-slate-200 bg-white focus-visible:border-teal-500 focus-visible:ring-teal-500/40";
-
 function Login() {
   const navigate = useNavigate();
 
-  const [accountType, setAccountType] = useState<AccountType>("user");
+  const [accountType, setAccountType] = useState<AccountType>("admin");
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [capsLock, setCapsLock] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const isAdmin = accountType === "admin";
-
-  // تذكّر نوع الحساب الأخير عشان المستخدم ما يختارش كل مرة
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(ACCOUNT_TYPE_KEY);
-      if (saved === "admin" || saved === "user") setAccountType(saved);
-    } catch {
-      /* التخزين غير متاح — نكمل بالافتراضي */
-    }
-  }, []);
-
-  function chooseType(next: AccountType) {
-    if (next === accountType) return;
-    setAccountType(next);
-    setLogin("");
-    setPassword("");
-    setShowPassword(false);
-    setError("");
-    try {
-      window.localStorage.setItem(ACCOUNT_TYPE_KEY, next);
-    } catch {
-      /* تجاهل */
-    }
-  }
-
-  function trackCapsLock(event: KeyboardEvent<HTMLInputElement>) {
-    setCapsLock(event.getModifierState("CapsLock"));
-  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -98,7 +50,9 @@ function Login() {
 
     const value = login.trim();
 
-    const email = isAdmin ? value : `${value.toLowerCase()}@lab.local`;
+    const email = isAdmin
+      ? value
+      : `${value.toLowerCase()}@lab.local`;
 
     const result = await authClient.signIn.email({
       email,
@@ -134,208 +88,234 @@ function Login() {
     encodeURIComponent(WHATSAPP_MESSAGE);
 
   return (
-    <main
-      dir="rtl"
-      className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-slate-50 px-5 py-10"
-    >
-      {/* خلفية ناعمة بنفس روح صفحة الترحيب */}
-      <div className="absolute inset-0 bg-gradient-to-br from-cyan-100/70 via-white to-sky-100/70" />
-      <div className="pointer-events-none absolute -left-32 -top-32 size-96 rounded-full bg-teal-200/40 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-40 -right-32 size-[28rem] rounded-full bg-sky-200/40 blur-3xl" />
+    <main className="min-h-screen bg-paper px-4 py-8 sm:px-6">
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-5xl items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
 
-      <div className="relative z-10 w-full max-w-md">
-        {/* الهوية */}
-        <div className="text-center">
-          <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-white shadow-lg shadow-teal-900/10 ring-1 ring-slate-200/70">
-            <Microscope className="size-8 text-teal-600" strokeWidth={1.75} />
+        {/* التعريف بالنظام */}
+        <section className="hidden rounded-2xl bg-ink p-10 text-paper lg:block">
+          <div className="flex items-center gap-3">
+            <span className="grid size-11 place-items-center rounded-xl bg-teal text-teal-fg">
+              <Microscope className="size-5" />
+            </span>
+
+            <div>
+              <p className="font-display text-xl font-semibold">
+                Rajab Diagnostics
+              </p>
+
+              <p className="text-sm text-paper/55">
+                Medical Laboratory System
+              </p>
+            </div>
           </div>
 
-          <h1 className="mt-5 font-display text-4xl font-bold tracking-tight text-slate-800">
-            Microscopic <span className="text-teal-600">System</span>
+          <h1 className="mt-16 max-w-lg font-display text-4xl font-semibold leading-tight">
+            لوحة تحكم مركزية لإدارة معامل التحاليل الطبية
           </h1>
 
-          <p className="mt-2 text-sm text-slate-500">
-            إدارة معملية أكثر سهولة واحترافية
+          <p className="mt-5 max-w-lg text-sm leading-7 text-paper/65">
+            نظام متكامل لإدارة المعامل والمستخدمين والتقارير والصلاحيات من
+            مكان واحد.
           </p>
-        </div>
+        </section>
 
-        {/* بطاقة الدخول */}
-        <section className="mt-8 rounded-3xl bg-white/80 p-6 shadow-xl shadow-teal-900/5 ring-1 ring-slate-200/70 backdrop-blur duration-500 animate-in fade-in slide-in-from-bottom-2 sm:p-8">
-          <h2 className="font-display text-2xl font-bold text-slate-800">
-            تسجيل الدخول
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            اختر نوع حسابك ثم أدخل بياناتك.
-          </p>
+        {/* كارت الدخول */}
+        <section className="mx-auto w-full max-w-md rounded-2xl border border-line bg-elevated p-6 shadow-sm sm:p-8">
 
-          {/* اختيار نوع الحساب */}
-          <div
-            role="radiogroup"
-            aria-label="نوع الحساب"
-            className="mt-5 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1"
-          >
-            {ACCOUNT_TYPES.map(({ value, label, icon: Icon }) => {
-              const active = accountType === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() => chooseType(value)}
-                  className={`flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-[background-color,color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
-                    active
-                      ? "bg-white text-teal-700 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  <Icon className="size-4 shrink-0" />
-                  {label}
-                </button>
-              );
-            })}
+          <div className="mb-7 text-center">
+            <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-teal/10 text-teal">
+              <ShieldCheck className="size-6" />
+            </div>
+
+            <h1 className="font-display text-2xl font-semibold">
+              تسجيل الدخول
+            </h1>
+
+            <p className="mt-2 text-sm text-muted">
+              اختر نوع الحساب للدخول إلى النظام
+            </p>
           </div>
 
-          <form onSubmit={submit} className="mt-6 space-y-4">
+          {/* اختيار الحساب */}
+          <div className="mb-6 grid grid-cols-2 gap-3">
+
+            <button
+              type="button"
+              onClick={() => {
+                setAccountType("admin");
+                setLogin("");
+                setPassword("");
+                setError("");
+              }}
+              className={`rounded-xl border p-4 text-center transition-all ${
+                isAdmin
+                  ? "border-teal bg-teal/10 text-teal shadow-sm"
+                  : "border-line bg-paper-2 text-muted hover:border-teal/40"
+              }`}
+            >
+              <div
+                className={`mx-auto mb-2 flex size-10 items-center justify-center rounded-full ${
+                  isAdmin
+                    ? "bg-teal text-teal-fg"
+                    : "bg-ink/10 text-ink"
+                }`}
+              >
+                <ShieldCheck className="size-5" />
+              </div>
+
+              <p className="font-semibold">المدير</p>
+
+              <p className="mt-1 text-xs">
+                إدارة النظام
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAccountType("user");
+                setLogin("");
+                setPassword("");
+                setError("");
+              }}
+              className={`rounded-xl border p-4 text-center transition-all ${
+                !isAdmin
+                  ? "border-teal bg-teal/10 text-teal shadow-sm"
+                  : "border-line bg-paper-2 text-muted hover:border-teal/40"
+              }`}
+            >
+              <div
+                className={`mx-auto mb-2 flex size-10 items-center justify-center rounded-full ${
+                  !isAdmin
+                    ? "bg-teal text-teal-fg"
+                    : "bg-ink/10 text-ink"
+                }`}
+              >
+                <UserRound className="size-5" />
+              </div>
+
+              <p className="font-semibold">المستخدم</p>
+
+              <p className="mt-1 text-xs">
+                إدارة المعمل
+              </p>
+            </button>
+
+          </div>
+
+          {/* نوع الحساب */}
+          <div className="mb-5 rounded-lg bg-paper-2 px-3 py-2 text-center text-sm">
+            {isAdmin ? (
+              <span>
+                👨‍💼 تسجيل دخول <strong>المدير</strong>
+              </span>
+            ) : (
+              <span>
+                🧑‍🔬 تسجيل دخول <strong>المستخدم</strong>
+              </span>
+            )}
+          </div>
+
+          {/* نموذج الدخول */}
+          <form onSubmit={submit} className="space-y-4">
+
             <div className="space-y-1.5">
-              <Label htmlFor="login" className="text-slate-700">
-                {isAdmin ? "البريد الإلكتروني" : "اسم المستخدم"}
+              <Label htmlFor="login">
+                {isAdmin
+                  ? "البريد الإلكتروني للمدير"
+                  : "اسم المستخدم"}
               </Label>
 
               <Input
                 id="login"
                 type={isAdmin ? "email" : "text"}
                 autoComplete="username"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
                 required
                 dir="ltr"
-                placeholder={isAdmin ? "admin@example.com" : "lab_username"}
-                className={FIELD_CLASS}
+                placeholder={
+                  isAdmin
+                    ? "admin@example.com"
+                    : "lab_username"
+                }
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-slate-700">
+              <Label htmlFor="password">
                 كلمة المرور
               </Label>
 
               <div className="relative">
-                <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                <LockKeyhole className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
 
                 <Input
                   id="password"
-                  type={showPassword ? "text" : "password"}
+                  type="password"
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={trackCapsLock}
-                  onKeyUp={trackCapsLock}
-                  onBlur={() => setCapsLock(false)}
                   required
                   minLength={8}
                   dir="ltr"
+                  className="ps-9"
                   placeholder="••••••••"
-                  className={`${FIELD_CLASS} pl-10 pr-12`}
                 />
-
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={
-                    showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"
-                  }
-                  aria-pressed={showPassword}
-                  className="absolute right-1.5 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-slate-400 transition-colors hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                >
-                  {showPassword ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
-                </button>
               </div>
-
-              {capsLock ? (
-                <p className="text-xs text-amber-700">
-                  زر Caps Lock مفعّل، وكلمة المرور حساسة لحالة الأحرف.
-                </p>
-              ) : null}
             </div>
 
-            <div aria-live="polite">
-              {error ? (
-                <p
-                  role="alert"
-                  className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
-                >
-                  <CircleAlert className="mt-0.5 size-4 shrink-0" />
-                  <span>{error}</span>
-                </p>
-              ) : null}
-            </div>
+            {error ? (
+              <p className="rounded-lg border border-high/20 bg-high/5 px-3 py-2 text-sm text-high">
+                {error}
+              </p>
+            ) : null}
 
             <Button
               type="submit"
               size="lg"
+              className="w-full"
               disabled={loading}
-              className="h-14 w-full rounded-2xl bg-teal-600 text-base font-bold text-white shadow-lg shadow-teal-600/25 hover:bg-teal-700 focus-visible:ring-teal-500"
             >
-              {loading ? (
-                <>
-                  <Loader2 className="animate-spin" />
-                  جارٍ تسجيل الدخول…
-                </>
-              ) : (
-                <>
-                  تسجيل الدخول
-                  <span className="grid size-8 place-items-center rounded-full bg-white/20">
-                    <ArrowLeft className="size-4" />
-                  </span>
-                </>
-              )}
+              {loading
+                ? "جارٍ تسجيل الدخول…"
+                : isAdmin
+                  ? "دخول المدير"
+                  : "دخول المستخدم"}
             </Button>
+
           </form>
 
-          {/* طلب حساب — للمعامل فقط */}
+          {/* طلب حساب - للمستخدم فقط */}
           {!isAdmin ? (
-            <div className="mt-6 border-t border-slate-200/80 pt-5">
-              <p className="text-sm font-medium text-slate-700">
-                معملك ليس لديه حساب؟
+            <div className="mt-6 rounded-xl border border-line bg-paper-2 p-4 text-center">
+
+              <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-full bg-[#25D366]/10 text-[#25D366]">
+                <MessageCircle className="size-5" />
+              </div>
+
+              <p className="text-sm font-medium">
+                ليس لديك حساب؟
+              </p>
+
+              <p className="mt-1 text-xs text-muted">
+                تواصل معنا لطلب إنشاء حساب للمعمل
               </p>
 
               <a
                 href={whatsappUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/10 px-4 text-sm font-semibold text-[#128C7E] transition-colors hover:bg-[#25D366]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
               >
                 <MessageCircle className="size-4" />
-                اطلب حساب عبر WhatsApp
+                طلب إنشاء حساب عبر WhatsApp
               </a>
+
             </div>
           ) : null}
+
         </section>
-
-        {/* خصوصية */}
-        <p className="mt-5 flex items-center justify-center gap-2 text-center text-xs text-slate-500">
-          <ShieldCheck className="size-4 shrink-0 text-teal-600" />
-          بيانات كل معمل منفصلة ولا تُفتح إلا بحساب خاص
-        </p>
-
-        {/* التوقيع */}
-        <div className="mt-8 text-center">
-          <p className="text-xs text-slate-400">Powered by</p>
-          <p className="mt-0.5 font-display text-base font-bold text-slate-800">
-            Dr. Muhammad Ragab
-          </p>
-          <p className="text-xs font-medium text-teal-700">
-            Medical Laboratory Specialist
-          </p>
-        </div>
       </div>
     </main>
   );

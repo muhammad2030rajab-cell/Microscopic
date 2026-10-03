@@ -35,5 +35,5 @@ function EditReportPage() {
     selectedCategoryIds: Array.from(new Set(report.tests.map((t) => t.categoryId))),
     tests: report.tests, notes: report.notes || "", step: 0,
   };
-  return <AppShell><ReportWizard catalog={catalog} editReport={{ id: report.id, draft }} /></AppShell>;
+  return <AppShell lab={{ name: lab.lab_name, nameEn: lab.lab_name_en, doctorName: lab.doctor_name, doctorSpecialty: lab.doctor_specialty }}><ReportWizard catalog={catalog} editReport={{ id: report.id, draft }} /></AppShell>;
 }

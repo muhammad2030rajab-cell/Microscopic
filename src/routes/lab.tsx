@@ -91,7 +91,7 @@ function LabDashboard() {
     : lab.lab_name;
 
   return (
-    <AppShell>
+    <AppShell lab={{ name: lab.lab_name, nameEn: lab.lab_name_en, doctorName: lab.doctor_name, doctorSpecialty: lab.doctor_specialty }}>
       <header className="mb-4 flex items-center justify-between gap-3 lg:hidden">
         <div>
           <p className="text-[11px] uppercase tracking-[0.2em] text-muted">

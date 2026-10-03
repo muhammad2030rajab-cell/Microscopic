@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { isValidPhone, phoneDigits } from "@/lib/phone";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { requireLabPermission, type LabPermission } from "@/lib/lab-users";
@@ -142,10 +141,6 @@ export const createPatient = createServerFn({ method: "POST" })
         throw new Error("النوع غير صالح");
       }
 
-      if (!isValidPhone(data.phone)) {
-        throw new Error("رقم هاتف المريض مطلوب (10 أرقام على الأقل)");
-      }
-
       const patientCode =
         data.patientCode?.trim().toUpperCase() || null;
 
@@ -188,7 +183,7 @@ export const createPatient = createServerFn({ method: "POST" })
           fullName,
           age,
           data.gender,
-          phoneDigits(data.phone),
+          data.phone?.trim() || null,
           data.nationalId?.trim() || null,
           data.notes?.trim() || null,
         ],
@@ -269,3 +264,28 @@ export const getPatientReports = createServerFn({ method: "GET" })
       `;
     },
   );
+
+export const deletePatient = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }: { context: { userId: string }; data: { patientId: string } }) => {
+    const { sql, labId } = await currentLab(context.userId, "patients.delete");
+
+    const patient = await sql<{ id: string }>`
+      select id from patients where id = ${data.patientId} and lab_id = ${labId} limit 1
+    `;
+    if (!patient.length) throw new Error("المريض غير موجود");
+
+    const approved = await sql<{ id: string }>`
+      select id from reports where patient_id = ${data.patientId} and lab_id = ${labId} and status = 'approved' limit 1
+    `;
+    if (approved.length) {
+      throw new Error("لا يمكن حذف مريض لديه تقارير معتمدة. احذف أو أرشف التقارير المعتمدة أولًا إن لزم الأمر");
+    }
+
+    // التقارير غير المعتمدة (مسودة/قيد المراجعة/ملغاة) بتتحذف الأول، وده بيسحب معاه
+    // النتائج والمرفقات تلقائيًا (on delete cascade)، وبعدين المريض نفسه.
+    await sql.query(`delete from reports where patient_id=$1 and lab_id=$2`, [data.patientId, labId]);
+    await sql.query(`delete from patients where id=$1 and lab_id=$2`, [data.patientId, labId]);
+
+    return { ok: true };
+  });

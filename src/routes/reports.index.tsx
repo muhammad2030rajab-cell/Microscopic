@@ -1,57 +1,36 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { Loader2, Search, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { FlagDot } from "@/components/report/flag-badge";
 import { Input } from "@/components/ui/input";
 import { interpretResult } from "@/lib/medical";
-import { deleteLabReport, listLabReports } from "@/lib/lab-reports";
-import { getCurrentLabPermissions } from "@/lib/lab-users";
+import { listLabReports } from "@/lib/lab-reports";
 import { formatArDate } from "@/lib/utils";
 import { reportStatusClasses, reportStatusLabels } from "@/lib/report-workflow";
+import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
 
 type LabReportSummary = Awaited<ReturnType<typeof listLabReports>>[number];
 
 export const Route = createFileRoute("/reports/")({
   loader: async () => {
     try {
-      const [reports, access] = await Promise.all([listLabReports(), getCurrentLabPermissions().catch(() => null)]);
-      return { reports, canDelete: access?.permissions["reports.delete"] === true, isOwner: access?.role === "owner" };
+      const [reports, lab] = await Promise.all([listLabReports(), getCurrentLab()]);
+      return { reports, lab };
     } catch {
-      return { reports: null as LabReportSummary[] | null, canDelete: false, isOwner: false };
+      return { reports: null as LabReportSummary[] | null, lab: null as LabProfileData | null };
     }
   },
   component: ReportsPage,
 });
 
 function ReportsPage() {
-  const { reports, canDelete, isOwner } = Route.useLoaderData();
-  if (!reports) return <Navigate to="/login" replace />;
-  return <ReportsList initialReports={reports} canDelete={canDelete} isOwner={isOwner} />;
+  const { reports, lab } = Route.useLoaderData();
+  if (!reports || !lab) return <Navigate to="/login" replace />;
+  return <ReportsList reports={reports} lab={lab} />;
 }
 
-function ReportsList({ initialReports, canDelete, isOwner }: { initialReports: LabReportSummary[]; canDelete: boolean; isOwner: boolean }) {
-  const [reports, setReports] = useState(initialReports);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteError, setDeleteError] = useState("");
-
-  async function removeReport(r: LabReportSummary) {
-    const message = r.status === "approved"
-      ? `تقرير "${r.patientName}" معتمد. حذفه نهائي ولا يمكن استرجاعه، وسيُسجَّل في سجل المراجعة. هل تريد المتابعة؟`
-      : `هل أنت متأكد من حذف تقرير "${r.patientName}"؟ لا يمكن التراجع عن هذا الإجراء.`;
-    if (!window.confirm(message)) return;
-    setDeleteError("");
-    setDeletingId(r.id);
-    try {
-      await deleteLabReport({ data: { id: r.id } });
-      setReports((current) => current.filter((x) => x.id !== r.id));
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "تعذر حذف التقرير");
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
+function ReportsList({ reports, lab }: { reports: LabReportSummary[]; lab: LabProfileData }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | "draft" | "pending_review" | "approved" | "cancelled">("all");
   const [period, setPeriod] = useState<"all" | "month" | "year">("all");
@@ -72,7 +51,7 @@ function ReportsList({ initialReports, canDelete, isOwner }: { initialReports: L
   }, [q, reports, status, period]);
 
   return (
-    <AppShell>
+    <AppShell lab={{ name: lab.lab_name, nameEn: lab.lab_name_en, doctorName: lab.doctor_name, doctorSpecialty: lab.doctor_specialty }}>
       <header className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-muted">الأرشيف</p>
@@ -112,8 +91,6 @@ function ReportsList({ initialReports, canDelete, isOwner }: { initialReports: L
         {(q || status !== "all" || period !== "all") ? <button type="button" onClick={() => { setQ(""); setStatus("all"); setPeriod("all"); }} className="font-medium text-teal hover:underline">مسح الفلاتر</button> : null}
       </div>
 
-      {deleteError ? <p role="alert" className="mb-3 rounded-lg border border-high/20 bg-high-bg px-3 py-2 text-sm text-high">{deleteError}</p> : null}
-
       {filtered.length === 0 ? (
         <p className="rounded-lg border border-dashed border-line px-4 py-12 text-center text-sm text-muted">
           لا توجد تقارير مطابقة.
@@ -148,17 +125,6 @@ function ReportsList({ initialReports, canDelete, isOwner }: { initialReports: L
                   </span>
                 </Link>
 
-                {canDelete && (r.status !== "approved" || isOwner) ? (
-                  <button
-                    type="button"
-                    onClick={() => removeReport(r)}
-                    disabled={deletingId === r.id}
-                    aria-label={`حذف تقرير ${r.patientName}`}
-                    className="grid w-12 shrink-0 place-items-center border-s border-line text-muted transition-colors hover:bg-high-bg hover:text-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                  >
-                    {deletingId === r.id ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
-                  </button>
-                ) : null}
               </li>
             );
           })}

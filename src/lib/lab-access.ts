@@ -16,7 +16,7 @@ export const getCurrentAccess = createServerFn({ method: "GET" })
       select u.id, u.name, u.email
       from "user" u
       inner join platform_admins pa on pa.auth_user_id = u.id
-      where u.id = ${context.userId}
+      where u.id = ${context.userId} and pa.is_active = true
       limit 1
     `;
 

@@ -1,5 +1,4 @@
 import { useNavigate } from "@tanstack/react-router";
-import { isValidPhone } from "@/lib/phone";
 import { Check, ChevronLeft, ChevronRight, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -74,7 +73,6 @@ export function ReportWizard({ catalog, editReport }: { catalog: LabCatalogRow[]
       return (
         draft.patientName.trim().length > 1 &&
         Number(draft.age) > 0 &&
-        isValidPhone(draft.phone) &&
         (draft.gender === "ذكر" || draft.gender === "أنثى")
       );
     }
@@ -330,7 +328,7 @@ function PatientStep({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="font-medium">مريض سابق؟ 🔎</p>
-            <p className="mt-1 text-xs text-muted">ابحث بالاسم أو كود المريض أو الهاتف.</p>
+            <p className="mt-1 text-xs text-muted">ابحث بالاسم أو كود المريض أو الهاتف أو الرقم القومي.</p>
           </div>
         </div>
         <div className="mt-3 flex gap-2">
@@ -383,23 +381,15 @@ function PatientStep({
           />
         </div>
         <div>
-          <Label htmlFor="phone">رقم الهاتف (مطلوب)</Label>
+          <Label htmlFor="phone">رقم الهاتف (اختياري)</Label>
           <Input
             id="phone"
             value={draft.phone}
             onChange={(e) => setDraft({ phone: e.target.value })}
             placeholder="01xxxxxxxxx"
             inputMode="tel"
-            autoComplete="tel"
-            required
-            aria-invalid={draft.phone.trim() !== "" && !isValidPhone(draft.phone)}
             dir="ltr"
           />
-          {draft.phone.trim() !== "" && !isValidPhone(draft.phone) ? (
-            <p className="mt-1 text-xs text-high">اكتب رقمًا صحيحًا من 10 أرقام على الأقل.</p>
-          ) : (
-            <p className="mt-1 text-xs text-muted">يُستخدم لإرسال التقرير للمريض على واتساب.</p>
-          )}
         </div>
         <div>
           <Label>النوع</Label>
@@ -420,6 +410,17 @@ function PatientStep({
               </button>
             ))}
           </div>
+        </div>
+        <div>
+          <Label htmlFor="nid">الرقم القومي (اختياري)</Label>
+          <Input
+            id="nid"
+            value={draft.nationalId}
+            onChange={(e) => setDraft({ nationalId: e.target.value.replace(/[^\d]/g, "").slice(0, 14) })}
+            placeholder="14 رقم"
+            inputMode="numeric"
+            dir="ltr"
+          />
         </div>
         <div>
           <Label htmlFor="doc">الطبيب المعالج</Label>
@@ -705,6 +706,7 @@ function ReviewStep({ draft, gender }: { draft: Draft; gender: Gender }) {
         <Stat label="المريض" value={draft.patientName || "—"} />
         <Stat label="كود المريض" value={draft.patientCode || "سيتم إنشاؤه تلقائيًا"} />
         <Stat label="الهاتف" value={draft.phone || "—"} />
+        <Stat label="الرقم القومي" value={draft.nationalId || "—"} />
         <Stat label="السن / النوع" value={`${draft.age || "—"} / ${draft.gender || "—"}`} />
         <Stat label="تحاليل" value={String(filled.length)} />
         <Stat label="غير طبيعية" value={String(abnormal)} />

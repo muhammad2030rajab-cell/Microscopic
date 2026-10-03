@@ -69,12 +69,27 @@ const MOBILE_NAV = [
   },
 ] as const;
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  lab: labProp,
+}: {
+  children: ReactNode;
+  /** بيانات المعمل الحقيقية لصاحب الجلسة الحالية. لو مش متبعتة، بيترجع لبيانات تجريبية افتراضية (للصفحات اللي لسه متحدّتش). */
+  lab?: { name: string; nameEn?: string | null; doctorName?: string | null; doctorSpecialty?: string | null };
+}) {
   const pathname = useRouterState({
     select: (s) => s.location.pathname,
   });
 
-  const lab = useLabStore((s) => s.lab);
+  const demoLab = useLabStore((s) => s.lab);
+  const lab = labProp
+    ? {
+        name: labProp.name,
+        nameEn: labProp.nameEn || "",
+        doctorName: labProp.doctorName || "",
+        doctorSpecialty: labProp.doctorSpecialty || "",
+      }
+    : demoLab;
 
   return (
     <div className="min-h-dvh bg-paper text-ink">

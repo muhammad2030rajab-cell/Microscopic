@@ -93,7 +93,19 @@ function createNeonSql(): Promise<Sql> {
     types.setTypeParser(OID_INT8, Number);
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
-    const pool = new Pool({ connectionString: databaseUrl });
+    const pool = new Pool({
+      connectionString: databaseUrl,
+      // Serverless + Neon: بدون مهلات، اتصال قديم مقطوع ممكن يعلّق الطلب بلا نهاية.
+      max: 5,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 10_000,
+      statement_timeout: 20_000,
+      keepAlive: true,
+    });
+    // اتصال خامل اتقطع من Neon: نسجّله بدل ما العملية تقع.
+    pool.on("error", (err) => {
+      console.error("[db] idle client error:", err.message);
+    });
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
       return res.rows as T[];

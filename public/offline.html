@@ -9,6 +9,7 @@
     :root { color-scheme: light dark; --bg:#f8fafc; --ink:#0f2942; --muted:#5b6b7c; --card:#fff; --line:#d6dee6; --accent:#0f6b63; }
     @media (prefers-color-scheme: dark) { :root { --bg:#0e1a26; --ink:#e8eef4; --muted:#9db0c2; --card:#15263a; --line:#26405a; --accent:#5fd0c4; } }
     * { box-sizing: border-box; }
+    [hidden] { display:none !important; }
     body { margin:0; min-height:100dvh; display:grid; place-items:center; padding:1.5rem; background:var(--bg); color:var(--ink);
            font-family: "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
     main { width:100%; max-width:26rem; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:1.5rem; }
@@ -24,9 +25,26 @@
 <body>
   <main>
     <h1>لا يوجد اتصال بالإنترنت</h1>
-    <p>الصفحة دي محتاجة اتصال. تقدر تكمل إنشاء تقارير جديدة، وهتتحفظ على جهازك وتتبعت تلقائيًا أول ما الاتصال يرجع.</p>
-    <a href="/new">إنشاء تقرير جديد</a>
+    <p id="msg">الصفحة دي محتاجة اتصال. هتفتح لوحدها أول ما النت يرجع.</p>
+    <a id="newBtn" href="/new" hidden>إنشاء تقرير جديد</a>
     <button type="button" onclick="location.reload()">إعادة المحاولة</button>
   </main>
+  <script>
+    (function () {
+      var msg = document.getElementById("msg");
+      var btn = document.getElementById("newBtn");
+      if (window.caches) {
+        caches.match("/new").then(function (hit) {
+          if (hit) {
+            btn.hidden = false;
+            msg.textContent = "الصفحة دي محتاجة اتصال. تقدر تكمل إنشاء تقارير جديدة، وهتتحفظ على جهازك وتتبعت تلقائيًا أول ما الاتصال يرجع.";
+          } else {
+            msg.textContent = "الصفحة دي محتاجة اتصال. عشان تشتغل بدون نت: افتح التطبيق وانت متصل، سجّل دخول، وافتح «تقرير جديد» مرة واحدة.";
+          }
+        }).catch(function () {});
+      }
+      window.addEventListener("online", function () { location.reload(); });
+    })();
+  </script>
 </body>
 </html>

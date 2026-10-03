@@ -7,7 +7,7 @@
  * Patient pages are deliberately NOT cached. */
 importScripts("/sw-rules.js");
 
-var VERSION = "v1";
+var VERSION = "v2";
 var STATIC = "rajab-static-" + VERSION;
 var PAGES = "rajab-pages-" + VERSION;
 var KEEP = [STATIC, PAGES];

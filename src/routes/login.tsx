@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { authClient } from "@/lib/auth/client";
+import { useCurrentUserState } from "@/lib/auth/gates";
 import { getCurrentAccess } from "@/lib/lab-access";
 import { postLoginPath } from "@/lib/post-login-path";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,23 @@ import { Label } from "@/components/ui/label";
 export const Route = createFileRoute("/login")({
   component: Login,
 });
+
+/** يفشل الطلب لو اتأخر أكتر من المدة، بدل ما الزرار يفضل يلف للأبد. */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
 
 type AccountType = "admin" | "user";
 
@@ -63,6 +81,24 @@ function Login() {
 
   const isAdmin = accountType === "admin";
 
+  // لو المستخدم مسجّل دخول بالفعل (مثلاً رجع بزر الرجوع) ما نعرضلوش الفورم تاني
+  const { user, isPending } = useCurrentUserState();
+  useEffect(() => {
+    if (isPending || !user) return;
+    let cancelled = false;
+    getCurrentAccess()
+      .then((access) => {
+        const to = postLoginPath(access);
+        if (!cancelled && to) void navigate({ to, replace: true });
+      })
+      .catch(() => {
+        /* أوفلاين أو خطأ سيرفر: نسيب الفورم ظاهرة */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isPending, user, navigate]);
+
   // تذكّر نوع الحساب الأخير عشان المستخدم ما يختارش كل مرة
   useEffect(() => {
     try {
@@ -97,33 +133,41 @@ function Login() {
     setError("");
     setLoading(true);
 
-    const value = login.trim();
+    try {
+      const value = login.trim();
 
-    const email = isAdmin ? value : `${value.toLowerCase()}@lab.local`;
+      const email = isAdmin ? value : `${value.toLowerCase()}@lab.local`;
 
-    const result = await authClient.signIn.email({
-      email,
-      password,
-    });
+      const result = await withTimeout(
+        authClient.signIn.email({
+          email,
+          password,
+        }),
+        20_000,
+      );
 
-    setLoading(false);
+      if (result.error) {
+        setError(result.error.message ?? "بيانات الدخول غير صحيحة");
+        return;
+      }
 
-    if (result.error) {
-      setError(result.error.message ?? "بيانات الدخول غير صحيحة");
-      return;
+      const access = await withTimeout(getCurrentAccess(), 20_000);
+
+      const destination = postLoginPath(access);
+      if (destination) {
+        await navigate({ to: destination, replace: true });
+        return;
+      }
+
+      await authClient.signOut();
+
+      setError("الحساب غير مرتبط بمدير أو بمعمل نشط.");
+    } catch {
+      // انقطاع نت أو سيرفر بطيء: نفك التعليقة ونسيب المستخدم يعيد المحاولة
+      setError("تعذّر الاتصال بالسيرفر. تأكد من الإنترنت وجرّب تاني.");
+    } finally {
+      setLoading(false);
     }
-
-    const access = await getCurrentAccess();
-
-    const destination = postLoginPath(access);
-    if (destination) {
-      await navigate({ to: destination });
-      return;
-    }
-
-    await authClient.signOut();
-
-    setError("الحساب غير مرتبط بمدير أو بمعمل نشط.");
   }
 
   const whatsappUrl =

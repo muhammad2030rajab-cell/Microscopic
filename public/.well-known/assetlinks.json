@@ -1,8 +1,8 @@
 [{
-  "relation": ["delegate_permission/common.handle_all_urls"],
-  "target": {
-    "namespace": "android_app",
-    "package_name": "app.vercel.microscopic.twa",
-    "sha256_cert_fingerprints": ["FF:0C:13:47:0B:31:31:DB:52:72:85:D5:8F:DE:2C:41:81:8C:BB:B8:CC:59:C2:CB:DA:C8:73:D7:B0:29:7D:4F"]
-  }
-}]
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.vercel.microscopic.twa",
+        "sha256_cert_fingerprints": ["FF:0C:13:47:0B:31:31:DB:52:72:85:D5:8F:DE:2C:41:81:8C:BB:B8:CC:59:C2:CB:DA:C8:73:D7:B0:29:7D:4F"]
+      }
+    }]

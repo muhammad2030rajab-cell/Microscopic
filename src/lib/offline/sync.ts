@@ -143,6 +143,9 @@ export function requestPageCache(url: string): void {
 /** Sign-out: drop saved pages and the offline profile. Queued reports are kept. */
 export async function clearOfflineCaches(): Promise<void> {
   clearBootstrap();
+  // The device copy of the lab's patients and reports must not outlive the session.
+  const { clearLocalData } = await import("../sync-engine/offline-fallback");
+  await clearLocalData();
   try {
     if ("serviceWorker" in navigator) {
       const reg = await navigator.serviceWorker.getRegistration();

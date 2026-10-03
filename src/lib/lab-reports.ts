@@ -54,106 +54,109 @@ export type CreateLabReportInput = {
   expectedLabId?: string;
 };
 
+/** Plain-function core of `createLabReport`: also used by device sync (see sync.ts). */
+export async function createLabReportForUser(userId: string, data: CreateLabReportInput) {
+  const { sql, lab_user_id, lab_id } = await getLabContext(userId, "reports.create");
+  if (data.expectedLabId && data.expectedLabId !== lab_id) throw new Error("LAB_MISMATCH");
+  const clientRequestId = data.clientRequestId?.trim().slice(0, 64) || null;
+  if (clientRequestId) {
+    const existing = await sql<{ id: string; patient_name: string; status: "draft" }>`
+      select r.id, p.full_name as patient_name, r.status
+      from reports r inner join patients p on p.id = r.patient_id
+      where r.lab_id = ${lab_id} and r.client_request_id = ${clientRequestId}
+      limit 1
+    `;
+    if (existing.length) return { id: existing[0].id, patientName: existing[0].patient_name, status: "draft" as const };
+  }
+  const patientName = data.patientName.trim();
+  const age = Number(data.age);
+  const ageUnit = parseAgeUnit(data.ageUnit);
+  const ageYears = ageToYears(age, ageUnit) ?? 0; // range logic works in fractional years
+  if (patientName.length < 2) throw new Error("اسم المريض غير صالح");
+  const ageIssue = ageProblem(age, ageUnit);
+  if (ageIssue) throw new Error(ageIssue);
+  if (data.gender !== "ذكر" && data.gender !== "أنثى") throw new Error("النوع غير صالح");
+  if (!isValidPhone(data.phone)) throw new Error("رقم هاتف المريض مطلوب (10 أرقام على الأقل)");
+
+  const entered = data.tests.filter((t) => t.value.trim());
+  if (!entered.length) throw new Error("أدخل نتيجة تحليل واحدة على الأقل");
+
+  const catalogRows = await sql<{ test_name: string; unit: string; male_range: string; female_range: string; age_ranges: string | null; category_id: string; category_name_ar: string; category_name_en: string }>`
+    select test_name, unit, male_range, female_range, age_ranges, category_id, category_name_ar, category_name_en
+    from lab_test_catalog
+    where lab_id = ${lab_id} and is_active = true
+  `;
+  const catalogMap = new Map(catalogRows.map((row) => [`${row.category_id}:${row.test_name}`, row]));
+  for (const test of entered) {
+    if (!catalogMap.has(`${test.categoryId}:${test.name}`)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
+  }
+  const catalogTests = entered.map((test) => {
+    const row = catalogMap.get(`${test.categoryId}:${test.name}`)!;
+    return {
+      ...test,
+      categoryId: row.category_id,
+      categoryAr: row.category_name_ar,
+      categoryEn: row.category_name_en,
+      unit: row.unit,
+      customRange: resolveRange(row, test, data.gender, ageYears) || test.customRange,
+    };
+  });
+  const tests = addCalculatedTests(catalogTests, data.gender, ageYears);
+  const patientId = randomUUID();
+  const reportId = randomUUID();
+  const now = effectiveCreatedAt(data.clientCreatedAt);
+  const dateKey = now.toISOString().slice(0, 10).replaceAll("-", "");
+  const patientCode = data.patientCode?.trim() || `P-${dateKey}-${randomUUID().slice(0, 4).toUpperCase()}`;
+  const sampleId = `S-${dateKey}-${randomUUID().slice(0, 6).toUpperCase()}`;
+
+  await sql.query(
+    `insert into patients (id, lab_id, patient_code, full_name, age, age_unit, gender, phone, national_id, notes)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [patientId, lab_id, patientCode, patientName, age, ageUnit, data.gender, phoneDigits(data.phone), data.nationalId?.trim() || null, data.notes?.trim() || null],
+  );
+
+  await sql.query(
+    `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by, created_at, client_request_id)
+     values ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10)`,
+    [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id, now.toISOString(), clientRequestId],
+  );
+
+  for (let i = 0; i < tests.length; i += 1) {
+    const test = tests[i];
+    const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, ageYears, test.categoryId);
+    const critical = isCritical(test.name, test.value);
+    const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
+    await sql.query(
+      `insert into report_results
+        (id, report_id, test_id, test_name, category_id, category_ar, category_en,
+         result_value, unit, reference_range, flag, interpretation, sort_order)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [
+        randomUUID(), reportId, `${test.categoryId}:${test.name}`, test.name,
+        test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null,
+        test.customRange?.trim() || getNormalRange(test.name, data.gender, ageYears, test.categoryId), flag,
+        interpretation.note, i,
+      ],
+    );
+  }
+
+  // Results are separate rows: touch the report once they exist so its last
+  // sync-log entry comes after its results (a device that pulls in between
+  // would otherwise keep a report with no results).
+  await sql.query(`update reports set updated_at=current_timestamp where id=$1 and lab_id=$2`, [reportId, lab_id]);
+
+  await sql.query(
+    `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id)
+     values ($1,$2,$3,$4,$5,$6,$7)`,
+    [randomUUID(), lab_id, lab_user_id, userId, "report.created", "report", reportId],
+  );
+
+  return { id: reportId, patientName, status: "draft" as const };
+}
+
 export const createLabReport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .handler(async ({ context, data }: { context: { userId: string }; data: CreateLabReportInput }) => {
-    const { sql, lab_user_id, lab_id } = await getLabContext(context.userId, "reports.create");
-    if (data.expectedLabId && data.expectedLabId !== lab_id) throw new Error("LAB_MISMATCH");
-    const clientRequestId = data.clientRequestId?.trim().slice(0, 64) || null;
-    if (clientRequestId) {
-      const existing = await sql<{ id: string; patient_name: string; status: "draft" }>`
-        select r.id, p.full_name as patient_name, r.status
-        from reports r inner join patients p on p.id = r.patient_id
-        where r.lab_id = ${lab_id} and r.client_request_id = ${clientRequestId}
-        limit 1
-      `;
-      if (existing.length) return { id: existing[0].id, patientName: existing[0].patient_name, status: "draft" as const };
-    }
-    const patientName = data.patientName.trim();
-    const age = Number(data.age);
-    const ageUnit = parseAgeUnit(data.ageUnit);
-    const ageYears = ageToYears(age, ageUnit) ?? 0; // range logic works in fractional years
-    if (patientName.length < 2) throw new Error("اسم المريض غير صالح");
-    const ageIssue = ageProblem(age, ageUnit);
-    if (ageIssue) throw new Error(ageIssue);
-    if (data.gender !== "ذكر" && data.gender !== "أنثى") throw new Error("النوع غير صالح");
-    if (!isValidPhone(data.phone)) throw new Error("رقم هاتف المريض مطلوب (10 أرقام على الأقل)");
-
-    const entered = data.tests.filter((t) => t.value.trim());
-    if (!entered.length) throw new Error("أدخل نتيجة تحليل واحدة على الأقل");
-
-    const catalogRows = await sql<{ test_name: string; unit: string; male_range: string; female_range: string; age_ranges: string | null; category_id: string; category_name_ar: string; category_name_en: string }>`
-      select test_name, unit, male_range, female_range, age_ranges, category_id, category_name_ar, category_name_en
-      from lab_test_catalog
-      where lab_id = ${lab_id} and is_active = true
-    `;
-    const catalogMap = new Map(catalogRows.map((row) => [`${row.category_id}:${row.test_name}`, row]));
-    for (const test of entered) {
-      if (!catalogMap.has(`${test.categoryId}:${test.name}`)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
-    }
-    const catalogTests = entered.map((test) => {
-      const row = catalogMap.get(`${test.categoryId}:${test.name}`)!;
-      return {
-        ...test,
-        categoryId: row.category_id,
-        categoryAr: row.category_name_ar,
-        categoryEn: row.category_name_en,
-        unit: row.unit,
-        customRange: resolveRange(row, test, data.gender, ageYears) || test.customRange,
-      };
-    });
-    const tests = addCalculatedTests(catalogTests, data.gender, ageYears);
-    const patientId = randomUUID();
-    const reportId = randomUUID();
-    const now = effectiveCreatedAt(data.clientCreatedAt);
-    const dateKey = now.toISOString().slice(0, 10).replaceAll("-", "");
-    const patientCode = data.patientCode?.trim() || `P-${dateKey}-${randomUUID().slice(0, 4).toUpperCase()}`;
-    const sampleId = `S-${dateKey}-${randomUUID().slice(0, 6).toUpperCase()}`;
-
-    await sql.query(
-      `insert into patients (id, lab_id, patient_code, full_name, age, age_unit, gender, phone, national_id, notes)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [patientId, lab_id, patientCode, patientName, age, ageUnit, data.gender, phoneDigits(data.phone), data.nationalId?.trim() || null, data.notes?.trim() || null],
-    );
-
-    await sql.query(
-      `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by, created_at, client_request_id)
-       values ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10)`,
-      [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id, now.toISOString(), clientRequestId],
-    );
-
-    for (let i = 0; i < tests.length; i += 1) {
-      const test = tests[i];
-      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, ageYears, test.categoryId);
-      const critical = isCritical(test.name, test.value);
-      const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
-      await sql.query(
-        `insert into report_results
-          (id, report_id, test_id, test_name, category_id, category_ar, category_en,
-           result_value, unit, reference_range, flag, interpretation, sort_order)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [
-          randomUUID(), reportId, `${test.categoryId}:${test.name}`, test.name,
-          test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null,
-          test.customRange?.trim() || getNormalRange(test.name, data.gender, ageYears, test.categoryId), flag,
-          interpretation.note, i,
-        ],
-      );
-    }
-
-    // Results are separate rows: touch the report once they exist so its last
-    // sync-log entry comes after its results (a device that pulls in between
-    // would otherwise keep a report with no results).
-    await sql.query(`update reports set updated_at=current_timestamp where id=$1 and lab_id=$2`, [reportId, lab_id]);
-
-    await sql.query(
-      `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id)
-       values ($1,$2,$3,$4,$5,$6,$7)`,
-      [randomUUID(), lab_id, lab_user_id, context.userId, "report.created", "report", reportId],
-    );
-
-    return { id: reportId, patientName, status: "draft" as const };
-  });
+  .handler(async ({ context, data }: { context: { userId: string }; data: CreateLabReportInput }) => createLabReportForUser(context.userId, data));
 
 export type LabReport = {
   id: string;
@@ -176,68 +179,71 @@ export type LabReport = {
 };
 
 
+/** Plain-function core of `updateLabReport`: also used by device sync (see sync.ts). */
+export async function updateLabReportForUser(userId: string, data: CreateLabReportInput & { id: string }) {
+  const { sql, lab_user_id, lab_id } = await getLabContext(userId, "reports.edit");
+
+  const current = await sql<{ id: string; patient_id: string; status: "draft" | "pending_review" | "approved" | "cancelled" }>`
+    select id, patient_id, status from reports where id = ${data.id} and lab_id = ${lab_id} limit 1
+  `;
+  if (!current.length) throw new Error("REPORT_NOT_FOUND");
+  if (current[0].status !== "draft") throw new Error("REPORT_NOT_EDITABLE");
+
+  const patientName = data.patientName.trim();
+  const age = Number(data.age);
+  const ageUnit = parseAgeUnit(data.ageUnit);
+  const ageYears = ageToYears(age, ageUnit) ?? 0; // range logic works in fractional years
+  if (patientName.length < 2) throw new Error("اسم المريض غير صالح");
+  const ageIssue = ageProblem(age, ageUnit);
+  if (ageIssue) throw new Error(ageIssue);
+  if (data.gender !== "ذكر" && data.gender !== "أنثى") throw new Error("النوع غير صالح");
+  if (!isValidPhone(data.phone)) throw new Error("رقم هاتف المريض مطلوب (10 أرقام على الأقل)");
+  const entered = data.tests.filter((t) => t.value.trim());
+  if (!entered.length) throw new Error("أدخل نتيجة تحليل واحدة على الأقل");
+
+  const catalogRows = await sql<{ test_name: string; unit: string; male_range: string; female_range: string; age_ranges: string | null; category_id: string; category_name_ar: string; category_name_en: string }>`
+    select test_name, unit, male_range, female_range, age_ranges, category_id, category_name_ar, category_name_en
+    from lab_test_catalog where lab_id = ${lab_id} and is_active = true
+  `;
+  const catalogMap = new Map(catalogRows.map((row) => [`${row.category_id}:${row.test_name}`, row]));
+  for (const test of entered) if (!catalogMap.has(`${test.categoryId}:${test.name}`)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
+  const catalogTests = entered.map((test) => {
+    const row = catalogMap.get(`${test.categoryId}:${test.name}`)!;
+    return { ...test, categoryId: row.category_id, categoryAr: row.category_name_ar, categoryEn: row.category_name_en, unit: row.unit, customRange: resolveRange(row, test, data.gender, ageYears) || test.customRange };
+  });
+  const tests = addCalculatedTests(catalogTests, data.gender, ageYears);
+
+  await sql.query(
+    `update patients set patient_code=$1, full_name=$2, age=$3, age_unit=$4, gender=$5, phone=$6, national_id=coalesce($7, national_id), notes=$8, updated_at=current_timestamp where id=$9 and lab_id=$10`,
+    [data.patientCode?.trim() || null, patientName, age, ageUnit, data.gender, phoneDigits(data.phone), data.nationalId?.trim() || null, data.notes?.trim() || null, current[0].patient_id, lab_id],
+  );
+  await sql.query(
+    `update reports set referring_doctor=$1, notes=$2, collected_at=$3, updated_at=current_timestamp where id=$4 and lab_id=$5 and status='draft'`,
+    [data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, data.id, lab_id],
+  );
+  await sql.query(`delete from report_results where report_id=$1`, [data.id]);
+  for (let i = 0; i < tests.length; i += 1) {
+    const test = tests[i];
+    const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, ageYears, test.categoryId);
+    const critical = isCritical(test.name, test.value);
+    const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
+    await sql.query(
+      `insert into report_results (id, report_id, test_id, test_name, category_id, category_ar, category_en, result_value, unit, reference_range, flag, interpretation, sort_order) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [randomUUID(), data.id, `${test.categoryId}:${test.name}`, test.name, test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null, test.customRange?.trim() || getNormalRange(test.name, data.gender, ageYears, test.categoryId), flag, interpretation.note, i],
+    );
+  }
+  // Same reason as in createLabReport: results were replaced after the first update.
+  await sql.query(`update reports set updated_at=current_timestamp where id=$1 and lab_id=$2`, [data.id, lab_id]);
+  await sql.query(
+    `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
+    [randomUUID(), lab_id, lab_user_id, userId, "report.updated", "report", data.id],
+  );
+  return { id: data.id, patientName, status: "draft" as const };
+}
+
 export const updateLabReport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .handler(async ({ context, data }: { context: { userId: string }; data: CreateLabReportInput & { id: string } }) => {
-    const { sql, lab_user_id, lab_id } = await getLabContext(context.userId, "reports.edit");
-
-    const current = await sql<{ id: string; patient_id: string; status: "draft" | "pending_review" | "approved" | "cancelled" }>`
-      select id, patient_id, status from reports where id = ${data.id} and lab_id = ${lab_id} limit 1
-    `;
-    if (!current.length) throw new Error("REPORT_NOT_FOUND");
-    if (current[0].status !== "draft") throw new Error("REPORT_NOT_EDITABLE");
-
-    const patientName = data.patientName.trim();
-    const age = Number(data.age);
-    const ageUnit = parseAgeUnit(data.ageUnit);
-    const ageYears = ageToYears(age, ageUnit) ?? 0; // range logic works in fractional years
-    if (patientName.length < 2) throw new Error("اسم المريض غير صالح");
-    const ageIssue = ageProblem(age, ageUnit);
-    if (ageIssue) throw new Error(ageIssue);
-    if (data.gender !== "ذكر" && data.gender !== "أنثى") throw new Error("النوع غير صالح");
-    if (!isValidPhone(data.phone)) throw new Error("رقم هاتف المريض مطلوب (10 أرقام على الأقل)");
-    const entered = data.tests.filter((t) => t.value.trim());
-    if (!entered.length) throw new Error("أدخل نتيجة تحليل واحدة على الأقل");
-
-    const catalogRows = await sql<{ test_name: string; unit: string; male_range: string; female_range: string; age_ranges: string | null; category_id: string; category_name_ar: string; category_name_en: string }>`
-      select test_name, unit, male_range, female_range, age_ranges, category_id, category_name_ar, category_name_en
-      from lab_test_catalog where lab_id = ${lab_id} and is_active = true
-    `;
-    const catalogMap = new Map(catalogRows.map((row) => [`${row.category_id}:${row.test_name}`, row]));
-    for (const test of entered) if (!catalogMap.has(`${test.categoryId}:${test.name}`)) throw new Error(`التحليل غير متاح في كتالوج المعمل: ${test.name}`);
-    const catalogTests = entered.map((test) => {
-      const row = catalogMap.get(`${test.categoryId}:${test.name}`)!;
-      return { ...test, categoryId: row.category_id, categoryAr: row.category_name_ar, categoryEn: row.category_name_en, unit: row.unit, customRange: resolveRange(row, test, data.gender, ageYears) || test.customRange };
-    });
-    const tests = addCalculatedTests(catalogTests, data.gender, ageYears);
-
-    await sql.query(
-      `update patients set patient_code=$1, full_name=$2, age=$3, age_unit=$4, gender=$5, phone=$6, national_id=coalesce($7, national_id), notes=$8, updated_at=current_timestamp where id=$9 and lab_id=$10`,
-      [data.patientCode?.trim() || null, patientName, age, ageUnit, data.gender, phoneDigits(data.phone), data.nationalId?.trim() || null, data.notes?.trim() || null, current[0].patient_id, lab_id],
-    );
-    await sql.query(
-      `update reports set referring_doctor=$1, notes=$2, collected_at=$3, updated_at=current_timestamp where id=$4 and lab_id=$5 and status='draft'`,
-      [data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, data.id, lab_id],
-    );
-    await sql.query(`delete from report_results where report_id=$1`, [data.id]);
-    for (let i = 0; i < tests.length; i += 1) {
-      const test = tests[i];
-      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, ageYears, test.categoryId);
-      const critical = isCritical(test.name, test.value);
-      const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
-      await sql.query(
-        `insert into report_results (id, report_id, test_id, test_name, category_id, category_ar, category_en, result_value, unit, reference_range, flag, interpretation, sort_order) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [randomUUID(), data.id, `${test.categoryId}:${test.name}`, test.name, test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null, test.customRange?.trim() || getNormalRange(test.name, data.gender, ageYears, test.categoryId), flag, interpretation.note, i],
-      );
-    }
-    // Same reason as in createLabReport: results were replaced after the first update.
-    await sql.query(`update reports set updated_at=current_timestamp where id=$1 and lab_id=$2`, [data.id, lab_id]);
-    await sql.query(
-      `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
-      [randomUUID(), lab_id, lab_user_id, context.userId, "report.updated", "report", data.id],
-    );
-    return { id: data.id, patientName, status: "draft" as const };
-  });
+  .handler(async ({ context, data }: { context: { userId: string }; data: CreateLabReportInput & { id: string } }) => updateLabReportForUser(context.userId, data));
 
 export const listLabReports = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -398,36 +404,39 @@ export const approveLabReport = createServerFn({ method: "POST" })
     return { ok: true, status: "approved" as const };
   });
 
+/** Plain-function core of `deleteLabReport`: also used by device sync (see sync.ts). */
+export async function deleteLabReportForUser(userId: string, data: { id: string }) {
+  const { sql, lab_user_id, lab_id, role, report } = await getReportForAction(userId, data.id, "reports.delete");
+  // التقرير المعتمد وثيقة نهائية: مالك المعمل بس هو اللي يقدر يحذفه.
+  if (report.status === "approved" && role !== "owner") throw new Error("APPROVED_REPORT_CANNOT_BE_DELETED");
+
+  const patientRows = await sql<{ patient_id: string }>`
+    select patient_id from reports where id = ${data.id} and lab_id = ${lab_id} limit 1
+  `;
+  const patientId = patientRows[0]?.patient_id;
+
+  await sql.query(`delete from reports where id=$1 and lab_id=$2`, [data.id, lab_id]);
+
+  // احذف المريض بس لو مالوش أي تقرير تاني مرتبط بيه.
+  if (patientId) {
+    const otherReports = await sql<{ id: string }>`
+      select id from reports where patient_id = ${patientId} and lab_id = ${lab_id} limit 1
+    `;
+    if (!otherReports.length) {
+      await sql.query(`delete from patients where id=$1 and lab_id=$2`, [patientId, lab_id]);
+    }
+  }
+
+  await sql.query(
+    `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
+    [randomUUID(), lab_id, lab_user_id, userId, report.status === "approved" ? "report.approved_deleted" : "report.deleted", "report", data.id],
+  );
+  return { ok: true };
+}
+
 export const deleteLabReport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .handler(async ({ context, data }: { context: { userId: string }; data: { id: string } }) => {
-    const { sql, lab_user_id, lab_id, role, report } = await getReportForAction(context.userId, data.id, "reports.delete");
-    // التقرير المعتمد وثيقة نهائية: مالك المعمل بس هو اللي يقدر يحذفه.
-    if (report.status === "approved" && role !== "owner") throw new Error("APPROVED_REPORT_CANNOT_BE_DELETED");
-
-    const patientRows = await sql<{ patient_id: string }>`
-      select patient_id from reports where id = ${data.id} and lab_id = ${lab_id} limit 1
-    `;
-    const patientId = patientRows[0]?.patient_id;
-
-    await sql.query(`delete from reports where id=$1 and lab_id=$2`, [data.id, lab_id]);
-
-    // احذف المريض بس لو مالوش أي تقرير تاني مرتبط بيه.
-    if (patientId) {
-      const otherReports = await sql<{ id: string }>`
-        select id from reports where patient_id = ${patientId} and lab_id = ${lab_id} limit 1
-      `;
-      if (!otherReports.length) {
-        await sql.query(`delete from patients where id=$1 and lab_id=$2`, [patientId, lab_id]);
-      }
-    }
-
-    await sql.query(
-      `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
-      [randomUUID(), lab_id, lab_user_id, context.userId, report.status === "approved" ? "report.approved_deleted" : "report.deleted", "report", data.id],
-    );
-    return { ok: true };
-  });
+  .handler(async ({ context, data }: { context: { userId: string }; data: { id: string } }) => deleteLabReportForUser(context.userId, data));
 
 export type PreviousResults = {
   reportDate: string;

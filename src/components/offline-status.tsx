@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { deletePending, retryPending, syncPending } from "@/lib/offline/sync";
 import { useOnline, usePendingReports } from "@/lib/offline/use-offline";
+import { syncRunner } from "@/lib/sync-engine/runner";
+import { useSyncState } from "@/lib/sync-engine/use-sync";
 
 /**
  * Connection banner + outbox for reports saved on this device.
@@ -34,9 +36,17 @@ export function OfflineStatus() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [online]);
 
+  // Keep this device's copy of the lab's data in step with the cloud (starts once per page load).
+  const syncState = useSyncState();
+  useEffect(() => {
+    syncRunner.start();
+  }, []);
+  // Data is on the device but Chrome may delete it when storage runs low: tell the person, once it matters.
+  const storageAtRisk = syncState.persistent === false && syncState.lastSyncedAt !== null;
+
   const pending = items.filter((i) => i.status === "pending");
   const failed = items.filter((i) => i.status === "failed");
-  if (online && items.length === 0) return null;
+  if (online && items.length === 0 && !storageAtRisk && syncState.attention === 0) return null;
 
   return (
     <div className="no-print space-y-2 px-4 pt-3 sm:px-6 lg:px-8" role="status">
@@ -47,6 +57,17 @@ export function OfflineStatus() {
             أنت غير متصل بالإنترنت. تقدر تكمل إنشاء التقارير، وهتتحفظ على جهازك وتتبعت تلقائيًا لما الاتصال يرجع.
           </p>
         </div>
+      ) : null}
+
+      {storageAtRisk ? (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          المتصفح ممكن يمسح البيانات المحفوظة على الجهاز لو المساحة قلّت. ثبّت التطبيق على الشاشة الرئيسية، وسيب مساحة فاضية.
+        </p>
+      ) : null}
+      {syncState.attention > 0 ? (
+        <p className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">
+          {syncState.attention} تغيير على الجهاز مارضيش الخادم يقبله أو فيه تعارض. راجعه قبل ما تكمل.
+        </p>
       ) : null}
 
       {items.length > 0 ? (

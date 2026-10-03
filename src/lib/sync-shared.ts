@@ -48,3 +48,42 @@ export function collapseChanges(changes: RawSyncChange[]): RawSyncChange[] {
   }
   return [...latest.values()].sort((a, b) => a.seq - b.seq);
 }
+
+export const PUSH_BATCH_MAX = 50;
+
+export type PushChangeInput = {
+  id: string;
+  entity: SyncEntity;
+  entityId: string;
+  op: "upsert" | "delete";
+  baseVersion: number | null;
+  payload: unknown;
+};
+
+/**
+ * Validate a batch a device sends. All-or-nothing: one malformed item means a
+ * bug or tampering, so the whole batch is refused rather than half-applied.
+ */
+export function parsePushBatch(raw: unknown): PushChangeInput[] {
+  const list = (raw as { changes?: unknown } | null | undefined)?.changes;
+  if (!Array.isArray(list)) throw new Error("PUSH_BATCH_INVALID");
+  if (list.length > PUSH_BATCH_MAX) throw new Error("PUSH_BATCH_TOO_LARGE");
+  const seen = new Set<string>();
+  return list.map((item) => {
+    const c = item as Partial<PushChangeInput> | null;
+    const idOk = (v: unknown) => typeof v === "string" && v.length > 0 && v.length <= 64;
+    if (
+      !c ||
+      !idOk(c.id) ||
+      !idOk(c.entityId) ||
+      !isSyncEntity(c.entity) ||
+      (c.op !== "upsert" && c.op !== "delete") ||
+      !(c.baseVersion === null || (typeof c.baseVersion === "number" && Number.isSafeInteger(c.baseVersion) && c.baseVersion >= 0))
+    ) {
+      throw new Error("PUSH_BATCH_INVALID");
+    }
+    if (seen.has(c.id as string)) throw new Error("PUSH_BATCH_DUPLICATE_ID");
+    seen.add(c.id as string);
+    return { id: c.id as string, entity: c.entity, entityId: c.entityId as string, op: c.op, baseVersion: c.baseVersion, payload: c.payload };
+  });
+}

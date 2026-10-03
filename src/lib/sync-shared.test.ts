@@ -6,6 +6,8 @@ import {
   clampSyncLimit,
   collapseChanges,
   isSyncEntity,
+  PUSH_BATCH_MAX,
+  parsePushBatch,
   parseSyncCursor,
   type RawSyncChange,
 } from "./sync-shared.ts";
@@ -66,4 +68,36 @@ test("collapse: same id in different tables stays separate; seq arrives as numbe
 
 test("collapse: empty page", () => {
   assert.deepEqual(collapseChanges([]), []);
+});
+
+const good = { id: "c1", entity: "reports", entityId: "r1", op: "upsert", baseVersion: null, payload: { a: 1 } };
+
+test("push batch: a valid batch passes through", () => {
+  const out = parsePushBatch({ changes: [good, { ...good, id: "c2", baseVersion: 3 }] });
+  assert.equal(out.length, 2);
+  assert.equal(out[1].baseVersion, 3);
+});
+
+test("push batch: anything malformed refuses the whole batch", () => {
+  const bad: unknown[] = [
+    undefined, null, {}, { changes: "x" },
+    { changes: [{ ...good, entity: "users" }] },
+    { changes: [{ ...good, entity: "patients; drop table x" }] },
+    { changes: [{ ...good, op: "update" }] },
+    { changes: [{ ...good, id: "" }] },
+    { changes: [{ ...good, id: "x".repeat(65) }] },
+    { changes: [{ ...good, entityId: 5 }] },
+    { changes: [{ ...good, baseVersion: -1 }] },
+    { changes: [{ ...good, baseVersion: 1.5 }] },
+    { changes: [{ ...good, baseVersion: "2" }] },
+    { changes: [good, null] },
+  ];
+  for (const b of bad) assert.throws(() => parsePushBatch(b), /PUSH_BATCH_INVALID/, JSON.stringify(b));
+});
+
+test("push batch: size cap and duplicate ids", () => {
+  const many = Array.from({ length: PUSH_BATCH_MAX + 1 }, (_, i) => ({ ...good, id: `c${i}` }));
+  assert.throws(() => parsePushBatch({ changes: many }), /PUSH_BATCH_TOO_LARGE/);
+  assert.throws(() => parsePushBatch({ changes: [good, good] }), /PUSH_BATCH_DUPLICATE_ID/);
+  assert.equal(parsePushBatch({ changes: [] }).length, 0);
 });

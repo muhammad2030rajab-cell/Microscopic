@@ -1,0 +1,50 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { decidePush } from "./conflict.ts";
+
+const draft = (version: number) => ({ version, status: "draft" });
+
+test("creating a new row applies; creating one the server already has is a harmless retry", () => {
+  assert.deepEqual(decidePush({ entity: "reports", op: "upsert", baseVersion: null, server: null }), { kind: "apply" });
+  assert.deepEqual(decidePush({ entity: "reports", op: "upsert", baseVersion: null, server: draft(2) }), { kind: "already_applied" });
+  // ...even if the report was approved in the meantime: a retry must not turn into an error.
+  assert.deepEqual(
+    decidePush({ entity: "reports", op: "upsert", baseVersion: null, server: { version: 5, status: "approved" } }),
+    { kind: "already_applied" },
+  );
+});
+
+test("editing a draft: same version applies, a stale version is a conflict (never overwrites)", () => {
+  assert.deepEqual(decidePush({ entity: "reports", op: "upsert", baseVersion: 3, server: draft(3) }), { kind: "apply" });
+  assert.deepEqual(decidePush({ entity: "reports", op: "upsert", baseVersion: 2, server: draft(3) }), { kind: "conflict", reason: "server_newer" });
+  assert.deepEqual(decidePush({ entity: "reports", op: "upsert", baseVersion: 9, server: draft(3) }), { kind: "conflict", reason: "version_mismatch" });
+});
+
+test("a report past draft is locked against offline edits", () => {
+  for (const status of ["pending_review", "approved", "cancelled"]) {
+    assert.deepEqual(
+      decidePush({ entity: "reports", op: "upsert", baseVersion: 4, server: { version: 4, status } }),
+      { kind: "reject", reason: "report_locked" },
+      status,
+    );
+  }
+});
+
+test("editing a report that was deleted on the server is a conflict, not a resurrection", () => {
+  assert.deepEqual(decidePush({ entity: "reports", op: "upsert", baseVersion: 1, server: null }), { kind: "conflict", reason: "deleted_on_server" });
+});
+
+test("deletes: gone already = done; draft report with the right version applies; the rest needs a person online", () => {
+  assert.deepEqual(decidePush({ entity: "reports", op: "delete", baseVersion: 1, server: null }), { kind: "already_applied" });
+  assert.deepEqual(decidePush({ entity: "reports", op: "delete", baseVersion: 2, server: draft(2) }), { kind: "apply" });
+  assert.deepEqual(decidePush({ entity: "reports", op: "delete", baseVersion: 1, server: draft(2) }), { kind: "conflict", reason: "server_newer" });
+  assert.deepEqual(decidePush({ entity: "reports", op: "delete", baseVersion: 2, server: { version: 2, status: "approved" } }), { kind: "reject", reason: "requires_online" });
+});
+
+test("patients on their own, catalog and attachments cannot be written offline in v1", () => {
+  for (const entity of ["patients", "lab_test_catalog", "report_attachments"] as const) {
+    for (const op of ["upsert", "delete"] as const) {
+      assert.deepEqual(decidePush({ entity, op, baseVersion: 1, server: { version: 1 } }), { kind: "reject", reason: "not_supported_offline" });
+    }
+  }
+});

@@ -9,6 +9,7 @@ import { loadReportFilters, saveReportFilters, type ReportPeriodFilter, type Rep
 import { Input } from "@/components/ui/input";
 import { deleteLabReport, listLabReports } from "@/lib/lab-reports";
 import { getCurrentLabPermissions } from "@/lib/lab-users";
+import { loadLocalReportList } from "@/lib/sync-engine/offline-fallback";
 import { formatListDate } from "@/lib/utils";
 import { reportStatusClasses, reportStatusLabels } from "@/lib/report-workflow";
 
@@ -18,21 +19,24 @@ export const Route = createFileRoute("/reports/")({
   loader: async () => {
     try {
       const [reports, access] = await Promise.all([listLabReports(), getCurrentLabPermissions().catch(() => null)]);
-      return { reports, canDelete: access?.permissions["reports.delete"] === true, isOwner: access?.role === "owner" };
-    } catch {
-      return { reports: null as LabReportSummary[] | null, canDelete: false, isOwner: false };
+      return { reports, canDelete: access?.permissions["reports.delete"] === true, isOwner: access?.role === "owner", offline: false };
+    } catch (err) {
+      // No connection: show the copy kept on this device (read-only). Any other failure behaves as before.
+      const local = await loadLocalReportList(err);
+      if (local) return { reports: local as LabReportSummary[], canDelete: false, isOwner: false, offline: true };
+      return { reports: null as LabReportSummary[] | null, canDelete: false, isOwner: false, offline: false };
     }
   },
   component: ReportsPage,
 });
 
 function ReportsPage() {
-  const { reports, canDelete, isOwner } = Route.useLoaderData();
+  const { reports, canDelete, isOwner, offline } = Route.useLoaderData();
   if (!reports) return <Navigate to="/login" replace />;
-  return <ReportsList initialReports={reports} canDelete={canDelete} isOwner={isOwner} />;
+  return <ReportsList initialReports={reports} canDelete={canDelete} isOwner={isOwner} offline={offline} />;
 }
 
-function ReportsList({ initialReports, canDelete, isOwner }: { initialReports: LabReportSummary[]; canDelete: boolean; isOwner: boolean }) {
+function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialReports: LabReportSummary[]; canDelete: boolean; isOwner: boolean; offline: boolean }) {
   const [reports, setReports] = useState(initialReports);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState("");
@@ -99,6 +103,11 @@ function ReportsList({ initialReports, canDelete, isOwner }: { initialReports: L
 
   return (
     <AppShell>
+      {offline ? (
+        <p role="status" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          أنت غير متصل. دي نسخة محفوظة على جهازك للعرض فقط، وهتتحدّث لما الاتصال يرجع.
+        </p>
+      ) : null}
       <header className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-muted">الأرشيف</p>

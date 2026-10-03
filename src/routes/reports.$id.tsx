@@ -8,6 +8,7 @@ import { interpretResult, isCritical, parseValue } from "@/lib/medical";
 import { approveLabReport, deleteLabReport, getLabReport, getPreviousResults, submitLabReportForReview, type PreviousResults } from "@/lib/lab-reports";
 import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
 import { getCurrentLabPermissions } from "@/lib/lab-users";
+import { loadLocalReport } from "@/lib/sync-engine/offline-fallback";
 import { useNavigate } from "@tanstack/react-router";
 import { reportStatusClasses, reportStatusLabels } from "@/lib/report-workflow";
 import { downloadReportPdf } from "@/lib/generate-report-pdf";
@@ -25,9 +26,22 @@ export const Route = createFileRoute("/reports/$id")({
       const [report, lab, access] = await Promise.all([getLabReport({ data: { id: params.id } }), getCurrentLab(), getCurrentLabPermissions()]);
       const attachments = await listReportAttachments({ data: { reportId: params.id } }).catch(() => [] as ReportAttachment[]);
       const previous = await getPreviousResults({ data: { reportId: params.id } }).catch(() => null as PreviousResults | null);
-      return { report, lab, permissions: access.permissions, role: access.role as string, attachments, previous };
-    } catch {
-      return { report: null, lab: null as LabProfileData | null, permissions: {} as Record<string, boolean | undefined>, role: "" as string, attachments: [] as ReportAttachment[], previous: null as PreviousResults | null };
+      return { report, lab, permissions: access.permissions, role: access.role as string, attachments, previous, offline: false };
+    } catch (err) {
+      // No connection: show the copy kept on this device. Read-only — no permissions, so no action buttons.
+      const local = await loadLocalReport<LabProfileData>(err, params.id);
+      if (local) {
+        return {
+          report: local.report as Awaited<ReturnType<typeof getLabReport>>,
+          lab: local.lab as LabProfileData | null,
+          permissions: {} as Record<string, boolean | undefined>,
+          role: "" as string,
+          attachments: [] as ReportAttachment[],
+          previous: null as PreviousResults | null,
+          offline: true,
+        };
+      }
+      return { offline: false, report: null, lab: null as LabProfileData | null, permissions: {} as Record<string, boolean | undefined>, role: "" as string, attachments: [] as ReportAttachment[], previous: null as PreviousResults | null };
     }
   },
   component: ReportDetail,
@@ -35,7 +49,7 @@ export const Route = createFileRoute("/reports/$id")({
 
 function ReportDetail() {
   const data = Route.useLoaderData();
-  const { lab, permissions, role, attachments, previous } = data;
+  const { lab, permissions, role, attachments, previous, offline } = data;
   const navigate = useNavigate();
   const [report, setReport] = useState(data.report);
   const [loading, setLoading] = useState<"submit" | "approve" | "delete" | null>(null);
@@ -134,6 +148,7 @@ function ReportDetail() {
     <div className="no-print">
       <AppShell>
         <div className="mx-auto w-full max-w-4xl">
+          {offline ? <p role="status" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">أنت غير متصل. دي نسخة محفوظة على جهازك للعرض والطباعة فقط، ومفيش تعديل أو اعتماد إلا لما الاتصال يرجع.</p> : null}
           <Link to="/reports" className="mb-3 inline-flex h-11 items-center gap-2 text-sm text-ink-soft"><ArrowRight className="size-4" />الأرشيف</Link>
 
           <section className="mb-4 rounded-lg border border-line bg-elevated p-4">

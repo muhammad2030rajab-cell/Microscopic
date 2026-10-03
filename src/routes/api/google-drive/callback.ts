@@ -3,14 +3,28 @@ import { createFileRoute } from "@tanstack/react-router";
 const CLIENT_ID = process.env.GOOGLE_DRIVE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
 
-const REDIRECT_URI =
-  "https://rajab-diagnostics.vercel.app/api/google-drive/callback";
-
 export const Route = createFileRoute("/api/google-drive/callback")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const { isPlatformAdminRequest, driveRedirectUri, readCookie, STATE_COOKIE } = await import(
+          "@/lib/storage/google-drive-oauth.server"
+        );
+
+        // Only the platform admin who started the flow may finish it, and the
+        // `state` must match the cookie set by /connect (CSRF protection).
+        if (!(await isPlatformAdminRequest(request))) {
+          return new Response("Forbidden", { status: 403 });
+        }
+
         const url = new URL(request.url);
+        const expectedState = readCookie(request, STATE_COOKIE);
+        if (!expectedState || url.searchParams.get("state") !== expectedState) {
+          return new Response("Invalid or expired state. Start again from /api/google-drive/connect.", {
+            status: 400,
+          });
+        }
+
         const code = url.searchParams.get("code");
         const error = url.searchParams.get("error");
 
@@ -37,7 +51,7 @@ export const Route = createFileRoute("/api/google-drive/callback")({
           code,
           client_id: CLIENT_ID,
           client_secret: CLIENT_SECRET,
-          redirect_uri: REDIRECT_URI,
+          redirect_uri: driveRedirectUri(request),
           grant_type: "authorization_code",
         });
 
@@ -86,6 +100,8 @@ GOOGLE_DRIVE_REFRESH_TOKEN`,
             status: 200,
             headers: {
               "content-type": "text/plain; charset=utf-8",
+              "cache-control": "no-store",
+              "set-cookie": `${STATE_COOKIE}=; Path=/api/google-drive; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
             },
           },
         );

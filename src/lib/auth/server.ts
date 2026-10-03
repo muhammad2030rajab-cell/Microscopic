@@ -21,11 +21,12 @@
  * verified id via `@/lib/auth/middleware`.
  */
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
-import { ensureDbReady, getPglite } from "../db";
+import { ensureDbReady, getPglite, getSql } from "../db";
 import { emailAndPasswordEnabled } from "./email-password";
 import { pgliteDialect } from "./pglite-dialect";
 
@@ -45,6 +46,29 @@ const globalAuthRef = globalThis as typeof globalThis & {
 function devAuthSecret(): string {
   globalAuthRef.__appAuthDevSecret__ ??= randomBytes(32).toString("hex");
   return globalAuthRef.__appAuthDevSecret__;
+}
+
+/** True on a real Vercel deploy (set automatically by Vercel). */
+export const isHostedDeploy = process.env.VERCEL === "1";
+
+/**
+ * Returns an Arabic/English description of what is missing for a safe hosted
+ * deploy, or null when everything required is set. Without BETTER_AUTH_SECRET
+ * every serverless instance signs sessions with a different random key (users
+ * get "logged in" then bounced back), and without DATABASE_URL the app falls
+ * back to a throw-away in-memory database.
+ */
+export function hostedConfigProblem(): string | null {
+  if (!isHostedDeploy) return null;
+  const missing = ["BETTER_AUTH_SECRET", "DATABASE_URL"].filter(
+    (k) => !process.env[k]?.trim(),
+  );
+  return missing.length ? `Missing required environment variables on Vercel: ${missing.join(", ")}` : null;
+}
+
+{
+  const problem = hostedConfigProblem();
+  if (problem) console.error(`[auth] ${problem}`);
 }
 
 /** Read an env var, treating empty/whitespace as unset. */
@@ -74,10 +98,16 @@ const baseURL = explicitBaseURL ?? "http://localhost:8080";
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
 // Missing entries here surface as FORBIDDEN "Invalid origin".
+// No `https://*.vercel.app` wildcard: that would trust every other tenant on
+// vercel.app. Vercel injects this project's own production/deployment hosts.
+const vercelHosts = [env("VERCEL_PROJECT_PRODUCTION_URL"), env("VERCEL_URL")]
+  .filter((h): h is string => Boolean(h))
+  .map((h) => `https://${h}`);
+
 const trustedOrigins: string[] = [
   "https://microscopic.vercel.app",
-  "https://*.vercel.app",
   ...(explicitBaseURL ? [explicitBaseURL] : []),
+  ...vercelHosts,
   ...LOCAL_DEV_ORIGINS,
 ];
 
@@ -118,6 +148,26 @@ export const auth = betterAuth({
       enabled: true,
       maxAge: 300,
     },
+  },
+
+  // Public sign-up is only for bootstrapping the FIRST platform admin
+  // (/admin/setup). After that, accounts are created server-side by admins
+  // (auth.api.signUpEmail has no HTTP request, so it is not affected).
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-up/email" || !ctx.request) return;
+      let adminExists = true; // fail closed
+      try {
+        const sql = await getSql();
+        const rows = await sql<{ exists: boolean }>`select exists(select 1 from platform_admins) as exists`;
+        adminExists = Boolean(rows[0]?.exists);
+      } catch {
+        adminExists = true;
+      }
+      if (adminExists) {
+        throw new APIError("FORBIDDEN", { message: "Sign-up is disabled" });
+      }
+    }),
   },
 
   // Local email/password — toggled only via `./email-password` (not a plugin).

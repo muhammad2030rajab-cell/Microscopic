@@ -1,5 +1,5 @@
 import { getRequest } from "@tanstack/react-start/server";
-import { auth, authConfigured } from "./server";
+import { auth, authConfigured, hostedConfigProblem } from "./server";
 
 /**
  * Server-side session resolution (server-only).
@@ -49,6 +49,8 @@ export type VerifiedUser = { id: string; email: string | null };
  * and SSR loaders.
  */
 export async function getSessionUser(): Promise<VerifiedUser | null> {
+  const problem = hostedConfigProblem();
+  if (problem) throw new Error(problem);
   if (!authConfigured) return null;
   const request = getRequest();
   if (!request) return null;

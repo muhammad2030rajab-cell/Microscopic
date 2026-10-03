@@ -26,6 +26,9 @@
   --color-elevated: #ffffff;
   --color-ring: #2f6fed;
   --color-flag-yellow: #f3d66a;
+  --color-flag-low: #1d4fb8;
+  --color-flag-low-bg: #e3ecfd;
+  --color-row-alt: #f8fafd;
 
   --radius-xs: 4px;
   --radius-sm: 8px;
@@ -92,7 +95,7 @@
    ========================================= */
 
 .lab-sheet {
-  padding: 1.75rem 1.5rem 1.25rem;
+  padding: 3rem 1.5rem 1.25rem;
   border: 1px solid var(--color-line);
   background: var(--color-elevated);
 }
@@ -102,8 +105,15 @@
   top: 0;
   right: 0;
   width: 13.5rem;
-  height: 4rem;
+  height: 2.25rem;
   pointer-events: none;
+}
+
+/* Arabic (RTL) sheet: mirror the corner to the left edge */
+[dir="rtl"] > .lab-corner {
+  right: auto;
+  left: 0;
+  transform: scaleX(-1);
 }
 
 .lab-corner-navy,
@@ -127,7 +137,7 @@
   top: 0;
   right: 0;
   width: 5.75rem;
-  height: 4rem;
+  height: 2.25rem;
   background: var(--color-high);
   clip-path: polygon(
     38% 0,
@@ -150,24 +160,53 @@
 
 .lab-grid {
   border-collapse: collapse;
-  border: 1px solid var(--color-ink);
+  border-top: 2px solid var(--color-ink);
+  border-bottom: 1px solid var(--color-ink);
   min-width: 32rem;
 }
 
 .lab-grid th,
 .lab-grid td {
-  border: 1px solid var(--color-ink);
-  padding: 0.4rem 0.55rem;
+  border-bottom: 1px solid var(--color-line);
+  padding: 0.5rem 0.65rem;
   text-align: start;
   vertical-align: middle;
 }
 
 .lab-grid th {
+  border-bottom: 1px solid var(--color-line-strong);
   background: var(--color-paper-2);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  /* no letter-spacing / uppercase: they break Arabic letter joining */
+}
+
+.lab-grid > tbody > tr:nth-child(even) > td {
+  background: var(--color-row-alt);
+}
+
+.lab-grid > tbody > tr.lab-row-abnormal > td {
+  background: var(--color-high-bg);
+}
+
+.lab-grid > tbody > tr.lab-row-low > td {
+  background: var(--color-flag-low-bg);
+}
+
+.lab-grid td:nth-child(2) {
+  font-size: 1rem;
+}
+
+.lab-bi {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.lab-bi-ar {
+  direction: rtl;
+  unicode-bidi: isolate;
 }
 
 .lab-barcode-svg {
@@ -185,6 +224,7 @@
 
 .lab-nested td {
   border: 1px solid var(--color-line-strong);
+  background: transparent;
   padding: 0.15rem 0.4rem;
   font-size: 0.7rem;
 }
@@ -302,12 +342,12 @@
 .lab-info-cell {
   min-height: 3.8rem;
   padding: 0.55rem 0.7rem;
-  border-right: 1px solid var(--color-ink);
+  border-inline-end: 1px solid var(--color-ink);
   border-bottom: 1px solid var(--color-ink);
 }
 
 .lab-info-cell:nth-child(3n) {
-  border-right: 0;
+  border-inline-end: 0;
 }
 
 .lab-info-cell:nth-last-child(-n + 3) {
@@ -317,10 +357,8 @@
 .lab-info-label {
   display: block;
   margin-bottom: 0.22rem;
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
   color: var(--color-muted);
 }
 
@@ -361,18 +399,25 @@
 
 /* =========================================
    ABNORMAL RESULT
+   High / critical = red, low = blue
    ========================================= */
 
 .lab-abnormal-result {
-  display: inline-block !important;
-  min-width: 42px !important;
-  padding: 3px 8px !important;
-  border-radius: 5px !important;
-  background-color: #fecaca !important;
-  color: #991b1b !important;
-  font-weight: 800 !important;
-  text-align: center !important;
-  box-shadow: inset 0 0 0 1px #ef4444 !important;
+  display: inline-block;
+  min-width: 42px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background-color: #fecaca;
+  color: #991b1b;
+  font-weight: 800;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px #ef4444;
+}
+
+.lab-abnormal-low {
+  background-color: #bfd4fb;
+  color: #17418f;
+  box-shadow: inset 0 0 0 1px #2f6fed;
 }
 
 /* =========================================
@@ -393,11 +438,11 @@
   }
 
   .lab-info-cell:nth-child(3n) {
-    border-right: 1px solid var(--color-ink);
+    border-inline-end: 1px solid var(--color-ink);
   }
 
   .lab-info-cell:nth-child(2n) {
-    border-right: 0;
+    border-inline-end: 0;
   }
 
   .lab-info-cell:nth-last-child(-n + 3) {
@@ -427,12 +472,11 @@
    ========================================= */
 
 @media print {
-  .lab-abnormal-result {
-    display: inline-block !important;
-    background-color: #fecaca !important;
-    color: #991b1b !important;
-    print-color-adjust: exact !important;
-    -webkit-print-color-adjust: exact !important;
+  .lab-abnormal-result,
+  .lab-grid td,
+  .lab-grid th {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   html,
@@ -487,7 +531,7 @@
 
   .lab-grid th,
   .lab-grid td {
-    padding: 2.2mm 2mm;
+    padding: 1.8mm 2mm;
   }
 
   .lab-patient-grid {
@@ -503,7 +547,7 @@
   }
 
   .lab-info-cell:nth-child(3n) {
-    border-right: 0;
+    border-inline-end: 0;
   }
 
   .lab-info-cell:nth-last-child(-n + 3) {
@@ -543,9 +587,329 @@
 }
 
 /* =========================================
+   RANGE BAR + RESULT SUMMARY
+   ========================================= */
+
+.lab-rbar {
+  position: relative;
+  height: 0.4rem;
+  margin-top: 0.4rem;
+  border-radius: 999px;
+  background: var(--color-paper-2);
+}
+
+.lab-rbar-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: #9fdcb9;
+}
+
+.lab-rbar-dot {
+  position: absolute;
+  top: 50%;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1px rgb(15 41 66 / 0.35);
+}
+
+.lab-rbar-dot-ok {
+  background: var(--color-ok);
+}
+
+.lab-rbar-dot-high {
+  background: var(--color-high);
+}
+
+.lab-rbar-dot-low {
+  background: var(--color-flag-low);
+}
+
+.lab-rbar-dot-off {
+  border-radius: 2px;
+}
+
+.lab-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding: 0.55rem 0.8rem;
+  border-inline-start: 4px solid;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.lab-summary-ok {
+  border-color: var(--color-ok);
+  background: var(--color-ok-bg);
+}
+
+.lab-summary-flag {
+  border-color: var(--color-high);
+  background: var(--color-high-bg);
+}
+
+@media print {
+  .lab-rbar,
+  .lab-rbar-zone,
+  .lab-rbar-dot,
+  .lab-summary {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
+/* =========================================
    APP BOTTOM NAV
    ========================================= */
 
 .bottom-nav {
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* =========================================
+   WELCOME PAGE — "a slide under the microscope"
+   Decorative only (see components/welcome-art.tsx).
+   Animates transform / opacity / filter only.
+   ========================================= */
+
+/* ---- floating cells --------------------------------------------------- */
+.wlc-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: paint;
+}
+
+.wlc-cell {
+  position: absolute;
+  display: block;
+  animation: wlc-drift 20s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.wlc-cell > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes wlc-drift {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  to {
+    transform: translate3d(var(--dx, 20px), var(--dy, -26px), 0) rotate(var(--rot, 40deg));
+  }
+}
+
+/* ---- logo as a microscope objective ------------------------------------ */
+.wlc-lens {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 6rem;
+  height: 6rem;
+  color: rgb(13 148 136 / 0.4);
+}
+
+.wlc-lens-lg {
+  width: 7.5rem;
+  height: 7.5rem;
+}
+
+.wlc-lens-core {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+}
+
+.wlc-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4rem;
+  height: 4rem;
+  margin: -2rem 0 0 -2rem;
+  border-radius: 9999px;
+  border: 1.5px solid rgb(13 148 136 / 0.55);
+  opacity: 0;
+  animation: wlc-ripple 4.8s ease-out infinite;
+  pointer-events: none;
+}
+
+.wlc-lens-lg .wlc-ring {
+  width: 5rem;
+  height: 5rem;
+  margin: -2.5rem 0 0 -2.5rem;
+}
+
+.wlc-ring-2 {
+  animation-delay: 1.6s;
+}
+
+.wlc-ring-3 {
+  animation-delay: 3.2s;
+}
+
+@keyframes wlc-ripple {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+.wlc-turret {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: wlc-turn 40s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes wlc-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- micrometer ruler under the title ---------------------------------- */
+.wlc-ruler {
+  display: block;
+  width: 15rem;
+  max-width: 70%;
+  height: auto;
+  margin: 0.75rem auto 0;
+  color: rgb(100 116 139 / 0.7);
+  /* The page is RTL; SVG text anchors flip with direction, which pushed the
+     "0" and "100 µm" labels outside the drawing. The ruler is always LTR. */
+  direction: ltr;
+  unicode-bidi: isolate;
+  animation: wlc-ruler-in 1s cubic-bezier(0.2, 0.7, 0.2, 1) 0.65s both;
+}
+
+@keyframes wlc-ruler-in {
+  from {
+    clip-path: inset(0 50% 0 50%);
+    opacity: 0;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+/* ---- entrance: things settle in, one after another ---------------------- */
+.wlc-rise {
+  animation: wlc-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes wlc-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* "Microscopic" comes into focus, like turning the fine-focus knob */
+.wlc-focus {
+  animation: wlc-focus 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) 0.3s both;
+}
+
+@keyframes wlc-focus {
+  from {
+    opacity: 0;
+    filter: blur(9px);
+    transform: scale(1.05);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+
+/* ---- call to action ---------------------------------------------------- */
+.wlc-cta {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.wlc-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 38%, rgb(255 255 255 / 0.3) 50%, transparent 62%);
+  transform: translateX(-130%);
+  animation: wlc-shimmer 4.2s ease-in-out 2s infinite;
+  pointer-events: none;
+}
+
+@keyframes wlc-shimmer {
+  0% {
+    transform: translateX(-130%);
+  }
+  40%,
+  100% {
+    transform: translateX(130%);
+  }
+}
+
+.wlc-nudge {
+  animation: wlc-nudge 2s ease-in-out 2.2s infinite;
+}
+
+@keyframes wlc-nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-4px);
+  }
+}
+
+/* People who ask for less motion get the finished picture, standing still. */
+@media (prefers-reduced-motion: reduce) {
+  .wlc-cell,
+  .wlc-turret,
+  .wlc-ring,
+  .wlc-cta::after,
+  .wlc-nudge {
+    animation: none;
+  }
+
+  .wlc-ring {
+    display: none;
+  }
+
+  .wlc-rise,
+  .wlc-focus,
+  .wlc-ruler {
+    animation: none;
+    opacity: 1;
+    filter: none;
+    transform: none;
+    clip-path: none;
+  }
 }

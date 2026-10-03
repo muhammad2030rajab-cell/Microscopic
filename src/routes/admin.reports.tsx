@@ -11,7 +11,7 @@ const getAdminReportStats = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    const admin = await sql<{ id: string }>`select auth_user_id as id from platform_admins where auth_user_id=${context.userId} and is_active = true limit 1`;
+    const admin = await sql<{ id: string }>`select auth_user_id as id from platform_admins where auth_user_id=${context.userId} limit 1`;
     if (!admin.length) throw new Error("FORBIDDEN");
     const totals = await sql<{ total: number; draft: number; pending: number; approved: number; cancelled: number }>`
       select count(*)::int as total,

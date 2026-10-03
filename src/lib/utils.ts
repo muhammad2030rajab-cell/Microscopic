@@ -46,3 +46,16 @@ export function visitIdFrom(id: string) {
   for (const ch of id) n = (n * 33 + ch.charCodeAt(0)) >>> 0;
   return String(n).padStart(10, "0").slice(-10);
 }
+
+/** Today's items show the time, older ones the date — what a lab tech scans a list for. */
+export function formatListDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (d.toDateString() === new Date().toDateString()) {
+      return `اليوم ${new Intl.DateTimeFormat("ar-EG", { hour: "numeric", minute: "2-digit" }).format(d)}`;
+    }
+  } catch {
+    /* fall through to the plain date */
+  }
+  return formatArDate(iso);
+}

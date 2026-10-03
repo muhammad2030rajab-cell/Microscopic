@@ -19,7 +19,44 @@ import {
 import type { LabReport } from "@/lib/lab-reports";
 import { cn, formatSlashDate, visitIdFrom } from "@/lib/utils";
 import { ReportQrCode } from "./report-qr-code";
+import { RangeBar } from "./range-bar";
 import { SampleBarcode } from "./sample-barcode";
+import { S, ageSexValue, summaryLine, text, type Pair, type ReportLang } from "@/lib/report-strings";
+import { ageToYears } from "@/lib/age";
+
+/* =========================================
+   BILINGUAL LABEL
+   "English / عربي" -> English on the left, Arabic on the right.
+   Labels without an Arabic part (e.g. "Age / Sex") render as-is.
+   ========================================= */
+
+const ARABIC = /[\u0600-\u06FF]/;
+
+function BiLabel({ text }: { text: string }) {
+  const i = text.indexOf(" / ");
+  const en = i === -1 ? text : text.slice(0, i);
+  const ar = i === -1 ? "" : text.slice(i + 3);
+
+  if (!ARABIC.test(ar)) return <>{text}</>;
+
+  return (
+    <span className="lab-bi">
+      <span>{en}</span>
+      <span className="lab-bi-ar">{ar}</span>
+    </span>
+  );
+}
+
+/** The lab setting uses "bilingual" | "ar" | "en"; the report uses "bi" | "ar" | "en". */
+function languageFromSetting(setting: "bilingual" | "ar" | "en" | undefined): ReportLang {
+  return setting === "ar" ? "ar" : setting === "en" ? "en" : "bi";
+}
+
+/** Label in the chosen language; side-by-side layout only in bilingual mode. */
+function Lbl({ lang, pair }: { lang: ReportLang; pair: Pair }) {
+  if (lang === "bi") return <BiLabel text={text("bi", pair)} />;
+  return <>{text(lang, pair)}</>;
+}
 
 /* =========================================
    GROUP TESTS
@@ -71,6 +108,43 @@ function profileTitle(en: string) {
 }
 
 /* =========================================
+   RESULT SUMMARY
+   ========================================= */
+
+function summarize(report: LabReport) {
+  let measured = 0;
+  let outside = 0;
+  let critical = 0;
+
+  for (const test of report.tests) {
+    if (!test.value.trim()) continue;
+    measured += 1;
+
+    const interp = interpretResult(
+      test.name,
+      test.value,
+      report.gender,
+      test.customRange,
+      ageToYears(report.age, report.ageUnit),
+      test.categoryId,
+    );
+    const isCrit = isCritical(test.name, test.value);
+
+    if (isCrit) critical += 1;
+    if (
+      isCrit ||
+      interp.flag === "high" ||
+      interp.flag === "low" ||
+      interp.flag === "abnormal"
+    ) {
+      outside += 1;
+    }
+  }
+
+  return { measured, outside, critical };
+}
+
+/* =========================================
    GLUCOSE
    ========================================= */
 
@@ -85,21 +159,19 @@ function isGlucose(name: string) {
 export function PrintView({
   report,
   lab,
+  lang: langProp,
 }: {
   report: LabReport;
   lab: LabProfile;
   interactive?: boolean;
+  /** "bi" (English + Arabic), "en" or "ar". Default: the language the lab chose in settings. */
+  lang?: ReportLang;
 }) {
+  const lang: ReportLang = langProp ?? languageFromSetting(lab.reportLanguage);
+  const rtl = lang === "ar";
   const brand = { ...defaultLab, ...lab };
   const groups = groupTests(report);
-  const lang = brand.reportLanguage || "bilingual";
-  /** يرجّع النص بالعربي بس، أو بالإنجليزي بس، أو الاتنين معًا — حسب لغة التقرير المختارة للمعمل. */
-  const L = (ar: string, en: string) => (lang === "ar" ? ar : lang === "en" ? en : `${en} / ${ar}`);
-
-  const sex =
-    report.gender === "أنثى"
-      ? L("أنثى", "Female")
-      : L("ذكر", "Male");
+  const summary = summarize(report);
 
   const visit = visitIdFrom(report.id);
   const requested = formatSlashDate(
@@ -109,7 +181,8 @@ export function PrintView({
 
   return (
     <article
-      dir="ltr"
+      dir={rtl ? "rtl" : "ltr"}
+      lang={rtl ? "ar" : "en"}
       className="print-sheet lab-sheet relative mx-auto w-full max-w-4xl overflow-hidden bg-elevated text-ink shadow-[var(--shadow-sheet)]"
     >
       {/* =========================================
@@ -185,11 +258,11 @@ export function PrintView({
       <div className="lab-titlebar">
         <div>
           <p className="font-display text-lg font-semibold tracking-[0.12em] sm:text-xl">
-            LABORATORY REPORT
+            {text(lang, S.labReport)}
           </p>
 
           <p className="text-[0.7rem] font-medium tracking-[0.03em] text-muted">
-            Clinical Laboratory Medicine
+            {text(lang, S.clinicalSub)}
           </p>
         </div>
 
@@ -206,14 +279,14 @@ export function PrintView({
           <div>
             <p className="font-semibold">
               {report.status === "approved"
-                ? L("التقرير النهائي", "FINAL REPORT")
-                : L("تقرير أولي", "PRELIMINARY REPORT")}
+                ? text(lang, S.finalReport)
+                : text(lang, S.prelimReport)}
             </p>
 
             <p className="text-[0.62rem] text-muted">
               {report.status === "approved"
-                ? L("معتمد", "Approved")
-                : L("غير معتمد", "Not yet approved")}
+                ? text(lang, S.approved)
+                : text(lang, S.notApproved)}
             </p>
           </div>
         </div>
@@ -225,13 +298,13 @@ export function PrintView({
 
       <div className="lab-patient-grid mt-5">
         <InfoCell
-          label={L("اسم المريض", "Patient Name")}
+          label={S.patientName} lang={lang}
           value={report.patientName}
           rtl
         />
 
         <InfoCell
-          label={L("كود المريض", "Patient Code")}
+          label={S.patientCode} lang={lang}
           value={
             report.patientCode || "—"
           }
@@ -239,18 +312,18 @@ export function PrintView({
         />
 
         <InfoCell
-          label={L("السن / النوع", "Age / Sex")}
-          value={`${report.age} ${L("سنة", "Years")} / ${sex}`}
+          label={S.ageSex} lang={lang}
+          value={ageSexValue(lang, report.age, report.gender, report.ageUnit)}
         />
 
         <InfoCell
-          label={L("الهاتف", "Phone")}
+          label={S.phone} lang={lang}
           value={report.phone || "—"}
           mono
         />
 
         <InfoCell
-          label={L("الطبيب", "Referred By")}
+          label={S.referredBy} lang={lang}
           value={report.doctor || "—"}
           rtl
         />
@@ -258,25 +331,25 @@ export function PrintView({
         {/* National ID intentionally removed */}
 
         <InfoCell
-          label={L("تاريخ الطلب", "Request Date")}
+          label={S.requestDate} lang={lang}
           value={requested}
         />
 
         {collected ? (
           <InfoCell
-            label={L("تاريخ السحب", "Collection Date")}
+            label={S.collectionDate} lang={lang}
             value={collected}
           />
         ) : null}
 
         <InfoCell
-          label={L("رقم التقرير", "Report ID")}
+          label={S.reportId} lang={lang}
           value={visit}
           mono
         />
 
         <InfoCell
-          label={L("رقم العينة", "Sample ID")}
+          label={S.sampleId} lang={lang}
           value={
             report.sampleId || "—"
           }
@@ -285,11 +358,16 @@ export function PrintView({
 
         <div className="lab-info-cell lab-barcode-cell">
           <span className="lab-info-label">
-            {L("باركود العينة", "Sample Barcode")}
+            <Lbl lang={lang} pair={S.sampleBarcode} />
           </span>
 
           <div className="lab-barcode-wrap">
-            <SampleBarcode value={report.sampleId || visit} />
+            <SampleBarcode
+              value={
+                report.sampleId ||
+                visit
+              }
+            />
 
             <span className="font-mono text-[0.62rem] tabular-nums">
               {report.sampleId || visit}
@@ -299,6 +377,33 @@ export function PrintView({
       </div>
 
       {/* =========================================
+          RESULT SUMMARY
+         ========================================= */}
+
+      {summary.measured > 0 ? (
+        <div
+          className={cn(
+            "lab-summary mt-4",
+            summary.outside === 0
+              ? "lab-summary-ok"
+              : "lab-summary-flag",
+          )}
+        >
+          {lang !== "ar" ? (
+            <span className="lab-summary-en">
+              {summaryLine("en", summary)}
+            </span>
+          ) : null}
+
+          {lang !== "en" ? (
+            <span dir="rtl" className="lab-summary-ar">
+              {summaryLine("ar", summary)}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* =========================================
           RESULTS TITLE
          ========================================= */}
 
@@ -306,7 +411,7 @@ export function PrintView({
         <span className="h-px flex-1 bg-ink" />
 
         <h2 className="font-display text-lg font-semibold tracking-[0.16em] sm:text-xl">
-          LABORATORY RESULTS
+          {text(lang, S.labResults)}
         </h2>
 
         <span className="h-px flex-1 bg-ink" />
@@ -320,13 +425,17 @@ export function PrintView({
         {groups.map((group) => (
           <section key={group.en}>
             <div className="lab-section-heading">
-              <span>
-                {group.ar}
-              </span>
+              {lang !== "en" ? (
+                <span>
+                  {group.ar}
+                </span>
+              ) : null}
 
-              <span>
-                {profileTitle(group.en)}
-              </span>
+              {lang !== "ar" ? (
+                <span>
+                  {profileTitle(group.en)}
+                </span>
+              ) : null}
             </div>
 
             <div className="lab-scroll">
@@ -334,23 +443,23 @@ export function PrintView({
                 <thead>
                   <tr>
                     <th className="w-[34%]">
-                      {L("التحليل", "Test")}
+                      <Lbl lang={lang} pair={S.test} />
                     </th>
 
                     <th className="w-[13%]">
-                      {L("النتيجة", "Result")}
+                      <Lbl lang={lang} pair={S.result} />
                     </th>
 
                     <th className="w-[8%]">
-                      {L("الحالة", "Flag")}
+                      {text(lang, S.flag)}
                     </th>
 
                     <th className="w-[12%]">
-                      {L("الوحدة", "Unit")}
+                      {text(lang, S.unit)}
                     </th>
 
                     <th>
-                      {L("المدى المرجعي", "Reference Interval")}
+                      <Lbl lang={lang} pair={S.reference} />
                     </th>
                   </tr>
                 </thead>
@@ -363,7 +472,8 @@ export function PrintView({
                         getNormalRange(
                           test.name,
                           report.gender,
-                          report.age,
+                          ageToYears(report.age, report.ageUnit),
+                          test.categoryId,
                         );
 
                       const interp =
@@ -372,7 +482,8 @@ export function PrintView({
                           test.value,
                           report.gender,
                           test.customRange,
-                          report.age,
+                          ageToYears(report.age, report.ageUnit),
+                          test.categoryId,
                         );
 
                       const critical =
@@ -390,6 +501,11 @@ export function PrintView({
                         interp.flag ===
                           "low";
 
+                      const low =
+                        !critical &&
+                        interp.flag ===
+                          "low";
+
                       const glucose =
                         isGlucose(
                           test.name,
@@ -398,10 +514,17 @@ export function PrintView({
                       return (
                         <tr
                           key={`${test.categoryId}-${test.name}`}
+                          className={
+                            low
+                              ? "lab-row-low"
+                              : abnormal
+                                ? "lab-row-abnormal"
+                                : undefined
+                          }
                         >
                           {/* TEST NAME */}
                           <td className="font-medium">
-                            <span className="block">
+                            <span dir="ltr" className="block text-start">
                               {displayName(
                                 test.name,
                               )}
@@ -409,7 +532,7 @@ export function PrintView({
 
                             {test.calculated ? (
                               <span className="ms-1 text-[0.62rem] font-normal italic text-muted">
-                                calculated
+                                {text(lang === "ar" ? "ar" : "en", S.calculated)}
                               </span>
                             ) : null}
                           </td>
@@ -417,7 +540,13 @@ export function PrintView({
                           {/* RESULT */}
                           <td className="tabular-nums font-semibold text-ink">
                             {abnormal ? (
-                              <span className="lab-abnormal-result">
+                              <span
+                                className={cn(
+                                  "lab-abnormal-result",
+                                  low &&
+                                    "lab-abnormal-low",
+                                )}
+                              >
                                 {test.value}
                               </span>
                             ) : (
@@ -451,14 +580,23 @@ export function PrintView({
                                 }
                               />
                             ) : (
-                              <span>
-                                {rangeLabel(
-                                  test.name,
-                                  range,
-                                  report.gender,
-                                  lang,
-                                )}
-                              </span>
+                              <>
+                                <span>
+                                  {rangeLabel(
+                                    test.name,
+                                    range,
+                                    report.gender,
+                                    lang,
+                                  )}
+                                </span>
+
+                                <RangeBar
+                                  range={range}
+                                  value={test.value}
+                                  flag={interp.flag}
+                                  critical={critical}
+                                />
+                              </>
                             )}
                           </td>
                         </tr>
@@ -479,7 +617,7 @@ export function PrintView({
       {report.notes ? (
         <p className="mt-5 border border-ink px-3 py-2 text-sm">
           <span className="font-semibold">
-            Notes:
+            {text(lang === "ar" ? "ar" : "en", S.notes)}
           </span>{" "}
           {report.notes}
         </p>
@@ -492,47 +630,47 @@ export function PrintView({
       <div className="lab-final-grid mt-8">
         <div className="lab-flag-legend">
           <p className="font-semibold text-ink">
-            Flag Meaning
+            {text(lang === "ar" ? "ar" : "en", S.flagMeaning)}
           </p>
 
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <span>
-              — Normal
+              — {text(lang === "ar" ? "ar" : "en", S.normal)}
             </span>
 
             <span className="inline-flex items-center gap-1 text-high">
               <ArrowUp className="size-3.5" />
-              High
+              {text(lang === "ar" ? "ar" : "en", S.high)}
             </span>
 
-            <span className="inline-flex items-center gap-1 text-high">
+            <span className="inline-flex items-center gap-1 text-[var(--color-flag-low)]">
               <ArrowDown className="size-3.5" />
-              Low
+              {text(lang === "ar" ? "ar" : "en", S.low)}
             </span>
 
             <span className="inline-flex items-center gap-1 text-high">
               <TriangleAlert className="size-3.5" />
-              Critical
+              {text(lang === "ar" ? "ar" : "en", S.critical)}
             </span>
           </div>
         </div>
 
         <div className="lab-verification">
           <p className="text-[0.68rem] tracking-[0.03em] text-muted">
-            {L("اعتماد", "Verified")}
+            {text(lang, S.verified)}
           </p>
 
           <p className="mt-1 font-semibold">
             {report.status === "approved"
-              ? L("نهائي · معتمد", "FINAL · APPROVED")
-              : L("قيد الاعتماد", "PENDING APPROVAL")}
+              ? text(lang === "ar" ? "ar" : "en", S.finalApproved)
+              : text(lang === "ar" ? "ar" : "en", S.pendingApproval)}
           </p>
 
           {report.status ===
             "approved" &&
           report.approvedAt ? (
             <p className="mt-0.5 text-[0.68rem] text-muted">
-              {L("تاريخ الاعتماد", "Approved")}:{" "}
+              {text(lang === "ar" ? "ar" : "en", S.approvedOn)}{" "}
               {formatSlashDate(
                 report.approvedAt,
               )}
@@ -541,14 +679,14 @@ export function PrintView({
 
           <p className="mt-2 font-display text-base italic text-ink">
             {brand.doctorName ||
-              L("مدير المعمل", "Laboratory Director")}
+              text(lang === "ar" ? "ar" : "en", S.laboratoryDirector)}
           </p>
 
           <p className="text-xs font-semibold">
-            {L("مدير المعمل", "Lab. Director")}
+            {text(lang === "ar" ? "ar" : "en", S.labDirector)}
           </p>
 
-          {report.status === "approved" ? <ReportQrCode reportId={report.id} /> : null}
+          {report.status === "approved" ? <ReportQrCode reportId={report.id} caption={text(lang === "ar" ? "ar" : "en", S.scanToVerify)} /> : null}
 
           {brand.doctorDegree ? (
             <p className="text-[0.68rem] text-muted">
@@ -567,7 +705,7 @@ export function PrintView({
           <span>
             {brand.website ||
               brand.address ||
-              "Laboratory"}
+              text(lang === "ar" ? "ar" : "en", S.laboratory)}
           </span>
 
           {brand.phone ? (
@@ -584,10 +722,7 @@ export function PrintView({
         </div>
 
         <p className="mt-2 text-center text-[0.62rem] text-muted">
-          This report is electronically
-          generated. Please verify patient
-          identity and sample information
-          before clinical use.
+          {text(lang === "ar" ? "ar" : "en", S.footer)}
         </p>
       </footer>
     </article>
@@ -600,11 +735,13 @@ export function PrintView({
 
 function InfoCell({
   label,
+  lang,
   value,
   rtl = false,
   mono = false,
 }: {
-  label: string;
+  label: Pair;
+  lang: ReportLang;
   value: string;
   rtl?: boolean;
   mono?: boolean;
@@ -612,7 +749,7 @@ function InfoCell({
   return (
     <div className="lab-info-cell">
       <span className="lab-info-label">
-        {label}
+        <Lbl lang={lang} pair={label} />
       </span>
 
       <span
@@ -665,26 +802,28 @@ function rangeLabel(
   name: string,
   range: string,
   gender: "ذكر" | "أنثى",
-  lang: "bilingual" | "ar" | "en" = "bilingual",
+  lang: ReportLang = "bi",
 ) {
+  const sex =
+    gender === "أنثى"
+      ? "Female"
+      : "Male";
+
+  // Arabic sheet: ranges are stored in Arabic already ("حتى 5.2"), keep them.
   if (lang === "ar") {
     if (name === "Hemoglobin") {
       return (
         <span>
           {range}
+
           <span className="mt-0.5 block text-muted">
-            (حسب السن والنوع · {gender === "أنثى" ? "أنثى" : "ذكر"})
+            ({S.forAgeSex.ar} · {gender})
           </span>
         </span>
       );
     }
     return range;
   }
-
-  const sex =
-    gender === "أنثى"
-      ? "Female"
-      : "Male";
 
   if (name === "Hemoglobin") {
     return (
@@ -840,7 +979,7 @@ function FlagMark({
   if (flag === "low") {
     return (
       <ArrowDown
-        className="size-4 text-high"
+        className="size-4 text-[var(--color-flag-low)]"
         aria-label="Abnormal Low"
       />
     );

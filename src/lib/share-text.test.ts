@@ -45,3 +45,10 @@ test("urls are encoded", () => {
   assert.ok(mailtoUrl(m).includes("subject=") && mailtoUrl(m).includes("&body="));
   assert.ok(!whatsappUrl(m).includes(" ") && !whatsappUrl(m).includes("\n"));
 });
+
+test("whatsapp url targets the patient's number when there is one", () => {
+  const m = buildShareMessage(base);
+  assert.ok(whatsappUrl(m, "201012345678").startsWith("https://wa.me/201012345678?text="));
+  assert.ok(whatsappUrl(m, null).startsWith("https://wa.me/?text="));
+  assert.ok(whatsappUrl(m).startsWith("https://wa.me/?text="));
+});

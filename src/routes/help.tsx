@@ -19,7 +19,7 @@ function HelpPage() {
   const { lab } = Route.useLoaderData();
   if (!lab) return <Navigate to="/login" replace />;
   return (
-    <AppShell lab={{ name: lab.lab_name, nameEn: lab.lab_name_en, doctorName: lab.doctor_name, doctorSpecialty: lab.doctor_specialty }}>
+    <AppShell>
       <header className="mb-5 flex items-center justify-between">
         <div><p className="text-xs uppercase tracking-[0.18em] text-muted">Help center</p><h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">مساعدة ❓</h1></div>
         <Link to="/lab" className="inline-flex items-center gap-2 text-sm text-teal hover:underline"><ArrowRight className="size-4" /> لوحة المعمل</Link>

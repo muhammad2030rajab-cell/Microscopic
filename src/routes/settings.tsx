@@ -72,7 +72,7 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
   }
 
   return (
-    <AppShell lab={{ name: lab.lab_name, nameEn: lab.lab_name_en, doctorName: lab.doctor_name, doctorSpecialty: lab.doctor_specialty }}>
+    <AppShell>
       <header className="mb-6">
         <p className="text-xs uppercase tracking-[0.18em] text-muted">المختبر</p>
         <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">بيانات المعمل</h1>

@@ -56,8 +56,9 @@ export function buildShareMessage(i: ShareInput): ShareMessage {
   return { subject: `تقرير تحليل — ${i.patientName}`, body: lines.join("\n") };
 }
 
-export function whatsappUrl(message: ShareMessage): string {
-  return `https://wa.me/?text=${encodeURIComponent(message.body)}`;
+/** `number`: international digits without "+" (see toWhatsAppNumber). Without it, the user picks the chat. */
+export function whatsappUrl(message: ShareMessage, number?: string | null): string {
+  return `https://wa.me/${number ?? ""}?text=${encodeURIComponent(message.body)}`;
 }
 
 export function mailtoUrl(message: ShareMessage): string {

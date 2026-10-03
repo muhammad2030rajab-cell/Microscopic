@@ -1,4 +1,7 @@
+import { SQL_FOLD_FROM, SQL_FOLD_TO, escapeLike, normalizeSearch } from "@/lib/search-text";
+import { ageProblem, parseAgeUnit, type AgeUnit } from "@/lib/age";
 import { createServerFn } from "@tanstack/react-start";
+import { isValidPhone, phoneDigits } from "@/lib/phone";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { requireLabPermission, type LabPermission } from "@/lib/lab-users";
@@ -24,6 +27,7 @@ export type PatientSummary = {
   patientCode: string;
   fullName: string;
   age: number;
+  ageUnit?: AgeUnit;
   gender: "ذكر" | "أنثى";
   phone?: string;
   nationalId?: string;
@@ -49,13 +53,18 @@ export const searchLabPatients = createServerFn({ method: "GET" })
         return [] as PatientSummary[];
       }
 
-      const like = `%${query}%`;
+      // "احمد" must find "أحمد": fold both sides with the same character lists
+      // (translate() below uses SQL_FOLD_FROM/TO; the query goes through normalizeSearch).
+      const like = `%${escapeLike(normalizeSearch(query))}%`;
+      const foldFrom = SQL_FOLD_FROM;
+      const foldTo = SQL_FOLD_TO;
 
       const rows = await sql<{
         id: string;
         patient_code: string | null;
         full_name: string;
         age: number | null;
+        age_unit: string | null;
         gender: "ذكر" | "أنثى";
         phone: string | null;
         national_id: string | null;
@@ -67,6 +76,7 @@ export const searchLabPatients = createServerFn({ method: "GET" })
           p.patient_code,
           p.full_name,
           p.age,
+          p.age_unit,
           p.gender,
           p.phone,
           p.national_id,
@@ -78,7 +88,7 @@ export const searchLabPatients = createServerFn({ method: "GET" })
           and r.lab_id = p.lab_id
         where p.lab_id = ${labId}
           and (
-            p.full_name ilike ${like}
+            translate(lower(p.full_name), ${foldFrom}, ${foldTo}) like ${like}
             or coalesce(p.patient_code, '') ilike ${like}
             or coalesce(p.phone, '') ilike ${like}
             or coalesce(p.national_id, '') ilike ${like}
@@ -93,6 +103,7 @@ export const searchLabPatients = createServerFn({ method: "GET" })
         patientCode: p.patient_code || "",
         fullName: p.full_name,
         age: Number(p.age || 0),
+        ageUnit: parseAgeUnit(p.age_unit),
         gender: p.gender,
         phone: p.phone || undefined,
         nationalId: p.national_id || undefined,
@@ -108,6 +119,7 @@ export type CreatePatientInput = {
   patientCode?: string;
   fullName: string;
   age: number;
+  ageUnit?: AgeUnit;
   gender: "ذكر" | "أنثى";
   phone?: string;
   nationalId?: string;
@@ -128,17 +140,23 @@ export const createPatient = createServerFn({ method: "POST" })
 
       const fullName = data.fullName.trim();
       const age = Number(data.age);
+      const ageUnit = parseAgeUnit(data.ageUnit);
 
       if (fullName.length < 2) {
         throw new Error("اسم المريض غير صالح");
       }
 
-      if (!Number.isInteger(age) || age <= 0 || age > 130) {
-        throw new Error("السن غير صالح");
+      const ageIssue = ageProblem(age, ageUnit);
+      if (ageIssue) {
+        throw new Error(ageIssue);
       }
 
       if (data.gender !== "ذكر" && data.gender !== "أنثى") {
         throw new Error("النوع غير صالح");
+      }
+
+      if (!isValidPhone(data.phone)) {
+        throw new Error("رقم هاتف المريض مطلوب (10 أرقام على الأقل)");
       }
 
       const patientCode =
@@ -170,20 +188,22 @@ export const createPatient = createServerFn({ method: "POST" })
           patient_code,
           full_name,
           age,
+          age_unit,
           gender,
           phone,
           national_id,
           notes
         )
-        values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           id,
           labId,
           patientCode,
           fullName,
           age,
+          ageUnit,
           data.gender,
-          data.phone?.trim() || null,
+          phoneDigits(data.phone),
           data.nationalId?.trim() || null,
           data.notes?.trim() || null,
         ],
@@ -225,6 +245,7 @@ export const createPatient = createServerFn({ method: "POST" })
         patientCode: patientCode || "",
         fullName,
         age,
+        ageUnit,
         gender: data.gender,
       };
     },
@@ -264,28 +285,3 @@ export const getPatientReports = createServerFn({ method: "GET" })
       `;
     },
   );
-
-export const deletePatient = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .handler(async ({ context, data }: { context: { userId: string }; data: { patientId: string } }) => {
-    const { sql, labId } = await currentLab(context.userId, "patients.delete");
-
-    const patient = await sql<{ id: string }>`
-      select id from patients where id = ${data.patientId} and lab_id = ${labId} limit 1
-    `;
-    if (!patient.length) throw new Error("المريض غير موجود");
-
-    const approved = await sql<{ id: string }>`
-      select id from reports where patient_id = ${data.patientId} and lab_id = ${labId} and status = 'approved' limit 1
-    `;
-    if (approved.length) {
-      throw new Error("لا يمكن حذف مريض لديه تقارير معتمدة. احذف أو أرشف التقارير المعتمدة أولًا إن لزم الأمر");
-    }
-
-    // التقارير غير المعتمدة (مسودة/قيد المراجعة/ملغاة) بتتحذف الأول، وده بيسحب معاه
-    // النتائج والمرفقات تلقائيًا (on delete cascade)، وبعدين المريض نفسه.
-    await sql.query(`delete from reports where patient_id=$1 and lab_id=$2`, [data.patientId, labId]);
-    await sql.query(`delete from patients where id=$1 and lab_id=$2`, [data.patientId, labId]);
-
-    return { ok: true };
-  });

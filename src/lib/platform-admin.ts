@@ -481,3 +481,52 @@ export const deletePlatformAdmin = createServerFn({ method: "POST" })
     await logAudit(sql, { actorAuthUserId: context.userId, action: "platform_admin.deleted", entityType: "platform_admin", entityId: data.authUserId });
     return { ok: true };
   });
+
+export type AdminOverview = {
+  labs: { total: number; active: number };
+  users: number;
+  reports: { total: number; today: number; pending: number };
+  recentLabs: { id: string; name: string; isActive: boolean; reports: number }[];
+};
+
+/** أرقام لوحة المدير: ملخص سريع للشبكة كلها. */
+export const getAdminOverview = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<AdminOverview> => {
+    const sql = await assertPlatformAdmin(context.userId);
+
+    const labs = await sql<{ total: number; active: number }>`
+      select count(*)::int as total,
+             count(*) filter (where is_active)::int as active
+      from labs
+    `;
+    const users = await sql<{ total: number }>`
+      select count(*)::int as total from lab_users where is_active = true
+    `;
+    const reports = await sql<{ total: number; today: number; pending: number }>`
+      select count(*)::int as total,
+             count(*) filter (where created_at::date = current_date)::int as today,
+             count(*) filter (where status = 'pending_review')::int as pending
+      from reports
+    `;
+    const recent = await sql<{ id: string; name: string; is_active: boolean; reports: number }>`
+      select l.id, l.name, l.is_active, count(r.id)::int as reports
+      from labs l
+      left join reports r on r.lab_id = l.id
+      group by l.id, l.name, l.is_active, l.created_at
+      order by l.created_at desc
+      limit 5
+    `;
+
+    return {
+      labs: labs[0] ?? { total: 0, active: 0 },
+      users: users[0]?.total ?? 0,
+      reports: reports[0] ?? { total: 0, today: 0, pending: 0 },
+      recentLabs: recent.map((row) => ({
+        id: row.id,
+        name: row.name,
+        isActive: row.is_active,
+        reports: row.reports,
+      })),
+    };
+  });

@@ -1,3 +1,4 @@
+import { OfflineStatus } from "@/components/offline-status";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   BookOpen,
@@ -69,27 +70,12 @@ const MOBILE_NAV = [
   },
 ] as const;
 
-export function AppShell({
-  children,
-  lab: labProp,
-}: {
-  children: ReactNode;
-  /** بيانات المعمل الحقيقية لصاحب الجلسة الحالية. لو مش متبعتة، بيترجع لبيانات تجريبية افتراضية (للصفحات اللي لسه متحدّتش). */
-  lab?: { name: string; nameEn?: string | null; doctorName?: string | null; doctorSpecialty?: string | null };
-}) {
+export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({
     select: (s) => s.location.pathname,
   });
 
-  const demoLab = useLabStore((s) => s.lab);
-  const lab = labProp
-    ? {
-        name: labProp.name,
-        nameEn: labProp.nameEn || "",
-        doctorName: labProp.doctorName || "",
-        doctorSpecialty: labProp.doctorSpecialty || "",
-      }
-    : demoLab;
+  const lab = useLabStore((s) => s.lab);
 
   return (
     <div className="min-h-dvh bg-paper text-ink">
@@ -141,6 +127,8 @@ export function AppShell({
               تقرير جديد
             </Link>
           </header>
+
+          <OfflineStatus />
 
           {/* Page */}
           <main className="flex-1 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-10">

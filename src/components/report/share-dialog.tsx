@@ -21,10 +21,16 @@ export function ShareDialog({
   channel,
   onClose,
   input,
+  whatsappNumber = null,
+  phoneLabel,
 }: {
   channel: ShareChannel | null;
   onClose: () => void;
   input: Omit<ShareInput, "mode">;
+  /** International digits (toWhatsAppNumber) of the patient, or null. */
+  whatsappNumber?: string | null;
+  /** The patient's number as registered, for showing to the user. */
+  phoneLabel?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [mode, setMode] = useState<ShareMode>("link");
@@ -47,7 +53,7 @@ export function ShareDialog({
 
   function send() {
     if (!canSend) return;
-    if (isWhatsapp) window.open(whatsappUrl(message), "_blank", "noopener,noreferrer");
+    if (isWhatsapp) window.open(whatsappUrl(message, whatsappNumber), "_blank", "noopener,noreferrer");
     else window.location.href = mailtoUrl(message);
     onClose();
   }
@@ -84,6 +90,18 @@ export function ShareDialog({
             </span>
           </label>
         </fieldset>
+
+        {isWhatsapp ? (
+          <p className="rounded-md bg-paper p-3 text-xs leading-5 text-ink-soft">
+            {whatsappNumber ? (
+              <>
+                هيتفتح واتساب على رقم المريض <span dir="ltr" className="font-medium">{phoneLabel}</span>.
+              </>
+            ) : (
+              "مفيش رقم هاتف مسجل للمريض، هتختار جهة الاتصال بنفسك في واتساب."
+            )}
+          </p>
+        ) : null}
 
         {!input.approved ? (
           <p className="flex items-start gap-2 rounded-md bg-amber-50 p-3 text-xs leading-5 text-amber-900">

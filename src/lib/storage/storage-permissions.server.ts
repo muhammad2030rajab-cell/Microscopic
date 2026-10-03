@@ -5,7 +5,7 @@ export async function assertPlatformAdmin(userId: string) {
   const rows = await sql<{ auth_user_id: string }>`
     select auth_user_id
     from platform_admins
-    where auth_user_id = ${userId} and is_active = true
+    where auth_user_id = ${userId}
     limit 1
   `;
 

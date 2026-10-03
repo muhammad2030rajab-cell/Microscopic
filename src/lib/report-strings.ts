@@ -35,8 +35,8 @@ export const S = {
   // titles / status
   labReport: p("LABORATORY REPORT", "تقرير معملي", true),
   clinicalSub: p("Clinical Laboratory Medicine", "طب المعامل الإكلينيكي", true),
-  finalReport: p("FINAL REPORT", "تقرير نهائي", true),
-  prelimReport: p("PRELIMINARY REPORT", "تقرير مبدئي", true),
+  finalReport: p("FINAL REPORT", "التقرير النهائي", true),
+  prelimReport: p("PRELIMINARY REPORT", "تقرير أولي", true),
   approved: p("Approved", "معتمد"),
   notApproved: p("Not yet approved", "غير معتمد"),
   labResults: p("LABORATORY RESULTS", "نتائج التحاليل", true),
@@ -57,7 +57,7 @@ export const S = {
   // results table
   test: p("Test", "التحليل"),
   result: p("Result", "النتيجة"),
-  flag: p("Flag", "العلامة", true),
+  flag: p("Flag", "الحالة", true),
   unit: p("Unit", "الوحدة", true),
   reference: p("Reference Interval", "المدى المرجعي"),
   calculated: p("calculated", "محسوب", true),
@@ -79,7 +79,7 @@ export const S = {
   critical: p("Critical", "حرج", true),
   verified: p("Verified", "اعتماد"),
   finalApproved: p("FINAL · APPROVED", "نهائي · معتمد", true),
-  pendingApproval: p("PENDING APPROVAL", "بانتظار الاعتماد", true),
+  pendingApproval: p("PENDING APPROVAL", "قيد الاعتماد", true),
   approvedOn: p("Approved:", "تاريخ الاعتماد:", true),
   labDirector: p("Lab. Director", "مدير المعمل", true),
   laboratoryDirector: p("Laboratory Director", "مدير المعمل", true),

@@ -1216,9 +1216,13 @@ export const CATEGORIES: Category[] = [
 ];
 
 export const TEST_INDEX: Record<string, { test: TestDef; category: Category }> = {};
+// Some names repeat across categories ("Color", "Blood", "RBCs"), so the plain
+// name index is ambiguous. This one is exact: `${categoryId}:${testName}`.
+export const TEST_BY_CATEGORY: Record<string, { test: TestDef; category: Category }> = {};
 for (const category of CATEGORIES) {
   for (const test of category.tests) {
     TEST_INDEX[test.name] = { test, category };
+    TEST_BY_CATEGORY[`${category.id}:${test.name}`] = { test, category };
   }
 }
 
@@ -1241,25 +1245,38 @@ const AGE_BAND_OVERRIDES: Record<string, { maxAge: number; male: string; female:
   ],
 };
 
-export function getNormalRange(testName: string, gender: Gender, age?: number): string {
-  const hit = TEST_INDEX[testName];
+function lookupTest(testName: string, categoryId?: string) {
+  return (categoryId && TEST_BY_CATEGORY[`${categoryId}:${testName}`]) || TEST_INDEX[testName];
+}
+
+/**
+ * The built-in age-band range for this test and age, or undefined when there
+ * is none. Only a fallback: a lab's own age bands (catalog page) and its
+ * customised ranges take precedence — see effectiveCatalogRange().
+ */
+export function getBuiltinAgeRange(testName: string, gender: Gender, age?: number): string | undefined {
+  if (typeof age !== "number" || !Number.isFinite(age) || age < 0) return undefined;
+  const band = AGE_BAND_OVERRIDES[testName]?.find((b) => age <= b.maxAge);
+  if (!band) return undefined;
+  return gender === "أنثى" ? band.female : band.male;
+}
+
+export function getNormalRange(testName: string, gender: Gender, age?: number, categoryId?: string): string {
+  const hit = lookupTest(testName, categoryId);
   if (!hit) return "غير محدد";
 
-  if (typeof age === "number" && Number.isFinite(age) && age >= 0) {
-    const bands = AGE_BAND_OVERRIDES[testName];
-    const band = bands?.find((b) => age <= b.maxAge);
-    if (band) return gender === "أنثى" ? band.female : band.male;
-  }
+  const banded = getBuiltinAgeRange(testName, gender, age);
+  if (banded) return banded;
 
   return gender === "أنثى" ? hit.test.female : hit.test.male;
 }
 
-export function getTestUnit(testName: string): string {
-  return TEST_INDEX[testName]?.test.unit ?? "";
+export function getTestUnit(testName: string, categoryId?: string): string {
+  return lookupTest(testName, categoryId)?.test.unit ?? "";
 }
 
-export function getCategoryForTest(testName: string): Category | undefined {
-  return TEST_INDEX[testName]?.category;
+export function getCategoryForTest(testName: string, categoryId?: string): Category | undefined {
+  return lookupTest(testName, categoryId)?.category;
 }
 
 export function searchTests(query: string) {

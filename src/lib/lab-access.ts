@@ -16,7 +16,7 @@ export const getCurrentAccess = createServerFn({ method: "GET" })
       select u.id, u.name, u.email
       from "user" u
       inner join platform_admins pa on pa.auth_user_id = u.id
-      where u.id = ${context.userId} and pa.is_active = true
+      where u.id = ${context.userId}
       limit 1
     `;
 
@@ -163,11 +163,15 @@ export const updateCurrentLabProfile = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** The lab's local time zone: "today" must roll over at local midnight, not UTC midnight. */
+const LAB_TIME_ZONE = "Africa/Cairo";
+
 export type LabDashboardStats = {
   patients: number;
   reportsToday: number;
   pendingReview: number;
   approved: number;
+  /** Reports created today that contain at least one critical result. */
   critical: number;
 };
 
@@ -190,10 +194,10 @@ export const getLabDashboardStats = createServerFn({ method: "GET" })
     const rows = await sql<LabDashboardStats>`
       select
         (select count(*)::int from patients where lab_id = ${labId}) as patients,
-        (select count(*)::int from reports where lab_id = ${labId} and created_at::date = current_date) as "reportsToday",
+        (select count(*)::int from reports where lab_id = ${labId} and (created_at at time zone ${LAB_TIME_ZONE})::date = (now() at time zone ${LAB_TIME_ZONE})::date and status <> 'cancelled') as "reportsToday",
         (select count(*)::int from reports where lab_id = ${labId} and status = 'pending_review') as "pendingReview",
         (select count(*)::int from reports where lab_id = ${labId} and status = 'approved') as approved,
-        (select count(*)::int from report_results rr inner join reports r on r.id = rr.report_id where r.lab_id = ${labId} and rr.flag = 'critical') as critical
+        (select count(distinct r.id)::int from report_results rr inner join reports r on r.id = rr.report_id where r.lab_id = ${labId} and rr.flag = 'critical' and r.status <> 'cancelled' and (r.created_at at time zone ${LAB_TIME_ZONE})::date = (now() at time zone ${LAB_TIME_ZONE})::date) as critical
     `;
     return rows[0] ?? { patients: 0, reportsToday: 0, pendingReview: 0, approved: 0, critical: 0 };
   });

@@ -141,6 +141,11 @@ export const createLabReport = createServerFn({ method: "POST" })
       );
     }
 
+    // Results are separate rows: touch the report once they exist so its last
+    // sync-log entry comes after its results (a device that pulls in between
+    // would otherwise keep a report with no results).
+    await sql.query(`update reports set updated_at=current_timestamp where id=$1 and lab_id=$2`, [reportId, lab_id]);
+
     await sql.query(
       `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id)
        values ($1,$2,$3,$4,$5,$6,$7)`,
@@ -225,6 +230,8 @@ export const updateLabReport = createServerFn({ method: "POST" })
         [randomUUID(), data.id, `${test.categoryId}:${test.name}`, test.name, test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null, test.customRange?.trim() || getNormalRange(test.name, data.gender, ageYears, test.categoryId), flag, interpretation.note, i],
       );
     }
+    // Same reason as in createLabReport: results were replaced after the first update.
+    await sql.query(`update reports set updated_at=current_timestamp where id=$1 and lab_id=$2`, [data.id, lab_id]);
     await sql.query(
       `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
       [randomUUID(), lab_id, lab_user_id, context.userId, "report.updated", "report", data.id],

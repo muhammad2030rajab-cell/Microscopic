@@ -21,8 +21,14 @@ export type LabCatalogRow = {
   female_range: string;
   /** Age-specific ranges as plain text (see age-ranges.ts), or null. */
   age_ranges: string | null;
+  /** How the test is performed (from the reagent-kit pamphlet), or null. */
+  method_info: string | null;
   is_active: boolean;
 };
+
+/** Roles that may write method notes. "viewer" stays read-only. */
+const METHOD_EDIT_ROLES = new Set(["owner", "technician", "reviewer"]);
+export const METHOD_INFO_MAX_LENGTH = 4000;
 
 async function getLab(sql: Awaited<ReturnType<typeof getSql>>, userId: string) {
   const rows = await sql<{ lab_id: string; role: string }>`
@@ -66,7 +72,7 @@ export const listLabCatalog = createServerFn({ method: "GET" })
     await ensureSeeded(sql, lab.lab_id);
     return sql<LabCatalogRow>`
       select id, test_name, category_id, category_name_ar, category_name_en,
-             unit, male_range, female_range, age_ranges, is_active
+             unit, male_range, female_range, age_ranges, method_info, is_active
       from lab_test_catalog
       where lab_id = ${lab.lab_id}
       order by category_id, test_name
@@ -98,6 +104,37 @@ export const updateLabCatalogItem = createServerFn({ method: "POST" })
       actorUserId: await getLabUserId(sql, context.userId),
       actorAuthUserId: context.userId,
       action: "catalog.update",
+      entityType: "lab_test_catalog",
+      entityId: data.id,
+    });
+
+    return { ok: true };
+  });
+
+export const updateLabCatalogMethod = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }: { context: { userId: string }; data: { id: string; methodInfo: string | null } }) => {
+    const sql = await getSql();
+    const lab = await getLab(sql, context.userId);
+    if (!METHOD_EDIT_ROLES.has(lab.role)) throw new Error("METHOD_EDIT_NOT_ALLOWED");
+
+    const text = (data.methodInfo ?? "").trim();
+    if (text.length > METHOD_INFO_MAX_LENGTH) throw new Error("METHOD_INFO_TOO_LONG");
+
+    // lab_id in the WHERE keeps this inside the caller's own lab.
+    const updated = await sql<{ id: string }>`
+      update lab_test_catalog
+      set method_info = ${text || null}, updated_at = current_timestamp
+      where id = ${data.id} and lab_id = ${lab.lab_id}
+      returning id
+    `;
+    if (!updated.length) throw new Error("CATALOG_ITEM_NOT_FOUND");
+
+    await logAudit(sql, {
+      labId: lab.lab_id,
+      actorUserId: await getLabUserId(sql, context.userId),
+      actorAuthUserId: context.userId,
+      action: "catalog.method_update",
       entityType: "lab_test_catalog",
       entityId: data.id,
     });

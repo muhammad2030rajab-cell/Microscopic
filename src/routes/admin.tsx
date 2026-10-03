@@ -49,7 +49,7 @@ function AdminDashboard() {
       <header className="border-b border-line bg-elevated">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <div>
-            <p className="text-xs text-muted">Rajab Diagnostics</p>
+            <p className="text-xs text-muted">Microscopic System</p>
             <h1 className="font-display text-xl font-semibold">لوحة تحكم المدير</h1>
           </div>
           <UserButton />

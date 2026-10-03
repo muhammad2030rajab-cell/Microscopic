@@ -852,6 +852,22 @@ function ResultsStep({
                 <p className="text-[11px] text-muted">
                   {t.categoryAr} · {t.unit || "بدون وحدة"} · المرجع: {range}
                 </p>
+                {(() => {
+                  // "How is this test done?" — the method the lab copied from the kit pamphlet.
+                  const row = catalogIndex.get(`${t.categoryId}:${t.name}`);
+                  if (!row) return null;
+                  const method = row.method_info?.trim();
+                  return (
+                    <details className="mt-1 text-xs">
+                      <summary className="cursor-pointer select-none text-teal hover:underline">كيف يتم التحليل؟</summary>
+                      {method ? (
+                        <p className="mt-1 whitespace-pre-wrap rounded-sm bg-paper-2/60 p-2 leading-5">{method}</p>
+                      ) : (
+                        <p className="mt-1 leading-5 text-muted">لسه محدش سجّل طريقة العمل لهذا التحليل. تتضاف من صفحة كتالوج التحاليل (من بامفلت الكيت).</p>
+                      )}
+                    </details>
+                  );
+                })()}
               </div>
               <div>
                 <Label>النتيجة</Label>

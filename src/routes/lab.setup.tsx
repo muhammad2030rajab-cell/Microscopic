@@ -59,8 +59,8 @@ function LabSetupForm({ lab }: { lab: LabProfileData }) {
           <div className="flex items-start gap-4">
             <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-teal text-teal-fg"><Building2 className="size-6" /></div>
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-paper/55">Rajab Laboratory Management System</p>
-              <h1 className="mt-2 font-display text-3xl font-semibold">أهلاً بيكم في نظام رجب لإدارة المعامل 👋</h1>
+              <p className="text-xs uppercase tracking-[0.18em] text-paper/55">Microscopic System</p>
+              <h1 className="mt-2 font-display text-3xl font-semibold">أهلاً بيكم في Microscopic System 👋</h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-paper/70">دي أول خطوة في تشغيل معملك. اكتب بيانات المعمل مرة واحدة، وهتظهر بعد كده تلقائيًا في لوحة التحكم والتقارير المطبوعة.</p>
             </div>
           </div>

@@ -67,8 +67,8 @@ export interface Draft {
 }
 
 const defaultLab: LabProfile = {
-  name: "مختبر رجب للتحاليل الطبية",
-  nameEn: "Rajab Diagnostics",
+  name: "Microscopic System",
+  nameEn: "Microscopic System",
   phone: "0100 203 2030",
   address: "شارع القصر العيني، القاهرة",
   email: "lab@rajab.eg",

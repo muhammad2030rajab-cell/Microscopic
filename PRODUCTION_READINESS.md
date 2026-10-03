@@ -1,4 +1,4 @@
-# Rajab Diagnostics — تجهيز إنتاجي وأمان (V1 → V1.1)
+# Microscopic System — تجهيز إنتاجي وأمان (V1 → V1.1)
 
 هذا الملف يوثّق التعديلات اللي اتعملت على نسخة `FINAL_STATUS.md` لمعالجة بنود
 "Next production hardening"، بالإضافة لأي ثغرات إضافية ظهرت أثناء المراجعة.

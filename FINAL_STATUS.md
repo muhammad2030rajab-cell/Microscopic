@@ -1,4 +1,4 @@
-# Rajab Diagnostics — V1 Candidate
+# Microscopic System — V1 Candidate
 
 ## Included
 - Platform admin bootstrap and multi-lab management

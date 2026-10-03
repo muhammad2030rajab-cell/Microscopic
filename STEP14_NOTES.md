@@ -1,4 +1,4 @@
-# Rajab Diagnostics — Step 14
+# Microscopic System — Step 14
 
 V1 polish focused on the reports archive UX:
 - Search now covers patient name, doctor, report ID, patient code, and sample ID.

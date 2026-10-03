@@ -16,6 +16,7 @@ import {
   FilePlus2,
   FileText,
   Files,
+  FlaskConical,
   Settings2,
   TriangleAlert,
   UserRoundSearch,
@@ -256,6 +257,7 @@ function LabDashboard() {
         <Shortcut to="/reports" icon={<Files />} label="الأرشيف" onClick={() => presetReportFilters({})} />
         <Shortcut to="/patients" icon={<UserRoundSearch />} label="المرضى" />
         <Shortcut to="/catalog" icon={<ClipboardList />} label="دليل التحاليل" />
+        <Shortcut to="/methods" icon={<FlaskConical />} label="طريقة العمل" />
         <Shortcut to="/analytics" icon={<BarChart3 />} label="الإحصائيات" />
         {lab.role === "owner" ? <Shortcut to="/settings" icon={<Settings2 />} label="الإعدادات" /> : null}
         <Shortcut to="/help" icon={<CircleHelp />} label="مساعدة" />

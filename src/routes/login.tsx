@@ -17,12 +17,20 @@ import { authClient } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/gates";
 import { accountExists } from "@/lib/account-check";
 import { getCurrentAccess } from "@/lib/lab-access";
+import { getPublicPlatformSettings, DEFAULT_SUPPORT_WHATSAPP } from "@/lib/platform-settings";
 import { postLoginPath } from "@/lib/post-login-path";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/login")({
+  loader: async () => {
+    try {
+      return { supportWhatsapp: (await getPublicPlatformSettings()).supportWhatsapp };
+    } catch {
+      return { supportWhatsapp: DEFAULT_SUPPORT_WHATSAPP };
+    }
+  },
   component: Login,
 });
 
@@ -45,10 +53,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 type AccountType = "admin" | "user";
 
-const WHATSAPP_NUMBER = "201120660398";
 const ACCOUNT_TYPE_KEY = "microscopic:login-account-type";
-// رابط واتساب مباشر بدون أي رسالة جاهزة
-const CONTACT_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
 
 const WHATSAPP_MESSAGE = `السلام عليكم د. محمد رجب 👋
 أرغب في إنشاء حساب على Microscopic System.
@@ -73,6 +78,9 @@ const FIELD_CLASS =
 
 function Login() {
   const navigate = useNavigate();
+  const { supportWhatsapp } = Route.useLoaderData();
+  // رابط واتساب مباشر بدون أي رسالة جاهزة (الرقم من إعدادات المنصة)
+  const CONTACT_URL = `https://wa.me/${supportWhatsapp}`;
 
   const [accountType, setAccountType] = useState<AccountType>("user");
   const [login, setLogin] = useState("");
@@ -209,7 +217,7 @@ function Login() {
   }
 
   const whatsappUrl =
-    `https://wa.me/${WHATSAPP_NUMBER}?text=` +
+    `https://wa.me/${supportWhatsapp}?text=` +
     encodeURIComponent(WHATSAPP_MESSAGE);
 
   return (

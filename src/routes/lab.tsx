@@ -4,6 +4,7 @@ import {
   Link,
   Outlet,
   redirect,
+  useRouter,
   useRouterState,
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -45,14 +46,18 @@ export const Route = createFileRoute("/lab")({
         getRecentLabReports().catch(() => [] as RecentReport[]),
       ]);
 
-      return { lab, stats, permissions: access.permissions, recent };
+      return { lab, stats, permissions: access.permissions, recent, loadFailed: false };
     } catch {
       // لو الحساب اتوقف وهو داخل، نحوّله لصفحة الدخول (فيها رسالة التواصل مع المدير)
       const access = await getCurrentAccess().catch(() => null);
       if (access?.type === "suspended") throw redirect({ to: "/login" });
+      // حساب المدير ملوش معمل: نوديه للوحته بدل ما نرجّعه لتسجيل الدخول.
+      if (access?.type === "admin") throw redirect({ to: "/admin" });
 
       return {
         lab: null,
+        // الحساب سليم ومرتبط بمعمل لكن التحميل فشل: نعرض رسالة بدل دايرة login <-> lab.
+        loadFailed: access?.type === "lab",
         stats: {
           patients: 0,
           reportsToday: 0,
@@ -76,7 +81,8 @@ function LabDashboard() {
 
   const { user, isPending } = useCurrentUserState();
 
-  const { lab, stats, permissions, recent } = Route.useLoaderData();
+  const { lab, stats, permissions, recent, loadFailed } = Route.useLoaderData();
+  const router = useRouter();
 
   /*
    * Child routes such as /lab/setup are rendered through Outlet.
@@ -89,6 +95,26 @@ function LabDashboard() {
     return (
       <main className="grid min-h-screen place-items-center bg-paper">
         جارٍ التحقق…
+      </main>
+    );
+  }
+
+  if (loadFailed && user) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-paper px-4 text-center">
+        <div className="max-w-sm space-y-4">
+          <p className="text-lg font-semibold">تعذّر تحميل بيانات المعمل</p>
+          <p className="text-sm text-muted">
+            حصلت مشكلة مؤقتة في الاتصال بالسيرفر. تأكد من الإنترنت وحاول تاني.
+          </p>
+          <button
+            type="button"
+            className="rounded-lg bg-ink px-4 py-2 text-sm text-paper"
+            onClick={() => void router.invalidate()}
+          >
+            إعادة المحاولة
+          </button>
+        </div>
       </main>
     );
   }
@@ -262,7 +288,7 @@ function LabDashboard() {
         <Shortcut to="/reports" icon={<Files />} label="الأرشيف" onClick={() => presetReportFilters({})} />
         <Shortcut to="/patients" icon={<UserRoundSearch />} label="المرضى" />
         <Shortcut to="/catalog" icon={<ClipboardList />} label="دليل التحاليل" />
-        <Shortcut to="/methods" icon={<FlaskConical />} label="طريقة العمل" />
+        <Shortcut to="/methods" icon={<FlaskConical />} label="كيف يتم التحليل" />
         <Shortcut to="/analytics" icon={<BarChart3 />} label="الإحصائيات" />
         {lab.role === "owner" ? <Shortcut to="/settings" icon={<Settings2 />} label="الإعدادات" /> : null}
         <Shortcut to="/help" icon={<CircleHelp />} label="مساعدة" />

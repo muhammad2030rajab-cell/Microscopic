@@ -6,6 +6,7 @@ import {
   Files,
   FlaskConical,
   LayoutDashboard,
+  Microscope,
   Settings,
   Users,
 } from "lucide-react";
@@ -34,6 +35,11 @@ const DESKTOP_NAV = [
     to: "/catalog",
     label: "دليل التحاليل",
     icon: BookOpen,
+  },
+  {
+    to: "/methods",
+    label: "كيف يتم التحليل؟",
+    icon: Microscope,
   },
   {
     to: "/settings",

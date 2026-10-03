@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { listLabCatalog, type LabCatalogRow } from "@/lib/lab-catalog";
+import { listLabCatalog, updateLabCatalogMethod, METHOD_INFO_MAX_LENGTH, type LabCatalogRow } from "@/lib/lab-catalog";
 import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
 
 export const Route = createFileRoute("/methods")({
@@ -19,9 +19,14 @@ export const Route = createFileRoute("/methods")({
   component: MethodsPage,
 });
 
-/** "How is this test done?" — read-only for everyone; editing lives in the catalog. */
+/** "How is this test done?" — its own section; every lab user except "viewer" can write the notes here. */
 function MethodsPage() {
-  const { lab, items } = Route.useLoaderData();
+  const { lab, items: loaded } = Route.useLoaderData();
+  const [items, setItems] = useState(loaded);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [err, setErr] = useState<{ id: string; message: string } | null>(null);
+  const canEdit = lab?.role !== "viewer";
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [onlyWithMethod, setOnlyWithMethod] = useState(false);
@@ -42,6 +47,31 @@ function MethodsPage() {
   }, [items, q, cat, onlyWithMethod]);
 
   if (!lab) return <Navigate to="/login" replace />;
+
+  function setMethod(id: string, value: string) {
+    setItems((prev) => prev.map((x) => (x.id === id ? { ...x, method_info: value } : x)));
+    setErr(null);
+    setSaved(null);
+  }
+
+  async function saveMethod(item: LabCatalogRow) {
+    setErr(null);
+    setSaved(null);
+    if ((item.method_info ?? "").length > METHOD_INFO_MAX_LENGTH) {
+      setErr({ id: item.id, message: `الحد الأقصى ${METHOD_INFO_MAX_LENGTH} حرف` });
+      return;
+    }
+    setSaving(item.id);
+    try {
+      await updateLabCatalogMethod({ data: { id: item.id, methodInfo: item.method_info } });
+      setSaved(item.id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      setErr({ id: item.id, message: msg === "METHOD_EDIT_NOT_ALLOWED" ? "ليس لديك صلاحية تعديل الطريقة." : msg || "تعذر الحفظ" });
+    } finally {
+      setSaving(null);
+    }
+  }
 
   return (
     <AppShell>
@@ -72,7 +102,7 @@ function MethodsPage() {
         </label>
         <p className="mt-2 text-xs text-muted">
           {results.length} تحليل · {withMethod} منها ليها طريقة مسجّلة
-          {lab.role !== "viewer" ? " · تضيف أو تعدّل الطريقة من «دليل التحاليل»." : ""}
+          {canEdit ? " · افتح أي تحليل واكتب أو عدّل طريقة العمل." : ""}
         </p>
       </div>
 
@@ -89,16 +119,30 @@ function MethodsPage() {
                   <span className="shrink-0 text-xs text-muted">{method ? "طريقة العمل ✓" : "غير مسجّلة"}</span>
                 </summary>
                 <div className="border-t border-line px-4 py-3 text-sm">
-                  {method ? (
+                  {canEdit ? (
+                    <>
+                      <textarea
+                        id={`method-${item.id}`}
+                        rows={6}
+                        maxLength={METHOD_INFO_MAX_LENGTH}
+                        value={item.method_info ?? ""}
+                        onChange={(e) => setMethod(item.id, e.target.value)}
+                        placeholder={"الطريقة: Enzymatic colorimetric\nالكيت / الشركة / اللوت:\nنوع العينة وحجمها:\nخطوات التشغيل (الحضانة، طول الموجة):\nحدود الخطية وطريقة الحساب:"}
+                        className="w-full rounded-sm border border-line bg-elevated p-2 text-xs"
+                      />
+                      {err?.id === item.id ? <p role="alert" className="mt-1 text-xs text-high">{err.message}</p> : null}
+                      <div className="mt-2 flex items-center gap-3">
+                        <button type="button" disabled={saving === item.id} onClick={() => void saveMethod(item)} className="rounded-lg bg-ink px-3 py-2 text-xs text-paper disabled:opacity-50">
+                          {saving === item.id ? "جارٍ الحفظ…" : "حفظ الطريقة"}
+                        </button>
+                        {saved === item.id ? <span className="text-xs text-muted">اتحفظت</span> : null}
+                      </div>
+                    </>
+                  ) : method ? (
                     <p className="whitespace-pre-wrap leading-7">{method}</p>
                   ) : (
                     <p className="leading-6 text-muted">لسه محدش سجّل طريقة العمل لهذا التحليل.</p>
                   )}
-                  {lab.role !== "viewer" ? (
-                    <Link to="/catalog" className="mt-2 inline-block text-xs text-teal hover:underline">
-                      {method ? "تعديل من الكتالوج" : "إضافة من الكتالوج"}
-                    </Link>
-                  ) : null}
                 </div>
               </details>
             </li>

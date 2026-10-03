@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Navigate, useNavigate, useRouter } from "@tanstack/react-router";
 import { Building2, Phone, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
@@ -20,11 +20,24 @@ export const Route = createFileRoute("/lab/setup")({
 function LabSetupPage() {
   const { lab } = Route.useLoaderData();
   if (!lab) return <Navigate to="/login" replace />;
+  if (lab.role !== "owner") {
+    return (
+      <main className="grid min-h-screen place-items-center bg-paper px-4 text-center">
+        <div className="max-w-sm space-y-3">
+          <p className="text-lg font-semibold">بيانات المعمل لسه ما اتكملتش</p>
+          <p className="text-sm text-muted">
+            إكمال بيانات المعمل بيتم من حساب صاحب المعمل (owner). اطلب منه يدخل ويكمّلها، وبعدها هتقدر تستخدم النظام.
+          </p>
+        </div>
+      </main>
+    );
+  }
   return <LabSetupForm lab={lab} />;
 }
 
 function LabSetupForm({ lab }: { lab: LabProfileData }) {
   const navigate = useNavigate();
+  const router = useRouter();
   const [name, setName] = useState(lab.lab_name === "معمل جديد" ? "" : lab.lab_name);
   const [nameEn, setNameEn] = useState(lab.lab_name_en ?? "");
   const [phone, setPhone] = useState(lab.phone ?? "");
@@ -41,12 +54,30 @@ function LabSetupForm({ lab }: { lab: LabProfileData }) {
   async function save(e: FormEvent) {
     e.preventDefault();
     setError("");
+    const missing: string[] = [];
+    if (name.trim().length < 2) missing.push("اسم المعمل");
+    if (phone.trim().length < 5) missing.push("رقم الهاتف");
+    if (address.trim().length < 5) missing.push("العنوان بالتفصيل");
+    if (missing.length) {
+      setError(`لازم تكتب: ${missing.join("، ")}. (الكلام الرمادي مجرد مثال مش بيانات.)`);
+      return;
+    }
     setSaving(true);
     try {
       await updateCurrentLabProfile({ data: { name, nameEn, phone, whatsapp, email, website, address, doctorName, doctorDegree, doctorSpecialty } });
+      // /lab (the parent route) still holds the old loader data with is_profile_complete=false,
+      // which would bounce the user straight back here. Refresh it before leaving.
+      await router.invalidate();
       await navigate({ to: "/lab" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "تعذر حفظ بيانات المعمل");
+      const msg = err instanceof Error ? err.message : "";
+      setError(
+        msg === "OWNER_ACCESS_REQUIRED"
+          ? "الحفظ متاح لصاحب المعمل فقط."
+          : msg === "LAB_ACCESS_REQUIRED"
+            ? "الحساب غير مرتبط بمعمل نشط."
+            : msg || "تعذر حفظ بيانات المعمل",
+      );
     } finally {
       setSaving(false);
     }
@@ -66,19 +97,19 @@ function LabSetupForm({ lab }: { lab: LabProfileData }) {
           </div>
         </section>
 
-        <form onSubmit={save} className="mt-6 rounded-2xl border border-line bg-elevated p-5 sm:p-7">
+        <form onSubmit={save} noValidate className="mt-6 rounded-2xl border border-line bg-elevated p-5 sm:p-7">
           <div className="mb-6 grid gap-3 sm:grid-cols-3">
             <Step icon={<Building2 className="size-4" />} title="بيانات المعمل" active />
-            <Step icon={<Phone className="size-4" />} title="بيانات التواصل" active={false} />
-            <Step icon={<UserRound className="size-4" />} title="المسؤول" active={false} />
+            <Step icon={<Phone className="size-4" />} title="بيانات التواصل" active />
+            <Step icon={<UserRound className="size-4" />} title="المسؤول" active />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="اسم المعمل" value={name} onChange={setName} required placeholder="معمل النور للتحاليل الطبية" />
+            <Field label="اسم المعمل *" value={name} onChange={setName} required placeholder="معمل النور للتحاليل الطبية" />
             <Field label="الاسم بالإنجليزية" value={nameEn} onChange={setNameEn} dir="ltr" placeholder="Al Noor Medical Laboratory" />
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Field label="رقم الهاتف" value={phone} onChange={setPhone} required dir="ltr" placeholder="01xxxxxxxxx" />
+            <Field label="رقم الهاتف *" value={phone} onChange={setPhone} required dir="ltr" placeholder="01xxxxxxxxx" />
             <Field label="واتساب" value={whatsapp} onChange={setWhatsapp} dir="ltr" placeholder="01xxxxxxxxx" />
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -86,7 +117,7 @@ function LabSetupForm({ lab }: { lab: LabProfileData }) {
             <Field label="الموقع الإلكتروني" value={website} onChange={setWebsite} dir="ltr" placeholder="www.example.com" />
           </div>
           <div className="mt-4">
-            <Label>العنوان بالتفصيل</Label>
+            <Label>العنوان بالتفصيل *</Label>
             <Textarea value={address} onChange={(e) => setAddress(e.target.value)} required placeholder="المحافظة، المدينة، الشارع، رقم العقار..." />
           </div>
           <div className="mt-6 flex items-center gap-2 border-t border-line pt-6 text-sm font-medium"><UserRound className="size-4 text-teal" /> بيانات الطبيب / المسؤول</div>

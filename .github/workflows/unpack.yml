@@ -17,67 +17,52 @@ jobs:
       - name: Check ZIP
         run: |
           set -e
-
           if [ ! -f "rajab-diagnostics-clean.zip" ]; then
-            echo "❌ rajab-diagnostics-clean.zip not found"
+            echo "❌ rajab-diagnostics-clean.zip not found in the repository root"
+            ls -la
             exit 1
           fi
-
           echo "✅ ZIP found"
 
       - name: Extract ZIP
         run: |
           set -e
-
           rm -rf .unpacked
           mkdir -p .unpacked
-
           unzip -o "rajab-diagnostics-clean.zip" -d .unpacked
-
+          # If the ZIP contains a single top-level folder, use its contents.
+          if [ "$(ls -A .unpacked | wc -l)" = "1" ] && [ -d ".unpacked/$(ls -A .unpacked)" ]; then
+            mv ".unpacked/$(ls -A .unpacked)" .unpacked-inner
+            rm -rf .unpacked
+            mv .unpacked-inner .unpacked
+          fi
+          test -f .unpacked/package.json || { echo "❌ package.json not found in ZIP"; exit 1; }
           echo "✅ ZIP extracted"
 
-      - name: Copy project files excluding workflows
+      - name: Mirror project (workflows are never touched)
         run: |
           set -e
-
-          mkdir -p .tmp-project
-
-          rsync -a \
-            --exclude=".github/workflows/" \
-            .unpacked/ \
-            .tmp-project/
-
-          rsync -a .tmp-project/ ./
-
-          rm -rf .tmp-project
+          # --delete makes the repo an exact copy of the ZIP, so old/renamed files
+          # (e.g. outdated migrations) do not pile up. .git and .github are protected.
+          rsync -a --delete \
+            --exclude='/.git/' \
+            --exclude='/.github/' \
+            --exclude='/.unpacked/' \
+            --exclude='/rajab-diagnostics-clean.zip' \
+            .unpacked/ ./
           rm -rf .unpacked
           rm -f "rajab-diagnostics-clean.zip"
-
-          echo "✅ Project copied"
-          echo "✅ Workflow files from ZIP were excluded"
-
-      - name: Verify workflows
-        run: |
-          echo "📁 Existing workflows:"
-          find .github/workflows -maxdepth 1 -type f -print 2>/dev/null || true
-
-          echo ""
-          echo "🔎 Checking extracted workflow files:"
-          find . -path "*/.github/workflows/*" -type f -print 2>/dev/null || true
+          echo "✅ Project mirrored"
 
       - name: Commit project
         run: |
           set -e
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add -A
-
           if git diff --cached --quiet; then
             echo "ℹ️ No changes to commit"
             exit 0
           fi
-
-          git commit -m "Add latest project version"
+          git commit -m "Update project from ZIP"
           git push

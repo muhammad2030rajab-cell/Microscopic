@@ -50,7 +50,7 @@ function BiLabel({ text }: { text: string }) {
 }
 
 /** The lab setting uses "bilingual" | "ar" | "en"; the report uses "bi" | "ar" | "en". */
-function languageFromSetting(setting: "bilingual" | "ar" | "en" | undefined): ReportLang {
+export function languageFromSetting(setting: "bilingual" | "ar" | "en" | undefined): ReportLang {
   return setting === "ar" ? "ar" : setting === "en" ? "en" : "bi";
 }
 
@@ -64,7 +64,7 @@ function Lbl({ lang, pair }: { lang: ReportLang; pair: Pair }) {
    GROUP TESTS
    ========================================= */
 
-function groupTests(report: LabReport) {
+export function groupTests(report: LabReport) {
   const groups: {
     en: string;
     ar: string;
@@ -98,7 +98,7 @@ function groupTests(report: LabReport) {
    PROFILE TITLE
    ========================================= */
 
-function profileTitle(en: string) {
+export function profileTitle(en: string) {
   if (en === "Diabetes") return "Diabetes Profile";
   if (en === "Complete Blood Count") return "Anemia Profile";
   if (en === "Liver Functions") return "Liver Functions Profile";
@@ -113,7 +113,7 @@ function profileTitle(en: string) {
    RESULT SUMMARY
    ========================================= */
 
-function summarize(report: LabReport) {
+export function summarize(report: LabReport) {
   let measured = 0;
   let outside = 0;
   let critical = 0;
@@ -150,7 +150,7 @@ function summarize(report: LabReport) {
    GLUCOSE
    ========================================= */
 
-function isGlucose(name: string) {
+export function isGlucose(name: string) {
   return /glucose|fbs/i.test(name);
 }
 
@@ -189,8 +189,6 @@ export function PrintView({
     report.createdAt,
   );
   const collected = report.collectedAt ? formatSlashDate(report.collectedAt) : null;
-
-  const pro = design.template === "pro";
 
   const headerEl = (
     <>
@@ -252,15 +250,6 @@ export function PrintView({
     </>
   );
 
-  const patientStrip = pro ? (
-    <div className="lab-pstrip" dir="ltr">
-      <span className="font-semibold">{report.patientName}</span>
-      <span>{report.patientCode || "—"}</span>
-      <span>{ageSexValue(lang, report.age, report.gender, report.ageUnit)}</span>
-      <span className="font-mono tabular-nums">{visit}</span>
-    </div>
-  ) : null;
-
   const bodyEl = (
     <>
       {/* =========================================
@@ -278,6 +267,7 @@ export function PrintView({
           </p>
         </div>
 
+        {design.showStatus ? (
         <div className="lab-report-status">
           <span
             className={cn(
@@ -302,6 +292,7 @@ export function PrintView({
             </p>
           </div>
         </div>
+        ) : null}
       </div>
 
       {/* =========================================
@@ -354,11 +345,13 @@ export function PrintView({
           />
         ) : null}
 
+        {design.showReportId ? (
         <InfoCell
           label={S.reportId} lang={lang}
           value={visit}
           mono
         />
+        ) : null}
 
         <InfoCell
           label={S.sampleId} lang={lang}
@@ -392,7 +385,7 @@ export function PrintView({
           RESULT SUMMARY
          ========================================= */}
 
-      {summary.measured > 0 ? (
+      {summary.measured > 0 && design.showSummary ? (
         <div
           className={cn(
             "lab-summary mt-4",
@@ -419,7 +412,7 @@ export function PrintView({
           RESULTS TITLE
          ========================================= */}
 
-      <div className="lab-results-title mt-6 flex items-center gap-3">
+      <div className="mt-6 flex items-center gap-3">
         <span className="h-px flex-1 bg-ink" />
 
         <h2 className="font-display text-lg font-semibold tracking-[0.16em] sm:text-xl">
@@ -462,9 +455,11 @@ export function PrintView({
                       <Lbl lang={lang} pair={S.result} />
                     </th>
 
+                    {design.showFlags ? (
                     <th className="w-[8%]">
                       {text(lang, S.flag)}
                     </th>
+                    ) : null}
 
                     <th className="w-[12%]">
                       {text(lang, S.unit)}
@@ -566,10 +561,11 @@ export function PrintView({
                             )}
                           </td>
 
+                          {design.showFlags ? (
+                            <>
                           {/* FLAG */}
                           <td>
                             <FlagMark
-                              letters={pro}
                               flag={
                                 interp.flag
                               }
@@ -578,6 +574,8 @@ export function PrintView({
                               }
                             />
                           </td>
+                            </>
+                          ) : null}
 
                           {/* UNIT */}
                           <td className="text-ink-soft">
@@ -641,6 +639,7 @@ export function PrintView({
          ========================================= */}
 
       <div className="lab-final-grid mt-8">
+        {design.showFlags ? (
         <div className="lab-flag-legend">
           <p className="font-semibold text-ink">
             {text(lang === "ar" ? "ar" : "en", S.flagMeaning)}
@@ -667,6 +666,7 @@ export function PrintView({
             </span>
           </div>
         </div>
+        ) : null}
 
         <div className="lab-verification">
           <p className="text-[0.68rem] tracking-[0.03em] text-muted">
@@ -715,9 +715,6 @@ export function PrintView({
         </div>
       </div>
 
-      {pro ? (
-        <p className="lab-end">— {text(lang === "ar" ? "ar" : "en", S.endOfReport)} —</p>
-      ) : null}
     </>
   );
 
@@ -766,7 +763,6 @@ export function PrintView({
       dir={rtl ? "rtl" : "ltr"}
       lang={rtl ? "ar" : "en"}
       data-table={design.tableStyle}
-      data-template={design.template}
       style={accentStyle}
       className={cn(
         "print-sheet lab-sheet relative mx-auto w-full max-w-4xl overflow-hidden bg-elevated text-ink shadow-[var(--shadow-sheet)]",
@@ -777,18 +773,13 @@ export function PrintView({
           header/footer clear on EVERY page, so this has to be an @page rule. */}
       {letterhead ? (
         <style>{`@media print{@page{size:A4 portrait;margin:${design.letterheadTopMm}mm 0 ${design.letterheadBottomMm}mm 0}.lab-sheet--letterhead{padding-top:0 !important;padding-bottom:0 !important}}`}</style>
-      ) : pro ? (
-        // Pro template on plain A4: page margins instead of sheet padding so every page of a
-        // long report gets the same margins, plus "Page n / N" where the browser supports page
-        // margin boxes (Chrome/Edge 131+; others simply omit the number).
-        <style>{`@media print{@page{size:A4 portrait;margin:8mm 0 14mm 0;@bottom-center{content:counter(page) " / " counter(pages);font:9px sans-serif;color:#64748b}}.lab-sheet[data-template="pro"]{padding-top:0 !important;padding-bottom:0 !important}}`}</style>
       ) : null}
 
       {/* =========================================
           CORNER DECORATION
          ========================================= */}
 
-      {design.showCorner && !letterhead && !pro ? (
+      {design.showCorner && !letterhead ? (
         <div
           className="lab-corner"
           aria-hidden
@@ -802,34 +793,9 @@ export function PrintView({
           HEADER
          ========================================= */}
 
-      {pro ? (
-        <table className="lab-pages">
-          <thead>
-            <tr>
-              <td>
-                {headerEl}
-                {patientStrip}
-              </td>
-            </tr>
-          </thead>
-          <tfoot>
-            <tr>
-              <td>{footerEl}</td>
-            </tr>
-          </tfoot>
-          <tbody>
-            <tr>
-              <td>{bodyEl}</td>
-            </tr>
-          </tbody>
-        </table>
-      ) : (
-        <>
-          {headerEl}
-          {bodyEl}
-          {footerEl}
-        </>
-      )}
+      {headerEl}
+      {bodyEl}
+      {footerEl}
     </article>
   );
 }
@@ -879,7 +845,7 @@ function InfoCell({
    DISPLAY NAMES
    ========================================= */
 
-function displayName(name: string) {
+export function displayName(name: string) {
   if (name === "SGPT (ALT)") {
     return "Alanine Aminotransferase (ALT / s.GPT)";
   }
@@ -903,7 +869,7 @@ function displayName(name: string) {
    REFERENCE RANGE
    ========================================= */
 
-function rangeLabel(
+export function rangeLabel(
   name: string,
   range: string,
   gender: "ذكر" | "أنثى",
@@ -970,7 +936,7 @@ function rangeLabel(
    GLUCOSE REFERENCE
    ========================================= */
 
-function AdaGlucoseRange({
+export function AdaGlucoseRange({
   value,
 }: {
   value: string;
@@ -1048,14 +1014,10 @@ function AdaGlucoseRange({
 function FlagMark({
   flag,
   critical,
-  letters = false,
 }: {
   flag: Flag;
   critical: boolean;
-  /** Pro template: also print H / L next to the arrow (readable on black-and-white copies). */
-  letters?: boolean;
 }) {
-  const letter = (l: string) => (letters ? <b className="lab-flag-letter">{l}</b> : null);
 
   if (critical) {
     return (
@@ -1070,7 +1032,6 @@ function FlagMark({
         )}
 
         <TriangleAlert className="size-4" />
-        {letter(flag === "high" ? "H" : "L")}
       </span>
     );
   }
@@ -1085,7 +1046,6 @@ function FlagMark({
           className="size-4"
           aria-label="Abnormal High"
         />
-        {letter("H")}
       </span>
     );
   }
@@ -1097,7 +1057,6 @@ function FlagMark({
           className="size-4"
           aria-label="Abnormal Low"
         />
-        {letter("L")}
       </span>
     );
   }

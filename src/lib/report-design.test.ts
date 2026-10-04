@@ -22,9 +22,18 @@ test("normalizeDesign: keeps valid values and fixes invalid ones", () => {
   const bad = normalizeDesign({ accent: "red", tableStyle: "weird", paper: "x", letterheadTopMm: "abc" });
   assert.equal(bad.accent, null);
   assert.equal(normalizeDesign({ template: "fancy" }).template, "standard");
+  for (const key of ["standard", "pro", "modern", "compact", "formal"]) assert.equal(normalizeDesign({ template: key }).template, key);
   assert.equal(bad.tableStyle, "classic");
   assert.equal(bad.paper, "a4");
   assert.equal(bad.letterheadTopMm, DEFAULT_REPORT_DESIGN.letterheadTopMm);
+});
+
+test("normalizeDesign: optional details default to shown and can be turned off", () => {
+  const d = normalizeDesign({});
+  assert.deepEqual([d.showStatus, d.showReportId, d.showFlags, d.showSummary], [true, true, true, true]);
+  const off = normalizeDesign({ showStatus: false, showReportId: false, showFlags: false, showSummary: false });
+  assert.deepEqual([off.showStatus, off.showReportId, off.showFlags, off.showSummary], [false, false, false, false]);
+  assert.equal(normalizeDesign({ showFlags: "no" }).showFlags, true);
 });
 
 test("normalizeHex rejects anything that is not #RRGGBB (no CSS injection)", () => {

@@ -6,8 +6,23 @@
 
 export type ReportPaper = "a4" | "letterhead";
 export type ReportTableStyle = "classic" | "modern" | "minimal";
-/** "standard" = the original layout; "pro" = compact multi-page layout (header/footer repeat on every page). */
-export type ReportTemplate = "standard" | "pro";
+/**
+ * The printed layouts a lab can choose from. "standard" is the original sheet; the others share
+ * one A4 sheet component (pro-report.tsx) and differ in look. Order = order in the picker.
+ */
+export const REPORT_TEMPLATES = [
+  { key: "standard", label: "كلاسيكي", hint: "الشكل الأصلي: بسيط ومألوف" },
+  { key: "pro", label: "احترافي", hint: "ترويسة بتدرّج وبطاقة مريض وأقسام ملوّنة" },
+  { key: "modern", label: "عصري", hint: "ترويسة ملوّنة كاملة وأرقام كبيرة وأقسام بخط ملوّن" },
+  { key: "compact", label: "مختصر", hint: "مدمج لتقارير فيها تحاليل كتير؛ يوفّر ورق وحبر" },
+  { key: "formal", label: "رسمي", hint: "ترويسة في النص وخطوط سوداء ولمسة مستشفيات" },
+] as const;
+
+export type ReportTemplate = (typeof REPORT_TEMPLATES)[number]["key"];
+
+export function isReportTemplate(value: unknown): value is ReportTemplate {
+  return REPORT_TEMPLATES.some((t) => t.key === value);
+}
 
 export type ReportDesign = {
   template: ReportTemplate;
@@ -24,6 +39,11 @@ export type ReportDesign = {
   /** Extra line printed in the footer (e.g. working hours). */
   footerNote: string;
   showQr: boolean;
+  /** Optional details. All on by default; a lab that wants a cleaner sheet turns them off. */
+  showStatus: boolean; // the "Final report / Preliminary" chip
+  showReportId: boolean;
+  showFlags: boolean; // the flag column (arrows / H, L) and its legend
+  showSummary: boolean; // the "N of M results outside the reference range" line
 };
 
 export type ReportDesignAssets = {
@@ -41,6 +61,10 @@ export const DEFAULT_REPORT_DESIGN: ReportDesign = {
   letterheadBottomMm: 20,
   footerNote: "",
   showQr: true,
+  showStatus: true,
+  showReportId: true,
+  showFlags: true,
+  showSummary: true,
 };
 
 export const FOOTER_NOTE_MAX = 160;
@@ -76,7 +100,7 @@ export function normalizeDesign(input: unknown): ReportDesign {
   const d = DEFAULT_REPORT_DESIGN;
   const o = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   return {
-    template: o.template === "pro" ? "pro" : "standard",
+    template: isReportTemplate(o.template) ? o.template : "standard",
     accent: normalizeHex(o.accent),
     showCorner: typeof o.showCorner === "boolean" ? o.showCorner : d.showCorner,
     tableStyle: o.tableStyle === "modern" || o.tableStyle === "minimal" || o.tableStyle === "classic" ? o.tableStyle : d.tableStyle,
@@ -85,6 +109,10 @@ export function normalizeDesign(input: unknown): ReportDesign {
     letterheadBottomMm: clampMm(o.letterheadBottomMm, d.letterheadBottomMm),
     footerNote: typeof o.footerNote === "string" ? o.footerNote.trim().replace(/\s+/g, " ").slice(0, FOOTER_NOTE_MAX) : "",
     showQr: typeof o.showQr === "boolean" ? o.showQr : d.showQr,
+    showStatus: typeof o.showStatus === "boolean" ? o.showStatus : d.showStatus,
+    showReportId: typeof o.showReportId === "boolean" ? o.showReportId : d.showReportId,
+    showFlags: typeof o.showFlags === "boolean" ? o.showFlags : d.showFlags,
+    showSummary: typeof o.showSummary === "boolean" ? o.showSummary : d.showSummary,
   };
 }
 

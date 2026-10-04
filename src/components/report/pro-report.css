@@ -1,0 +1,275 @@
+/* =========================================
+   PROFESSIONAL REPORT SHEET (template "pro") — see pro-report.tsx
+   Self-contained: only rp-* classes plus the shared range-bar / glucose-table rules in styles.css.
+   A4 portrait. Header + footer sit in a table's thead/tfoot so they repeat on every printed page.
+   Layout adapts to the width of its container (not the viewport), so the settings preview and a
+   phone both reflow instead of shrinking the page.
+   ========================================= */
+
+.rp-wrap { container-type: inline-size; width: 100%; }
+
+.rp-sheet {
+  --rp-accent: var(--lab-accent, #1d4fb8);
+  --rp-fg: var(--lab-accent-fg, #ffffff);
+  --rp-accent-deep: color-mix(in srgb, var(--rp-accent) 80%, #000);
+  --rp-accent-2: color-mix(in srgb, var(--rp-accent) 60%, #fff);
+  --rp-tint: color-mix(in srgb, var(--rp-accent) 7%, #fff);
+  --rp-pad: 9mm;
+
+  width: 100%;
+  max-width: 210mm;
+  margin-inline: auto;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  background: #fff;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: var(--shadow-sheet);
+}
+
+.rp-pages { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.rp-pages > thead > tr > td,
+.rp-pages > tfoot > tr > td { padding: 0; }
+.rp-pages > tbody > tr > td { padding: 4mm var(--rp-pad) 3mm; vertical-align: top; }
+.rp-pages > thead { display: table-header-group; }
+.rp-pages > tfoot { display: table-footer-group; }
+
+.rp-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- header ---------- */
+.rp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7mm var(--rp-pad) 5mm;
+  background: linear-gradient(135deg, var(--rp-tint), #fff 65%);
+}
+.rp-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.rp-logo { flex: none; width: 17mm; height: 17mm; object-fit: contain; border-radius: 3mm; }
+.rp-logo-default { display: grid; place-items: center; background: var(--rp-accent); color: var(--rp-fg); }
+.rp-logo-default svg { width: 9mm; height: 9mm; }
+.rp-name { margin: 0; font-size: 1.8em; font-weight: 700; line-height: 1.1; letter-spacing: 0.01em; color: var(--rp-accent-deep); }
+.rp-name-2 { margin: 2px 0 0; font-size: 1.1em; font-weight: 600; }
+.rp-tagline { margin: 4px 0 0; padding-top: 3px; border-top: 1px solid var(--color-line-strong); font-size: 0.6em; font-weight: 600; letter-spacing: 0.34em; color: var(--color-muted); }
+.rp-contact { flex: none; margin: 0; padding: 0; padding-inline-start: 14px; border-inline-start: 1px solid var(--color-line-strong); list-style: none; display: grid; gap: 3px; font-size: 0.78em; color: var(--color-ink-soft); }
+.rp-contact li { display: flex; align-items: center; gap: 7px; }
+.rp-ico { display: inline-flex; color: var(--rp-accent); }
+.rp-ico svg { width: 12px; height: 12px; }
+.rp-rule { height: 5px; background: linear-gradient(90deg, var(--rp-accent-deep), var(--rp-accent), var(--rp-accent-2)); }
+.rp-rule-bottom { height: 3px; }
+
+.rp-strip {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px var(--rp-pad);
+  border-bottom: 1px solid var(--color-line);
+  background: var(--rp-tint);
+  font-size: 0.72em;
+  color: var(--color-ink-soft);
+}
+.rp-strip-name { font-weight: 600; color: var(--color-ink); }
+
+.rp-lh-gap { display: flex; align-items: center; justify-content: center; margin: 0 var(--rp-pad); border: 1px dashed var(--color-line-strong); border-radius: 2mm; color: var(--color-muted); font-size: 0.8em; }
+
+/* ---------- title ---------- */
+.rp-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 2mm 0 3mm; }
+.rp-title h1 { margin: 0; font-size: 1.15em; font-weight: 700; letter-spacing: 0.14em; }
+.rp-title p { margin: 1px 0 0; font-size: 0.7em; color: var(--color-muted); }
+.rp-status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 0.74em; font-weight: 700; }
+.rp-status i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.rp-status-final { color: #166534; background: var(--color-ok-bg); }
+.rp-status-prelim { color: #92400e; background: #fef3c7; }
+
+/* ---------- patient card ---------- */
+.rp-patient { display: grid; grid-template-columns: 1fr auto; border: 1px solid var(--color-line-strong); border-top: 3px solid var(--rp-accent); border-radius: 2mm; background: #fff; }
+.rp-patient-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.rp-cell { display: flex; flex-direction: column; gap: 2px; padding: 5px 10px; border-bottom: 1px solid var(--color-line); border-inline-end: 1px solid var(--color-line); min-width: 0; }
+.rp-cell-wide { grid-column: span 2; }
+.rp-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 0.62em; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); }
+.rp-label .rp-l-ar { text-transform: none; letter-spacing: 0; }
+.rp-value { font-size: 0.95em; font-weight: 600; overflow-wrap: anywhere; }
+.rp-patient-side { display: flex; align-items: center; justify-content: center; width: 40mm; padding: 6px 10px; border-inline-start: 1px solid var(--color-line); }
+.rp-barcode { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; font-size: 0.62em; }
+.rp-barcode svg { width: 100%; height: 12mm; }
+
+/* ---------- summary ---------- */
+.rp-summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 14px; margin-top: 3mm; padding: 5px 10px; border-inline-start: 4px solid; font-size: 0.8em; font-weight: 600; }
+.rp-summary-ok { border-color: var(--color-ok); background: var(--color-ok-bg); }
+.rp-summary-flag { border-color: var(--color-high); background: var(--color-high-bg); }
+
+/* ---------- sections + tables ---------- */
+.rp-section { margin-top: 4.5mm; }
+.rp-sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 4px 10px; border-radius: 2mm 2mm 0 0; background: linear-gradient(90deg, var(--rp-accent-deep), var(--rp-accent)); color: var(--rp-fg); }
+.rp-sec-en { font-size: 0.95em; font-weight: 700; letter-spacing: 0.02em; }
+.rp-sec-ar { font-size: 0.95em; font-weight: 700; }
+.rp-scroll { max-width: 100%; overflow-x: auto; }
+.rp-table { width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid var(--color-line-strong); border-top: 0; }
+.rp-c-test { width: 31%; } .rp-c-res { width: 13%; } .rp-c-flag { width: 8%; } .rp-c-unit { width: 13%; }
+.rp-table th { padding: 3px 8px; border-bottom: 1px solid var(--rp-accent); background: var(--rp-tint); text-align: start; font-size: 0.66em; color: var(--color-ink-soft); }
+.rp-table th .rp-l-en { display: block; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.rp-table th .rp-l-ar { display: block; font-weight: 500; color: var(--color-muted); }
+.rp-table th.rp-th-flag { text-align: center; }
+.rp-table td { padding: 4px 8px; border-bottom: 1px solid var(--color-line); vertical-align: middle; }
+.rp-table tbody tr:last-child td { border-bottom: 0; }
+.rp-t-name { font-weight: 600; }
+.rp-t-name span { display: block; text-align: start; }
+.rp-t-name em { font-size: 0.7em; font-weight: 400; color: var(--color-muted); }
+.rp-t-res { font-size: 1.08em; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rp-res-high { color: var(--color-high); }
+.rp-res-low { color: var(--color-flag-low); }
+.rp-res-crit { color: var(--color-high); }
+.rp-t-flag { text-align: center; }
+.rp-t-unit { font-size: 0.9em; color: var(--color-ink-soft); }
+.rp-t-ref { font-size: 0.86em; color: var(--color-ink-soft); }
+.rp-dash { color: var(--color-line-strong); }
+.rp-row-high td { background: color-mix(in srgb, var(--color-high-bg) 55%, #fff); }
+.rp-row-low td { background: color-mix(in srgb, var(--color-flag-low-bg) 60%, #fff); }
+.rp-row-crit td { background: var(--color-high-bg); }
+
+.rp-flag { display: inline-block; min-width: 1.9em; padding: 1px 5px; border: 1px solid currentColor; border-radius: 3px; font-size: 0.74em; font-weight: 700; line-height: 1.3; text-align: center; }
+.rp-flag-high { color: var(--color-high); }
+.rp-flag-low { color: var(--color-flag-low); }
+.rp-flag-crit { border-color: var(--color-high); background: var(--color-high); color: #fff; }
+
+/* ---------- notes, legend, signatures ---------- */
+.rp-notes { margin: 4mm 0 0; padding: 7px 12px; border-inline-start: 4px solid var(--rp-accent); background: var(--rp-tint); font-size: 0.88em; }
+.rp-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 3.5mm; font-size: 0.68em; color: var(--color-muted); }
+.rp-legend .rp-flag { font-size: 0.95em; margin-inline-end: 3px; }
+.rp-sign { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; align-items: start; margin-top: 7mm; break-inside: avoid; }
+.rp-sign-col { min-width: 0; text-align: center; }
+.rp-sign-box { position: relative; display: flex; align-items: flex-end; justify-content: center; height: 15mm; border-bottom: 1px solid var(--color-ink-soft); }
+.rp-signature { max-width: 100%; max-height: 14mm; object-fit: contain; mix-blend-mode: multiply; }
+.rp-sign-name { margin: 4px 0 0; font-size: 0.95em; font-weight: 700; }
+.rp-sign-role { margin: 3px 0 0; font-size: 0.72em; font-weight: 600; color: var(--color-ink-soft); }
+.rp-sign-sub { margin: 1px 0 0; font-size: 0.68em; color: var(--color-muted); }
+.rp-sign-mid { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; min-height: 15mm; }
+.rp-stamp { max-width: 30mm; max-height: 26mm; object-fit: contain; opacity: 0.92; }
+.rp-end { margin: 6mm 0 0; text-align: center; font-size: 0.68em; letter-spacing: 0.2em; color: var(--color-muted); }
+
+/* ---------- footer ---------- */
+.rp-footer { padding: 5px var(--rp-pad) 4px; text-align: center; }
+.rp-footer-contact { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 18px; margin: 0; font-size: 0.72em; color: var(--color-ink-soft); }
+.rp-footer-note { margin: 3px 0 0; font-size: 0.74em; color: var(--color-ink-soft); }
+.rp-disclaimer { margin: 3px 0 0; font-size: 0.6em; color: var(--color-muted); }
+
+/* ---------- narrow containers (phones, the settings preview in a small card) ---------- */
+@container (max-width: 640px) {
+  .rp-sheet { --rp-pad: 14px; font-size: 12px; }
+  .rp-header { flex-direction: column; align-items: flex-start; }
+  .rp-contact { padding-inline-start: 0; border-inline-start: 0; }
+  .rp-patient { grid-template-columns: 1fr; }
+  .rp-patient-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rp-patient-side { width: auto; border-inline-start: 0; border-top: 1px solid var(--color-line); }
+  .rp-table { min-width: 31rem; }
+  .rp-sign { grid-template-columns: 1fr; }
+}
+
+
+/* =========================================
+   TEMPLATE VARIANTS — same markup, different look (data-variant on .rp-sheet)
+   "pro" is the base look above; these override only what differs.
+   ========================================= */
+
+/* ---- modern: solid coloured header, big numbers, open (card-less) sections ---- */
+.rp-sheet[data-variant="modern"] .rp-header { background: var(--rp-accent); color: var(--rp-fg); padding-block: 8mm 7mm; }
+.rp-sheet[data-variant="modern"] .rp-name,
+.rp-sheet[data-variant="modern"] .rp-name-2 { color: var(--rp-fg); }
+.rp-sheet[data-variant="modern"] .rp-tagline { color: var(--rp-fg); opacity: 0.8; border-top-color: color-mix(in srgb, var(--rp-fg) 45%, transparent); }
+.rp-sheet[data-variant="modern"] .rp-contact { color: var(--rp-fg); border-inline-start-color: color-mix(in srgb, var(--rp-fg) 40%, transparent); }
+.rp-sheet[data-variant="modern"] .rp-ico { color: var(--rp-fg); }
+.rp-sheet[data-variant="modern"] .rp-logo { background: #fff; padding: 1.5mm; border-radius: 50%; }
+.rp-sheet[data-variant="modern"] .rp-logo-default { color: var(--rp-accent); }
+.rp-sheet[data-variant="modern"] .rp-rule { height: 3px; background: var(--rp-accent-deep); }
+.rp-sheet[data-variant="modern"] .rp-strip { background: transparent; }
+.rp-sheet[data-variant="modern"] .rp-title h1 { font-size: 1.3em; color: var(--rp-accent-deep); }
+.rp-sheet[data-variant="modern"] .rp-patient { border: 0; border-radius: 3mm; background: var(--rp-tint); }
+.rp-sheet[data-variant="modern"] .rp-cell { border-color: color-mix(in srgb, var(--rp-accent) 14%, #fff); }
+.rp-sheet[data-variant="modern"] .rp-patient-side { border-inline-start-color: color-mix(in srgb, var(--rp-accent) 14%, #fff); }
+.rp-sheet[data-variant="modern"] .rp-sec-head { padding: 2px 0 5px; border-radius: 0; border-bottom: 2px solid var(--rp-accent); background: none; color: var(--rp-accent-deep); }
+.rp-sheet[data-variant="modern"] .rp-sec-en,
+.rp-sheet[data-variant="modern"] .rp-sec-ar { font-size: 1.08em; }
+.rp-sheet[data-variant="modern"] .rp-table { border: 0; }
+.rp-sheet[data-variant="modern"] .rp-table th { background: transparent; border-bottom: 1px solid var(--color-line-strong); }
+.rp-sheet[data-variant="modern"] .rp-table td { border-bottom-style: dashed; padding-block: 6px; }
+.rp-sheet[data-variant="modern"] .rp-t-res { font-size: 1.28em; }
+.rp-sheet[data-variant="modern"] .rp-sign-box { border-bottom-style: dashed; }
+
+/* ---- compact: plain, dense, light on ink; no range bars ---- */
+.rp-sheet[data-variant="compact"] { --rp-pad: 7mm; font-size: 12px; }
+.rp-sheet[data-variant="compact"] .rp-header { padding-block: 4mm 3mm; background: none; border-bottom: 2px solid var(--color-ink); }
+.rp-sheet[data-variant="compact"] .rp-logo { width: 12mm; height: 12mm; }
+.rp-sheet[data-variant="compact"] .rp-logo-default svg { width: 7mm; height: 7mm; }
+.rp-sheet[data-variant="compact"] .rp-name { font-size: 1.4em; color: var(--color-ink); }
+.rp-sheet[data-variant="compact"] .rp-name-2 { font-size: 0.95em; }
+.rp-sheet[data-variant="compact"] .rp-tagline { display: none; }
+.rp-sheet[data-variant="compact"] .rp-contact { grid-template-columns: repeat(2, auto); gap: 1px 14px; font-size: 0.72em; }
+.rp-sheet[data-variant="compact"] .rp-rule { display: none; }
+.rp-sheet[data-variant="compact"] .rp-strip { background: transparent; }
+.rp-sheet[data-variant="compact"] .rp-title { padding-block: 1.5mm 2mm; }
+.rp-sheet[data-variant="compact"] .rp-title h1 { font-size: 1em; }
+.rp-sheet[data-variant="compact"] .rp-title p { display: none; }
+.rp-sheet[data-variant="compact"] .rp-patient { border-top-width: 1px; border-radius: 0; border-color: var(--color-ink-soft); }
+.rp-sheet[data-variant="compact"] .rp-cell { padding: 3px 8px; }
+.rp-sheet[data-variant="compact"] .rp-summary { margin-top: 2mm; padding-block: 3px; }
+.rp-sheet[data-variant="compact"] .rp-section { margin-top: 3mm; }
+.rp-sheet[data-variant="compact"] .rp-sec-head { padding: 2px 8px; border-radius: 0; background: #1f2937; color: #fff; }
+.rp-sheet[data-variant="compact"] .rp-sec-en,
+.rp-sheet[data-variant="compact"] .rp-sec-ar { font-size: 0.85em; }
+.rp-sheet[data-variant="compact"] .rp-table th { padding-block: 2px; background: transparent; border-bottom-color: var(--color-ink-soft); }
+.rp-sheet[data-variant="compact"] .rp-table td { padding-block: 2px; }
+.rp-sheet[data-variant="compact"] .rp-row-high td,
+.rp-sheet[data-variant="compact"] .rp-row-low td { background: transparent; }
+.rp-sheet[data-variant="compact"] .lab-rbar,
+.rp-sheet[data-variant="compact"] .lab-rbar-ends { display: none; }
+.rp-sheet[data-variant="compact"] .rp-sign { margin-top: 5mm; }
+.rp-sheet[data-variant="compact"] .rp-sign-box { height: 11mm; }
+
+/* ---- formal: centred letterhead, serif names, black rules, ruled grid ---- */
+.rp-sheet[data-variant="formal"] .rp-header { flex-direction: column; justify-content: center; gap: 8px; padding-block: 7mm 4mm; background: none; text-align: center; }
+.rp-sheet[data-variant="formal"] .rp-brand { flex-direction: column; gap: 6px; }
+.rp-sheet[data-variant="formal"] .rp-logo { border-radius: 0; }
+.rp-sheet[data-variant="formal"] .rp-name { font-family: var(--font-display); font-size: 1.9em; color: var(--color-ink); }
+.rp-sheet[data-variant="formal"] .rp-name-2 { font-family: var(--font-display); }
+.rp-sheet[data-variant="formal"] .rp-tagline { border-top: 0; letter-spacing: 0.4em; }
+.rp-sheet[data-variant="formal"] .rp-contact { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 18px; padding: 0; border: 0; }
+.rp-sheet[data-variant="formal"] .rp-ico { color: var(--color-ink); }
+.rp-sheet[data-variant="formal"] .rp-rule { height: 0; border-top: 4px double var(--color-ink); background: none; }
+.rp-sheet[data-variant="formal"] .rp-strip { background: transparent; border-bottom-color: var(--color-ink-soft); }
+.rp-sheet[data-variant="formal"] .rp-title { flex-direction: column; justify-content: center; gap: 4px; text-align: center; }
+.rp-sheet[data-variant="formal"] .rp-title h1 { font-family: var(--font-display); font-size: 1.3em; letter-spacing: 0.22em; }
+.rp-sheet[data-variant="formal"] .rp-patient { border: 1px solid var(--color-ink); border-radius: 0; }
+.rp-sheet[data-variant="formal"] .rp-cell,
+.rp-sheet[data-variant="formal"] .rp-patient-side { border-color: var(--color-ink-soft); }
+.rp-sheet[data-variant="formal"] .rp-sec-head { padding: 3px 8px; border-radius: 0; border-top: 2px solid var(--color-ink); border-bottom: 1px solid var(--color-ink); background: var(--color-paper-2); color: var(--color-ink); }
+.rp-sheet[data-variant="formal"] .rp-sec-en { font-family: var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; }
+.rp-sheet[data-variant="formal"] .rp-table { border: 1px solid var(--color-ink); border-top: 0; }
+.rp-sheet[data-variant="formal"] .rp-table th { background: transparent; border-bottom: 1px solid var(--color-ink); border-inline-end: 1px solid var(--color-line-strong); }
+.rp-sheet[data-variant="formal"] .rp-table td { border-inline-end: 1px solid var(--color-line-strong); border-bottom-color: var(--color-line-strong); }
+.rp-sheet[data-variant="formal"] .rp-table th:last-child,
+.rp-sheet[data-variant="formal"] .rp-table td:last-child { border-inline-end: 0; }
+.rp-sheet[data-variant="formal"] .rp-row-high td,
+.rp-sheet[data-variant="formal"] .rp-row-low td { background: transparent; }
+.rp-sheet[data-variant="formal"] .rp-notes { background: transparent; border: 1px solid var(--color-ink-soft); border-inline-start-width: 1px; }
+.rp-sheet[data-variant="formal"] .rp-sign-name { font-family: var(--font-display); font-style: italic; }
+
+/* ---- shared tweaks when the narrow-container layout kicks in ---- */
+@container (max-width: 640px) {
+  .rp-sheet[data-variant="formal"] .rp-header { align-items: center; }
+  .rp-sheet[data-variant="compact"] .rp-contact { grid-template-columns: 1fr; }
+}
+
+/* ---------- print ---------- */
+@media print {
+  .rp-sheet { width: 210mm; max-width: none; border: 0; box-shadow: none; font-size: 9.3pt; }
+  .rp-sheet * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .rp-scroll { overflow: visible; }
+  .rp-table { min-width: 0 !important; }
+  .rp-table tr { break-inside: avoid; }
+  .rp-sec-head { break-after: avoid; }
+  .rp-patient, .rp-summary, .rp-legend { break-inside: avoid; }
+  .rp-pages > tbody > tr > td { padding-top: 3mm; }
+}

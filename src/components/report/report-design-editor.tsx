@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PrintView } from "@/components/report/print-view";
+import { ReportSheet } from "@/components/report/report-sheet";
 import { SAMPLE_REPORT } from "@/lib/report-sample";
 import {
   ACCENT_PRESETS,
@@ -12,7 +12,9 @@ import {
   LETTERHEAD_MM,
   normalizeDesign,
   normalizeHex,
+  REPORT_TEMPLATES,
   type ReportDesign,
+  type ReportTemplate,
   type ReportTableStyle,
 } from "@/lib/report-design";
 import { getReportDesignAssets, updateReportDesign } from "@/lib/report-design-settings";
@@ -121,19 +123,43 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
       <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <div className="space-y-6">
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">قالب التقرير</legend>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" aria-pressed={design.template === "standard"} onClick={() => patch({ template: "standard" })}
-                className={`rounded-lg border p-3 text-start ${design.template === "standard" ? "border-teal bg-teal/5" : "border-line bg-paper"}`}>
-                <span className="block text-sm font-medium">القياسي</span>
-                <span className="block text-[11px] text-muted">الشكل الحالي</span>
-              </button>
-              <button type="button" aria-pressed={design.template === "pro"} onClick={() => patch({ template: "pro" })}
-                className={`rounded-lg border p-3 text-start ${design.template === "pro" ? "border-teal bg-teal/5" : "border-line bg-paper"}`}>
-                <span className="block text-sm font-medium">احترافي (متعدد الصفحات)</span>
-                <span className="block text-[11px] text-muted">مدمج، والترويسة وبيانات المريض في كل صفحة، وحرف H/L جنب السهم، وترقيم صفحات</span>
-              </button>
+            <legend className="text-sm font-medium">شكل التقرير</legend>
+            <p className="text-[11px] leading-5 text-muted">اختار الشكل الافتراضي للمعمل. الصور دي معاينة ببيانات معملك. وكل مستخدم يقدر يغيّره لطباعة تقرير معيّن من صفحة التقرير.</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {REPORT_TEMPLATES.map((t) => (
+                <button key={t.key} type="button" aria-pressed={design.template === t.key} onClick={() => patch({ template: t.key })}
+                  className={`overflow-hidden rounded-xl border-2 bg-paper text-start transition-colors ${design.template === t.key ? "border-teal" : "border-line hover:border-line-strong"}`}>
+                  <TemplateThumb template={t.key} lab={previewLab} />
+                  <span className="block px-2.5 py-2">
+                    <span className="flex items-center justify-between gap-2 text-sm font-medium">
+                      {t.label}
+                      {design.template === t.key ? <span className="rounded-full bg-teal px-2 py-0.5 text-[10px] text-teal-fg">المختار</span> : null}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] leading-4 text-muted">{t.hint}</span>
+                  </span>
+                </button>
+              ))}
             </div>
+          </fieldset>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">التفاصيل اللي تظهر في التقرير</legend>
+            <p className="text-[11px] leading-5 text-muted">اقفل اللي مش عايزه عشان التقرير يبقى أنضف. النتيجة الشاذة هتفضل واضحة بلونها وخلفية الصف وشريط المدى حتى لو قفلت العلامات.</p>
+            {([
+              ["showStatus", "حالة التقرير (نهائي / مبدئي)"],
+              ["showReportId", "رقم التقرير"],
+              ["showFlags", "عمود العلامات (أسهم / H / L)"],
+              ["showSummary", "سطر الملخص (كام نتيجة خارج المدى)"],
+            ] as const).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={design[key]} onChange={(e) => patch({ [key]: e.target.checked })} className="size-4 accent-teal" />
+                {label}
+              </label>
+            ))}
+            <button type="button" className="text-xs text-teal hover:underline"
+              onClick={() => patch({ showStatus: false, showReportId: false, showFlags: false, showSummary: false })}>
+              نسخة مبسّطة (اقفل الكل)
+            </button>
           </fieldset>
 
           <fieldset className="space-y-2">
@@ -151,9 +177,9 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
                 <input type="color" value={accentValue || "#0f766e"} onChange={(e) => patch({ accent: normalizeHex(e.target.value) })} className="h-8 w-10 cursor-pointer rounded border border-line bg-paper" />
               </label>
             </div>
-            <label className={`flex items-center gap-2 text-sm ${design.template === "pro" ? "opacity-50" : ""}`}>
-              <input type="checkbox" disabled={design.template === "pro"} checked={design.showCorner} onChange={(e) => patch({ showCorner: e.target.checked })} className="size-4 accent-teal" />
-              زخرفة الركن في أعلى الصفحة
+            <label className={`flex items-center gap-2 text-sm ${design.template !== "standard" ? "opacity-50" : ""}`}>
+              <input type="checkbox" disabled={design.template !== "standard"} checked={design.showCorner} onChange={(e) => patch({ showCorner: e.target.checked })} className="size-4 accent-teal" />
+              زخرفة الركن في أعلى الصفحة (الشكل الكلاسيكي بس)
             </label>
           </fieldset>
 
@@ -239,11 +265,33 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
           <p className="mb-2 text-xs text-muted">معاينة (بيانات تجريبية)</p>
           <div ref={boxRef} className="overflow-hidden rounded-lg border border-line bg-paper-2" style={{ height: 1180 * scale }}>
             <div style={{ width: SHEET_WIDTH, transform: `scale(${scale})`, transformOrigin: "top left" }} className="pointer-events-none select-none" aria-hidden>
-              <PrintView report={SAMPLE_REPORT} lab={previewLab} lang="bi" />
+              <ReportSheet report={SAMPLE_REPORT} lab={previewLab} lang="bi" />
             </div>
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+/** A small live preview of one template (top of the page), scaled down to the card width. */
+function TemplateThumb({ template, lab }: { template: ReportTemplate; lab: LabProfile }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.2);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => setScale(el.clientWidth / SHEET_WIDTH);
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={ref} className="relative aspect-[4/5] w-full overflow-hidden border-b border-line bg-paper-2" aria-hidden>
+      <div className="pointer-events-none absolute start-0 top-0 select-none" style={{ width: SHEET_WIDTH, transform: `scale(${scale})`, transformOrigin: "top left" }}>
+        <ReportSheet report={SAMPLE_REPORT} lab={lab} lang="bi" template={template} />
+      </div>
+    </div>
   );
 }

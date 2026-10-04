@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { ArrowDown, ArrowRight, ArrowUp, CheckCircle2, ChevronDown, ClipboardCheck, FileDown, Loader2, Mail, MessageCircle, Minus, Pencil, Printer, Send, Trash2, TriangleAlert } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { PrintView } from "@/components/report/print-view";
+import { ReportSheet } from "@/components/report/report-sheet";
 import { Button } from "@/components/ui/button";
 import { interpretResult, isCritical, parseValue } from "@/lib/medical";
 import { approveLabReport, deleteLabReport, getLabReport, getPreviousResults, submitLabReportForReview, type PreviousResults } from "@/lib/lab-reports";
@@ -16,7 +16,7 @@ import { formatSlashDate, visitIdFrom } from "@/lib/utils";
 import { listReportAttachments, type ReportAttachment } from "@/lib/attachments";
 import { AttachmentsPanel } from "@/components/report/attachments-panel";
 import { getReportDesignAssets } from "@/lib/report-design-settings";
-import { normalizeDesign, normalizeAsset, type ReportDesignAssets } from "@/lib/report-design";
+import { normalizeDesign, normalizeAsset, isReportTemplate, REPORT_TEMPLATES, type ReportDesignAssets, type ReportTemplate } from "@/lib/report-design";
 import { ShareDialog, type ShareChannel } from "@/components/report/share-dialog";
 import { toWhatsAppNumber } from "@/lib/phone";
 import { ageToYears, formatAge } from "@/lib/age";
@@ -61,18 +61,26 @@ function ReportDetail() {
   const [shareChannel, setShareChannel] = useState<ShareChannel | null>(null);
   // null = follow the lab's setting; a choice made on this device overrides it.
   const [langChoice, setLangChoice] = useState<ReportLang | null>(null);
+  // "" = the lab's own template; a choice made on this device overrides it for printing.
+  const [templateChoice, setTemplateChoice] = useState<ReportTemplate | "">("");
 
   // Remembered per device. Read after mount so server and client HTML match.
   useEffect(() => {
     try {
       const saved = localStorage.getItem("rajab:report-lang");
       if (isReportLang(saved)) setLangChoice(saved);
+      const savedTemplate = localStorage.getItem("rajab:report-template");
+      if (isReportTemplate(savedTemplate)) setTemplateChoice(savedTemplate);
     } catch { /* storage blocked: keep the default */ }
   }, []);
 
   function chooseLang(next: ReportLang) {
     setLangChoice(next);
     try { localStorage.setItem("rajab:report-lang", next); } catch { /* ignore */ }
+  }
+  function chooseTemplate(next: ReportTemplate | "") {
+    setTemplateChoice(next);
+    try { if (next) localStorage.setItem("rajab:report-template", next); else localStorage.removeItem("rajab:report-template"); } catch { /* ignore */ }
   }
   const printRef = useRef<HTMLDivElement>(null);
   // Signature + stamp are fetched separately (kept out of the lab payload that every page loads) and
@@ -219,6 +227,18 @@ function ReportDetail() {
                 ))}
               </div>
             </div>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <label className="text-sm text-ink-soft" htmlFor="report-template">شكل التقرير (للطباعة وPDF)</label>
+              <select
+                id="report-template"
+                value={templateChoice}
+                onChange={(e) => chooseTemplate(e.target.value as ReportTemplate | "")}
+                className="min-h-11 rounded-md border border-line bg-elevated px-3 text-sm"
+              >
+                <option value="">الافتراضي للمعمل</option>
+                {REPORT_TEMPLATES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+              </select>
+            </div>
             <div className="grid grid-cols-4 gap-2">
               <ShareAction icon={pdfLoading ? <Loader2 className="size-5 animate-spin" /> : <FileDown className="size-5" />} label={pdfLoading ? "جارٍ الإنشاء…" : "حفظ PDF"} color="bg-red-500/10 text-red-600" onClick={downloadPdf} disabled={pdfLoading} />
               <ShareAction icon={<Printer className="size-5" />} label="طباعة" color="bg-slate-500/10 text-slate-600" onClick={() => window.print()} />
@@ -264,7 +284,7 @@ function ReportDetail() {
         </div>
 
         <div ref={printRef} className="mx-auto w-full max-w-4xl">
-          <PrintView report={report} lab={labProfile} lang={lang} interactive />
+          <ReportSheet report={report} lab={labProfile} lang={lang} template={templateChoice || undefined} interactive />
         </div>
       </AppShell>
     </div>
@@ -285,7 +305,7 @@ function ReportDetail() {
         approved: report.status === "approved",
       }}
     />
-    <div className="hidden print:block"><PrintView report={report} lab={labProfile} lang={lang} /></div>
+    <div className="hidden print:block"><ReportSheet report={report} lab={labProfile} lang={lang} template={templateChoice || undefined} /></div>
   </div>;
 }
 

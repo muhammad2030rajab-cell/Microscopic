@@ -39,7 +39,7 @@ export type SyncPullResult = {
 export const pullSyncChanges = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }: { context: { userId: string }; data: { since?: unknown; limit?: unknown } }): Promise<SyncPullResult> => {
-    await requireLabPermission(context.userId, "reports.view");
+    const access = await requireLabPermission(context.userId, "reports.view");
     const sql = await getSql();
     const labRows = await sql<{ lab_id: string }>`
       select lu.lab_id
@@ -65,7 +65,7 @@ export const pullSyncChanges = createServerFn({ method: "POST" })
     const hasMore = raw.length > limit;
     const page = raw.slice(0, limit).map((c) => ({ ...c, seq: Number(c.seq) }));
     const cursor = page.length ? page[page.length - 1].seq : since;
-    const collapsed = collapseChanges(page).filter((c) => isSyncEntity(c.entity));
+    let collapsed = collapseChanges(page).filter((c) => isSyncEntity(c.entity));
 
     const rows = Object.fromEntries(SYNC_ENTITIES.map((e) => [e, [] as Record<string, unknown>[]])) as SyncPullResult["rows"];
     for (const entity of SYNC_ENTITIES) {
@@ -76,6 +76,16 @@ export const pullSyncChanges = createServerFn({ method: "POST" })
         `select * from ${entity} where lab_id = $1 and id = any($2::text[])`,
         [labId, ids],
       );
+    }
+
+    // Staff tied to a branch must not receive other branches' reports on their device.
+    if (access.branchId) {
+      const mine = (r: Record<string, unknown>) => r.branch_id === access.branchId;
+      const hidden = new Set(rows.reports.filter((r) => !mine(r)).map((r) => String(r.id)));
+      if (hidden.size) {
+        rows.reports = rows.reports.filter(mine);
+        collapsed = collapsed.filter((c) => !(c.entity === "reports" && hidden.has(c.entity_id)));
+      }
     }
 
     const reportIds = rows.reports.map((r) => String(r.id));

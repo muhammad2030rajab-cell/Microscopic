@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { assertCanCreateReport } from "@/lib/lab-plans";
 import { isValidPhone, phoneDigits } from "@/lib/phone";
 import { effectiveCreatedAt } from "@/lib/offline/created-at";
 import { resolveRange } from "@/lib/range-resolution";
@@ -19,8 +20,9 @@ async function getLabContext(userId: string, permission?: LabPermission) {
     lab_name: string;
     username: string;
     role: string;
+    branch_id: string | null;
   }>`
-    select lu.id as lab_user_id, l.id as lab_id, l.name as lab_name, lu.username, lu.role
+    select lu.id as lab_user_id, l.id as lab_id, l.name as lab_name, lu.username, lu.role, lu.branch_id
     from lab_users lu
     inner join labs l on l.id = lu.lab_id
     where lu.auth_user_id = ${userId}
@@ -30,7 +32,23 @@ async function getLabContext(userId: string, permission?: LabPermission) {
   `;
   if (!rows.length) throw new Error("LAB_ACCESS_REQUIRED");
   if (permission) await requireLabPermission(userId, permission);
-  return { sql, ...rows[0] };
+  // The owner always sees every branch; staff tied to a branch see only that one.
+  const branchId = rows[0].role === "owner" ? null : rows[0].branch_id;
+  return { sql, ...rows[0], branch_id: branchId };
+}
+
+/**
+ * Which branch a new report belongs to. A branch-bound user always uses their own
+ * (and must not be on a deactivated branch). The owner may pick any active branch,
+ * or none. A lab without branches always gets null.
+ */
+async function resolveReportBranch(sql: Awaited<ReturnType<typeof getSql>>, labId: string, userBranchId: string | null, requested?: string): Promise<string | null> {
+  const wanted = userBranchId ?? (requested?.trim() || null);
+  if (!wanted) return null;
+  const rows = await sql<{ id: string; is_active: boolean }>`select id, is_active from branches where id = ${wanted} and lab_id = ${labId} limit 1`;
+  if (!rows.length) throw new Error("الفرع غير موجود");
+  if (!rows[0].is_active) throw new Error("الفرع موقوف. تواصل مع مالك المعمل.");
+  return rows[0].id;
 }
 
 export type CreateLabReportInput = {
@@ -52,11 +70,13 @@ export type CreateLabReportInput = {
   clientCreatedAt?: string;
   /** Lab the device believed it was signed in to; a mismatch is rejected. */
   expectedLabId?: string;
+  /** Owner only: which branch the report belongs to (staff use their own branch). */
+  branchId?: string;
 };
 
 /** Plain-function core of `createLabReport`: also used by device sync (see sync.ts). */
 export async function createLabReportForUser(userId: string, data: CreateLabReportInput) {
-  const { sql, lab_user_id, lab_id } = await getLabContext(userId, "reports.create");
+  const { sql, lab_user_id, lab_id, branch_id, role } = await getLabContext(userId, "reports.create");
   if (data.expectedLabId && data.expectedLabId !== lab_id) throw new Error("LAB_MISMATCH");
   const clientRequestId = data.clientRequestId?.trim().slice(0, 64) || null;
   if (clientRequestId) {
@@ -68,6 +88,8 @@ export async function createLabReportForUser(userId: string, data: CreateLabRepo
     `;
     if (existing.length) return { id: existing[0].id, patientName: existing[0].patient_name, status: "draft" as const };
   }
+  await assertCanCreateReport(sql, lab_id);
+  const reportBranchId = await resolveReportBranch(sql, lab_id, branch_id, role === "owner" ? data.branchId : undefined);
   const patientName = data.patientName.trim();
   const age = Number(data.age);
   const ageUnit = parseAgeUnit(data.ageUnit);
@@ -116,9 +138,9 @@ export async function createLabReportForUser(userId: string, data: CreateLabRepo
   );
 
   await sql.query(
-    `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by, created_at, client_request_id)
-     values ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10)`,
-    [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id, now.toISOString(), clientRequestId],
+    `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by, created_at, client_request_id, branch_id)
+     values ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10,$11)`,
+    [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id, now.toISOString(), clientRequestId, reportBranchId],
   );
 
   for (let i = 0; i < tests.length; i += 1) {
@@ -181,10 +203,10 @@ export type LabReport = {
 
 /** Plain-function core of `updateLabReport`: also used by device sync (see sync.ts). */
 export async function updateLabReportForUser(userId: string, data: CreateLabReportInput & { id: string }) {
-  const { sql, lab_user_id, lab_id } = await getLabContext(userId, "reports.edit");
+  const { sql, lab_user_id, lab_id, branch_id } = await getLabContext(userId, "reports.edit");
 
   const current = await sql<{ id: string; patient_id: string; status: "draft" | "pending_review" | "approved" | "cancelled" }>`
-    select id, patient_id, status from reports where id = ${data.id} and lab_id = ${lab_id} limit 1
+    select id, patient_id, status from reports where id = ${data.id} and lab_id = ${lab_id} and (${branch_id}::text is null or branch_id = ${branch_id}) limit 1
   `;
   if (!current.length) throw new Error("REPORT_NOT_FOUND");
   if (current[0].status !== "draft") throw new Error("REPORT_NOT_EDITABLE");
@@ -248,17 +270,20 @@ export const updateLabReport = createServerFn({ method: "POST" })
 export const listLabReports = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
-    const { sql, lab_id } = await getLabContext(context.userId, "reports.view");
+    const { sql, lab_id, branch_id } = await getLabContext(context.userId, "reports.view");
     const rows = await sql<{
+      branch_id: string | null; branch_name: string | null;
       id: string; patient_code: string | null; full_name: string; age: number; age_unit: string | null; gender: "ذكر" | "أنثى"; phone: string | null; national_id: string | null;
       sample_id: string | null; referring_doctor: string | null; created_at: string | Date; notes: string | null; collected_at: string | Date | null;
       status: "draft" | "pending_review" | "approved" | "cancelled"; reviewed_by: string | null; approved_at: string | Date | null;
     }>`
       select r.id, p.patient_code, p.full_name, p.age, p.age_unit, p.gender, p.phone, p.national_id,
-             r.sample_id, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at
+             r.sample_id, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at,
+             r.branch_id, b.name as branch_name
       from reports r
       inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
-      where r.lab_id = ${lab_id}
+      left join branches b on b.id = r.branch_id
+      where r.lab_id = ${lab_id} and (${branch_id}::text is null or r.branch_id = ${branch_id})
       order by r.created_at desc
     `;
     // The archive needs "how many tests / how many flagged / any critical" per report.
@@ -270,14 +295,14 @@ export const listLabReports = createServerFn({ method: "GET" })
              count(*) filter (where rr.flag = 'critical')::int as critical
       from report_results rr
       inner join reports r on r.id = rr.report_id
-      where r.lab_id = ${lab_id}
+      where r.lab_id = ${lab_id} and (${branch_id}::text is null or r.branch_id = ${branch_id})
       group by rr.report_id
     `;
     const byReport = new Map(counts.map((c) => [c.report_id, c]));
     return rows.map((r) => {
       const c = byReport.get(r.id);
       return {
-        id: r.id, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), ageUnit: parseAgeUnit(r.age_unit), gender: r.gender,
+        id: r.id, branchId: r.branch_id, branchName: r.branch_name, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), ageUnit: parseAgeUnit(r.age_unit), gender: r.gender,
         phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "",
         doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), collectedAt: r.collected_at ? String(r.collected_at).slice(0, 10) : undefined,
         tests: [], notes: r.notes || undefined,
@@ -303,7 +328,7 @@ export type RecentReport = {
 export const getRecentLabReports = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }): Promise<RecentReport[]> => {
-    const { sql, lab_id } = await getLabContext(context.userId, "reports.view");
+    const { sql, lab_id, branch_id } = await getLabContext(context.userId, "reports.view");
     const rows = await sql<{
       id: string; full_name: string; age: number; age_unit: string | null; gender: "ذكر" | "أنثى";
       status: RecentReport["status"]; created_at: string | Date; total: number; flagged: number; critical: number;
@@ -314,7 +339,7 @@ export const getRecentLabReports = createServerFn({ method: "GET" })
              (select count(*)::int from report_results rr where rr.report_id = r.id and rr.flag = 'critical') as critical
       from reports r
       inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
-      where r.lab_id = ${lab_id} and r.status <> 'cancelled'
+      where r.lab_id = ${lab_id} and r.status <> 'cancelled' and (${branch_id}::text is null or r.branch_id = ${branch_id})
       order by r.created_at desc
       limit 5
     `;
@@ -327,7 +352,7 @@ export const getRecentLabReports = createServerFn({ method: "GET" })
 export const getLabReport = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }: { context: { userId: string }; data: { id: string } }) => {
-    const { sql, lab_id } = await getLabContext(context.userId, "reports.view");
+    const { sql, lab_id, branch_id } = await getLabContext(context.userId, "reports.view");
     const rows = await sql<{
       id: string; patient_code: string | null; full_name: string; age: number; age_unit: string | null; gender: "ذكر" | "أنثى"; phone: string | null; national_id: string | null;
       sample_id: string | null; referring_doctor: string | null; created_at: string | Date; notes: string | null; collected_at: string | Date | null;
@@ -337,7 +362,7 @@ export const getLabReport = createServerFn({ method: "GET" })
              r.sample_id, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at
       from reports r
       inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
-      where r.id = ${data.id} and r.lab_id = ${lab_id}
+      where r.id = ${data.id} and r.lab_id = ${lab_id} and (${branch_id}::text is null or r.branch_id = ${branch_id})
       limit 1
     `;
     if (!rows.length) return null;
@@ -367,9 +392,9 @@ export const getLabReport = createServerFn({ method: "GET" })
 
 
 export async function getReportForAction(userId: string, reportId: string, permission?: LabPermission) {
-  const { sql, lab_user_id, lab_id, role } = await getLabContext(userId, permission);
+  const { sql, lab_user_id, lab_id, role, branch_id } = await getLabContext(userId, permission);
   const rows = await sql<{ id: string; status: "draft" | "pending_review" | "approved" | "cancelled" }>`
-    select id, status from reports where id = ${reportId} and lab_id = ${lab_id} limit 1
+    select id, status from reports where id = ${reportId} and lab_id = ${lab_id} and (${branch_id}::text is null or branch_id = ${branch_id}) limit 1
   `;
   if (!rows.length) throw new Error("REPORT_NOT_FOUND");
   return { sql, lab_user_id, lab_id, role, report: rows[0] };

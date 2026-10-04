@@ -4,6 +4,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getReportForAction } from "@/lib/lab-reports";
 import { logAudit } from "@/lib/audit";
 import { env } from "@/lib/env.server";
+import { assertLabFeature } from "@/lib/lab-features";
 
 export type ReportAttachment = {
   id: string;
@@ -45,6 +46,7 @@ export const uploadReportAttachment = createServerFn({ method: "POST" })
   }): Promise<ReportAttachment> => {
     if (!blobConfigured()) throw new Error("خدمة التخزين (Vercel Blob) غير مفعّلة على هذا المشروع بعد");
     const { sql, lab_id, lab_user_id } = await getReportForAction(context.userId, data.reportId, "reports.edit");
+    await assertLabFeature(sql, lab_id, "attachments");
 
     const buffer = Buffer.from(data.base64, "base64");
     if (buffer.byteLength > MAX_FILE_BYTES) throw new Error("حجم الملف كبير جدًا (الحد الأقصى 4 ميجابايت)");

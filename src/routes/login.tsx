@@ -26,9 +26,10 @@ import { Label } from "@/components/ui/label";
 export const Route = createFileRoute("/login")({
   loader: async () => {
     try {
-      return { supportWhatsapp: (await getPublicPlatformSettings()).supportWhatsapp };
+      const s = await getPublicPlatformSettings();
+      return { supportWhatsapp: s.supportWhatsapp, supportEmail: s.supportEmail, websiteUrl: s.websiteUrl, supportText: s.supportText };
     } catch {
-      return { supportWhatsapp: DEFAULT_SUPPORT_WHATSAPP };
+      return { supportWhatsapp: DEFAULT_SUPPORT_WHATSAPP, supportEmail: "", websiteUrl: "", supportText: "" };
     }
   },
   component: Login,
@@ -78,7 +79,7 @@ const FIELD_CLASS =
 
 function Login() {
   const navigate = useNavigate();
-  const { supportWhatsapp } = Route.useLoaderData();
+  const { supportWhatsapp, supportEmail, websiteUrl, supportText } = Route.useLoaderData();
   // رابط واتساب مباشر بدون أي رسالة جاهزة (الرقم من إعدادات المنصة)
   const CONTACT_URL = `https://wa.me/${supportWhatsapp}`;
 
@@ -423,6 +424,14 @@ function Login() {
                 <MessageCircle className="size-4" />
                 اطلب حساب عبر WhatsApp
               </a>
+
+              {supportText ? <p className="mt-3 text-center text-xs leading-6 text-slate-500">{supportText}</p> : null}
+              {supportEmail || websiteUrl ? (
+                <p className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-slate-600">
+                  {supportEmail ? <a href={`mailto:${supportEmail}`} dir="ltr" className="hover:underline">{supportEmail}</a> : null}
+                  {websiteUrl ? <a href={websiteUrl} target="_blank" rel="noreferrer" dir="ltr" className="hover:underline">{websiteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}</a> : null}
+                </p>
+              ) : null}
             </div>
           ) : null}
         </section>

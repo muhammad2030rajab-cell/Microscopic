@@ -6,6 +6,7 @@ import { getSql, type Sql } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { logEvent } from "@/lib/logger.server";
 import { passwordPolicyError } from "@/lib/password-policy";
+import { assertCanAddUser } from "@/lib/lab-plans";
 
 /** See the identical helper + docstring in `platform-admin.ts`. */
 async function deleteAuthUser(sql: Sql, authUserId: string): Promise<void> {
@@ -43,6 +44,8 @@ export type LabStaff = {
   permissions: LabPermissions;
   isActive: boolean;
   createdAt: string;
+  /** null = all branches (owner, or staff not tied to a branch). */
+  branchId: string | null;
 };
 
 export const ALL_LAB_PERMISSIONS: LabPermission[] = [
@@ -90,21 +93,21 @@ function normalizePermissions(permissions?: LabPermissions): LabPermissions {
 /** دالة داخلية: بيانات المستخدم الحالي وصلاحياته الفعلية داخل معمله. */
 async function getLabUserContext(userId: string) {
   const sql = await getSql();
-  const rows = await sql<{ id: string; lab_id: string; role: LabRole }>`
-    select id, lab_id, role from lab_users where auth_user_id = ${userId} and is_active = true limit 1
+  const rows = await sql<{ id: string; lab_id: string; role: LabRole; branch_id: string | null }>`
+    select id, lab_id, role, branch_id from lab_users where auth_user_id = ${userId} and is_active = true limit 1
   `;
   if (!rows.length) throw new Error("LAB_ACCESS_REQUIRED");
   const user = rows[0];
 
   if (user.role === "owner") {
-    return { sql, labId: user.lab_id, labUserId: user.id, role: user.role, permissions: allPermissionsGranted() };
+    return { sql, labId: user.lab_id, labUserId: user.id, role: user.role, branchId: null as string | null, permissions: allPermissionsGranted() };
   }
 
   const permissionRows = await sql<{ permissions: LabPermissions | string | null }>`
     select permissions from lab_user_permissions where lab_user_id = ${user.id} limit 1
   `;
   const permissions = parsePermissions(permissionRows[0]?.permissions);
-  return { sql, labId: user.lab_id, labUserId: user.id, role: user.role, permissions };
+  return { sql, labId: user.lab_id, labUserId: user.id, role: user.role, branchId: user.branch_id, permissions };
 }
 
 /** يستخدمها UI العميل: يرجّع الدور والصلاحيات الفعلية للمستخدم الحالي. */
@@ -145,9 +148,9 @@ export const listLabStaff = createServerFn({ method: "GET" })
     const { sql, labId } = await getManagerContext(context.userId);
     const rows = await sql<{
       id: string; username: string; name: string | null; role: LabRole;
-      is_active: boolean; created_at: string | Date; permissions: LabPermissions | string | null;
+      is_active: boolean; created_at: string | Date; permissions: LabPermissions | string | null; branch_id: string | null;
     }>`
-      select lu.id, lu.username, u.name, lu.role, lu.is_active, lu.created_at, lup.permissions
+      select lu.id, lu.username, u.name, lu.role, lu.is_active, lu.created_at, lup.permissions, lu.branch_id
       from lab_users lu
       left join "user" u on u.id = lu.auth_user_id
       left join lab_user_permissions lup on lup.lab_user_id = lu.id
@@ -162,6 +165,7 @@ export const listLabStaff = createServerFn({ method: "GET" })
       permissions: row.role === "owner" ? allPermissionsGranted() : parsePermissions(row.permissions),
       isActive: row.is_active,
       createdAt: String(row.created_at),
+      branchId: row.role === "owner" ? null : row.branch_id,
     }));
   });
 
@@ -185,6 +189,7 @@ export const createLabStaff = createServerFn({ method: "POST" })
     if (passwordError) throw new Error(passwordError);
     if (!ASSIGNABLE_ROLES.includes(role)) throw new Error("الصلاحية غير صالحة");
 
+    await assertCanAddUser(sql, labId);
     const duplicate = await sql<{ id: string }>`select id from lab_users where username = ${username} limit 1`;
     if (duplicate.length) throw new Error("اسم المستخدم موجود بالفعل");
 
@@ -242,6 +247,10 @@ export const updateLabStaff = createServerFn({ method: "POST" })
       await sql.query(`update lab_users set role=$1, updated_at=current_timestamp where id=$2 and lab_id=$3`, [data.role, data.id, labId]);
     }
     if (typeof data.isActive !== "undefined") {
+      if (data.isActive) {
+        const current = await sql<{ is_active: boolean }>`select is_active from lab_users where id = ${data.id} and lab_id = ${labId} limit 1`;
+        if (current[0] && current[0].is_active === false) await assertCanAddUser(sql, labId);
+      }
       await sql.query(`update lab_users set is_active=$1, updated_at=current_timestamp where id=$2 and lab_id=$3`, [data.isActive, data.id, labId]);
     }
     if (typeof data.permissions !== "undefined") {

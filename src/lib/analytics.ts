@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { requireLabPermission } from "@/lib/lab-users";
+import { assertLabFeature } from "@/lib/lab-features";
 
 export type LabAnalytics = {
   daily: { day: string; count: number }[];
@@ -16,6 +17,7 @@ export const getLabAnalytics = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }): Promise<LabAnalytics> => {
     const { sql, labId } = await requireLabPermission(context.userId, "reports.view");
+    await assertLabFeature(sql, labId, "analytics");
 
     const daily = await sql<{ day: string; count: number }>`
       select to_char(d.day, 'YYYY-MM-DD') as day, coalesce(count(r.id), 0)::int as count

@@ -4,6 +4,7 @@ import { ArrowRight, Users, FileText, AlertTriangle, FlaskConical } from "lucide
 import { AppShell } from "@/components/layout/app-shell";
 import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
 import { getLabAnalytics, type LabAnalytics } from "@/lib/analytics";
+import { FEATURE_DISABLED_MESSAGE } from "@/lib/lab-features";
 import { reportStatusLabels } from "@/lib/report-workflow";
 import { SimpleBarChart, SimpleLineChart, SimplePieChart } from "@/components/charts/simple-charts";
 
@@ -12,10 +13,18 @@ const EMPTY: LabAnalytics = { daily: [], statusBreakdown: [], topTests: [], crit
 export const Route = createFileRoute("/analytics")({
   loader: async () => {
     try {
-      const [lab, analytics] = await Promise.all([getCurrentLab(), getLabAnalytics()]);
-      return { lab, analytics };
+      const lab = await getCurrentLab();
+      try {
+        return { lab, analytics: await getLabAnalytics(), disabled: false };
+      } catch (err) {
+        // Feature switched off by the platform admin: stay signed in and say so.
+        if (err instanceof Error && err.message === FEATURE_DISABLED_MESSAGE) {
+          return { lab, analytics: EMPTY, disabled: true };
+        }
+        throw err;
+      }
     } catch {
-      return { lab: null as LabProfileData | null, analytics: EMPTY };
+      return { lab: null as LabProfileData | null, analytics: EMPTY, disabled: false };
     }
   },
   component: AnalyticsPage,
@@ -33,8 +42,18 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function AnalyticsPage() {
-  const { lab, analytics } = Route.useLoaderData();
+  const { lab, analytics, disabled } = Route.useLoaderData();
   if (!lab) return <Navigate to="/login" replace />;
+  if (disabled) {
+    return (
+      <AppShell>
+        <div className="rounded-xl border border-dashed border-line bg-elevated p-6 text-sm leading-7 text-muted">
+          {FEATURE_DISABLED_MESSAGE}
+          <div className="mt-3"><Link to="/lab" className="text-teal hover:underline">رجوع للوحة المعمل</Link></div>
+        </div>
+      </AppShell>
+    );
+  }
 
   const dailyChartData = analytics.daily.map((d) => ({ label: formatDayLabel(d.day), value: d.count }));
   const statusPieData = analytics.statusBreakdown.map((s) => ({

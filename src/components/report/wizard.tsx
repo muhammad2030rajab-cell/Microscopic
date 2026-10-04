@@ -22,6 +22,7 @@ import {
 } from "@/lib/tests-catalog";
 import { cn } from "@/lib/utils";
 import { createLabReport, updateLabReport } from "@/lib/lab-reports";
+import { listBranches, type Branch } from "@/lib/branches";
 import type { LabCatalogRow } from "@/lib/lab-catalog";
 import { searchLabPatients, type PatientSummary } from "@/lib/patients";
 import { isOffline, newRequestId, queueReport } from "@/lib/offline/sync";
@@ -49,6 +50,17 @@ export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatal
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const submitting = useRef(false);
+  // Owner only: which branch a new report belongs to (staff always use their own branch).
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branchId, setBranchId] = useState("");
+  useEffect(() => {
+    if (editReport) return;
+    let cancelled = false;
+    listBranches()
+      .then((r) => { if (!cancelled && r.isOwner) setBranches(r.branches.filter((b) => b.isActive)); })
+      .catch(() => { /* offline: the report is saved without a branch choice */ });
+    return () => { cancelled = true; };
+  }, [editReport?.id]);
 
   useEffect(() => {
     if (editReport) setDraft({ ...editReport.draft });
@@ -239,7 +251,7 @@ export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatal
     try {
       const report = editReport
         ? await updateLabReport({ data: { ...payload, id: editReport.id } })
-        : await createLabReport({ data: { ...payload, clientRequestId: requestId, clientCreatedAt: enteredAt, expectedLabId: labId } });
+        : await createLabReport({ data: { ...payload, branchId: branchId || undefined, clientRequestId: requestId, clientCreatedAt: enteredAt, expectedLabId: labId } });
       resetDraft();
       toast.success(editReport ? "تم تحديث المسودة" : "تم حفظ التقرير في قاعدة بيانات المعمل");
       void navigate({ to: "/reports/$id", params: { id: report.id } });
@@ -339,7 +351,7 @@ export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatal
         ))}
       </ol>
 
-      {step === 0 && <PatientStep draft={draft} setDraft={setDraft} />}
+      {step === 0 && <PatientStep draft={draft} setDraft={setDraft} branches={editReport ? [] : branches} branchId={branchId} setBranchId={setBranchId} />}
       {step === 1 && (
         <TestsStep
           draft={draft}
@@ -357,6 +369,7 @@ export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatal
         <ResultsStep
           draft={draft}
           gender={gender}
+          catalogIndex={catalogIndex}
           rangeFor={rangeFor}
           fillNormals={fillNormals}
           setValue={setValue}
@@ -403,9 +416,15 @@ export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatal
 function PatientStep({
   draft,
   setDraft,
+  branches,
+  branchId,
+  setBranchId,
 }: {
   draft: Draft;
   setDraft: (p: Partial<Draft>) => void;
+  branches: Branch[];
+  branchId: string;
+  setBranchId: (id: string) => void;
 }) {
   const [patientQuery, setPatientQuery] = useState("");
   const [patients, setPatients] = useState<PatientSummary[]>([]);
@@ -558,6 +577,20 @@ function PatientStep({
             placeholder="Himself أو اسم الطبيب"
           />
         </div>
+        {branches.length > 0 ? (
+          <div>
+            <Label htmlFor="branch">الفرع</Label>
+            <select
+              id="branch"
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
+              className="flex h-11 w-full rounded-sm border border-line bg-elevated px-3 text-sm"
+            >
+              <option value="">بدون فرع</option>
+              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+        ) : null}
         <div>
           <Label htmlFor="collectedAt">تاريخ سحب العينة</Label>
           <Input
@@ -811,6 +844,7 @@ function ResultField({
 function ResultsStep({
   draft,
   gender,
+  catalogIndex,
   rangeFor,
   fillNormals,
   setValue,
@@ -819,6 +853,7 @@ function ResultsStep({
 }: {
   draft: Draft;
   gender: Gender;
+  catalogIndex: Map<string, LabCatalogRow>;
   rangeFor: (t: { name: string; categoryId: string }) => string | undefined;
   fillNormals: () => void;
   setValue: (name: string, categoryId: string, value: string) => void;

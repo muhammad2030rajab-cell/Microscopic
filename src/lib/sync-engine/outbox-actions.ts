@@ -4,7 +4,9 @@
  * in edit-item.ts and are tested; this file only reads and writes IndexedDB.
  */
 import { newRequestId } from "../offline/sync";
+import { reapplyItem } from "./conflict-review";
 import { buildEditItem, outboxStateFor } from "./edit-item";
+import type { OutboxItem } from "./engine";
 import { idbLocalStore } from "./idb-local-store";
 import { syncRunner } from "./runner";
 
@@ -39,4 +41,27 @@ export async function queueReportEdit(input: { labId: string; reportId: string; 
     }),
   );
   void syncRunner.syncNow(); // sends it right away if the connection is actually back
+}
+
+/** "Keep the server's version": drop the device's edit for good. Callers confirm with the person first. */
+export async function discardChange(itemId: string): Promise<void> {
+  await idbLocalStore().removeOutbox(itemId);
+}
+
+export type ReapplyResult = "queued" | "no_local_copy" | "not_a_draft";
+
+/**
+ * "Apply my edit on top of the new version": pull first so the base is the
+ * server's current version, then put the same edit back in the queue against it.
+ * Only a report that is still a draft can take it.
+ */
+export async function reapplyChange(item: OutboxItem): Promise<ReapplyResult> {
+  await syncRunner.syncNow(); // no-op offline; the copy is then as fresh as it was
+  const store = idbLocalStore();
+  const row = await store.getRow("reports", item.entityId);
+  if (!row) return "no_local_copy";
+  if (row.status !== "draft") return "not_a_draft";
+  await store.putOutbox(reapplyItem(item, Number(row.version)));
+  void syncRunner.syncNow();
+  return "queued";
 }

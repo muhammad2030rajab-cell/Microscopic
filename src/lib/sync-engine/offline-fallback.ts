@@ -10,7 +10,9 @@ import { isNetworkError } from "../offline/network-error";
 import { getKnownLabId } from "../offline/bootstrap-cache";
 import { idbLocalStore } from "./idb-local-store";
 import { isMirrorFresh } from "../sync-shared";
+import { diffReportEdit, type DiffRow } from "./conflict-review";
 import { outboxStateFor } from "./edit-item";
+import type { OutboxItem } from "./engine";
 import { applyPendingEdit, toReportDetail, toReportSummaries, type LocalReportDetail, type LocalReportSummary } from "./local-reads";
 
 const PROFILE_KEY = "microscopic:lab-profile:v1";
@@ -148,5 +150,40 @@ export async function loadLocalEdit<L, C extends CatalogLike>(
     };
   } catch {
     return null;
+  }
+}
+
+export type SyncIssue = {
+  item: OutboxItem;
+  patientName: string;
+  /** The report as the server last told this device (null = the device has no copy, e.g. it was deleted). */
+  serverReport: LocalReportDetail | null;
+  diff: DiffRow[];
+};
+
+/** Everything the "needs review" screen shows: unsent changes, and refused ones with a comparison. Reads the device only. */
+export async function loadSyncIssues(labId: string): Promise<{ pending: OutboxItem[]; issues: SyncIssue[] }> {
+  try {
+    const store = idbLocalStore();
+    const outbox = await store.listOutbox(labId);
+    const issues: SyncIssue[] = [];
+    for (const item of outbox.filter((i) => i.status !== "pending")) {
+      let serverReport: LocalReportDetail | null = null;
+      if (item.entity === "reports") {
+        const report = await store.getRow("reports", item.entityId);
+        const patient = report ? await store.getRow("patients", String(report.patient_id)) : undefined;
+        serverReport = report ? toReportDetail(report, patient, await store.getResults(item.entityId)) : null;
+      }
+      const name = (item.payload as { patientName?: unknown } | null)?.patientName;
+      issues.push({
+        item,
+        patientName: typeof name === "string" && name ? name : (serverReport?.patientName ?? "تقرير"),
+        serverReport,
+        diff: serverReport ? diffReportEdit(serverReport, item.payload) : [],
+      });
+    }
+    return { pending: outbox.filter((i) => i.status === "pending"), issues };
+  } catch {
+    return { pending: [], issues: [] };
   }
 }

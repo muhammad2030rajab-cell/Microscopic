@@ -192,6 +192,13 @@ export type AdminLab = {
   doctorName: string | null;
   isActive: boolean;
   createdAt: string;
+  planName: string | null;
+  maxUsers: number | null;
+  maxReportsPerMonth: number | null;
+  /** YYYY-MM-DD or null (no expiry). */
+  subscriptionEndsAt: string | null;
+  activeUsers: number;
+  reportsThisMonth: number;
 };
 
 export const listAdminLabs = createServerFn({ method: "GET" })
@@ -208,9 +215,21 @@ export const listAdminLabs = createServerFn({ method: "GET" })
       doctor_name: string | null;
       is_active: boolean;
       created_at: string | Date;
+      plan_name: string | null;
+      max_users: number | null;
+      max_reports_per_month: number | null;
+      subscription_ends_at: string | null;
+      active_users: number;
+      reports_this_month: number;
     }>`
       select l.id, l.name, l.name_en, lu.username, l.phone, l.address,
-             l.doctor_name, l.is_active, l.created_at
+             l.doctor_name, l.is_active, l.created_at,
+             l.plan_name, l.max_users, l.max_reports_per_month,
+             to_char(l.subscription_ends_at, 'YYYY-MM-DD') as subscription_ends_at,
+             (select count(*)::int from lab_users u where u.lab_id = l.id and u.is_active = true) as active_users,
+             (select count(*)::int from reports r
+                where r.lab_id = l.id and r.status <> 'cancelled'
+                  and r.created_at >= (date_trunc('month', current_timestamp at time zone 'Africa/Cairo') at time zone 'Africa/Cairo')) as reports_this_month
       from labs l
       left join lab_users lu on lu.lab_id = l.id and lu.role = 'owner'
       order by l.created_at desc
@@ -224,6 +243,12 @@ export const listAdminLabs = createServerFn({ method: "GET" })
       doctorName: row.doctor_name,
       isActive: row.is_active,
       createdAt: String(row.created_at),
+      planName: row.plan_name,
+      maxUsers: row.max_users,
+      maxReportsPerMonth: row.max_reports_per_month,
+      subscriptionEndsAt: row.subscription_ends_at,
+      activeUsers: Number(row.active_users),
+      reportsThisMonth: Number(row.reports_this_month),
     })));
   });
 

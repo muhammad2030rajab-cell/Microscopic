@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { CloudUpload, Loader2, RefreshCw, Trash2, WifiOff } from "lucide-react";
 import { toast } from "sonner";
@@ -66,7 +67,8 @@ export function OfflineStatus() {
       ) : null}
       {syncState.attention > 0 ? (
         <p className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">
-          {syncState.attention} تغيير على الجهاز مارضيش الخادم يقبله أو فيه تعارض. راجعه قبل ما تكمل.
+          {syncState.attention} تغيير على الجهاز مارضيش الخادم يقبله أو فيه تعارض.{" "}
+          <Link to="/sync" className="font-semibold underline">راجعه دلوقتي</Link>
         </p>
       ) : null}
 

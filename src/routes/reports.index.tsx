@@ -62,6 +62,13 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
   const [status, setStatus] = useState<ReportStatusFilter>("all");
   const [period, setPeriod] = useState<ReportPeriodFilter>("all");
   const [onlyCritical, setOnlyCritical] = useState(false);
+  // Branch filter (owner / unrestricted staff only see more than one branch). Not persisted.
+  const [branch, setBranch] = useState("all");
+  const branchOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of reports) if (r.branchId && r.branchName) m.set(r.branchId, r.branchName);
+    return [...m.entries()].map(([id, name]) => ({ id, name }));
+  }, [reports]);
 
   // Coming back from a report should keep the filters. Restored after mount so
   // the server-rendered HTML and the first client render match.
@@ -97,9 +104,10 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
         (period === "year" && created.getFullYear() === now.getFullYear()) ||
         (period === "month" && sameMonth) ||
         (period === "today" && sameMonth && created.getDate() === now.getDate());
-      return matchesStatus && matchesText && matchesPeriod && (!onlyCritical || r.criticalCount > 0);
+      const matchesBranch = branch === "all" || (branch === "none" ? !r.branchId : r.branchId === branch);
+      return matchesStatus && matchesText && matchesPeriod && matchesBranch && (!onlyCritical || r.criticalCount > 0);
     });
-  }, [q, reports, status, period, onlyCritical]);
+  }, [q, reports, status, period, onlyCritical, branch]);
 
   return (
     <AppShell>
@@ -141,6 +149,16 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
         <PeriodChip active={period === "month"} onClick={() => setPeriod(period === "month" ? "all" : "month")}>هذا الشهر</PeriodChip>
         <PeriodChip active={period === "year"} onClick={() => setPeriod(period === "year" ? "all" : "year")}>هذا العام</PeriodChip>
         <PeriodChip active={period === "all"} onClick={() => setPeriod("all")}>الكل</PeriodChip>
+        {branchOptions.length > 0 ? (
+          <label className="inline-flex items-center">
+            <span className="sr-only">الفرع</span>
+            <select value={branch} onChange={(e) => setBranch(e.target.value)} className="h-9 rounded-full border border-line bg-elevated px-3 text-xs outline-none focus:border-teal">
+              <option value="all">كل الفروع</option>
+              {branchOptions.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              <option value="none">بدون فرع</option>
+            </select>
+          </label>
+        ) : null}
         {criticalTotal > 0 ? (
           <PeriodChip active={onlyCritical} onClick={() => setOnlyCritical(!onlyCritical)}>بقيم حرجة ({criticalTotal})</PeriodChip>
         ) : null}
@@ -151,7 +169,7 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
 
       <div className="mb-3 flex items-center justify-between text-xs text-muted">
         <span>عرض {filtered.length} من {reports.length} تقرير</span>
-        {(q || status !== "all" || period !== "all" || onlyCritical) ? <button type="button" onClick={() => { setQ(""); setStatus("all"); setPeriod("all"); setOnlyCritical(false); }} className="font-medium text-teal hover:underline">مسح الفلاتر</button> : null}
+        {(q || status !== "all" || period !== "all" || onlyCritical || branch !== "all") ? <button type="button" onClick={() => { setQ(""); setStatus("all"); setPeriod("all"); setOnlyCritical(false); setBranch("all"); }} className="font-medium text-teal hover:underline">مسح الفلاتر</button> : null}
       </div>
 
       {deleteError ? <p role="alert" className="mb-3 rounded-lg border border-high/20 bg-high-bg px-3 py-2 text-sm text-high">{deleteError}</p> : null}
@@ -180,7 +198,7 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{r.patientName}</p>
                     <p className="text-xs text-muted">
-                      {formatAge("ar", r.age, r.ageUnit)} · {r.gender} · {r.doctor} · {formatListDate(r.createdAt)}
+                      {formatAge("ar", r.age, r.ageUnit)} · {r.gender} · {r.doctor} · {formatListDate(r.createdAt)}{r.branchName ? ` · ${r.branchName}` : ""}
                     </p>
                     <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[11px] sm:hidden ${reportStatusClasses[r.status]}`}>{reportStatusLabels[r.status]}</span>
                   </div>

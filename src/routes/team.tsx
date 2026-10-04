@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { ArrowRight, Check, CheckCircle2, ChevronDown, ChevronUp, ShieldCheck, UserPlus, UserX, Users } from "lucide-react";
+import { ArrowRight, Building2, Check, CheckCircle2, ChevronDown, ChevronUp, ShieldCheck, UserPlus, UserX, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import {
   ROLE_LABELS, ASSIGNABLE_ROLES,
   type LabPermission, type LabPermissions, type LabRole, type LabStaff,
 } from "@/lib/lab-users";
+import { createBranch, listBranches, setUserBranch, updateBranch, type Branch } from "@/lib/branches";
 import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 
 export const Route = createFileRoute("/team")({
@@ -18,12 +19,14 @@ export const Route = createFileRoute("/team")({
       const [lab, access] = await Promise.all([getCurrentLab(), getCurrentLabPermissions()]);
       const canManage = access.role === "owner" || access.permissions["users.manage"] === true;
       const staff = canManage ? await listLabStaff() : [];
-      return { lab, access, staff };
+      const branches = access.role === "owner" ? (await listBranches().catch(() => null))?.branches ?? [] : [];
+      return { lab, access, staff, branches };
     } catch {
       return {
         lab: null as LabProfileData | null,
         access: { labId: null, labUserId: null, role: null as LabRole | null, permissions: {} as LabPermissions },
         staff: [] as LabStaff[],
+        branches: [] as Branch[],
       };
     }
   },
@@ -53,7 +56,9 @@ const DEFAULT_NEW_PERMISSIONS: LabPermissions = {
 };
 
 function TeamPage() {
-  const { lab, access, staff: initialStaff } = Route.useLoaderData();
+  const { lab, access, staff: initialStaff, branches: initialBranches } = Route.useLoaderData();
+  const [branches, setBranches] = useState<Branch[]>(initialBranches);
+  const isOwner = access.role === "owner";
   const [staff, setStaff] = useState<LabStaff[]>(initialStaff);
   const [username, setUsername] = useState("");
   const [name, setName] = useState("");
@@ -92,7 +97,7 @@ function TeamPage() {
       const created = await createLabStaff({ data: { username, name, password, role, permissions } });
       setStaff((current) => [...current, {
         id: created.id, username: created.username, name: created.name, role: created.role,
-        permissions: created.permissions, isActive: true, createdAt: new Date().toISOString(),
+        permissions: created.permissions, isActive: true, createdAt: new Date().toISOString(), branchId: null,
       }]);
       setUsername(""); setName(""); setPassword(""); setRole("supervisor"); setPermissions(DEFAULT_NEW_PERMISSIONS);
       setSuccess(`تم إنشاء حساب ${created.username} بنجاح ✅`);
@@ -164,6 +169,8 @@ function TeamPage() {
         {success ? <div className="mt-5 flex items-start gap-3 rounded-xl border border-ok/20 bg-ok/5 p-4 text-sm"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-ok" /><p>{success}</p></div> : null}
         {error ? <div className="mt-5 rounded-xl border border-high/20 bg-high/5 p-4 text-sm text-high">{error}</div> : null}
 
+        {isOwner ? <BranchesPanel branches={branches} setBranches={setBranches} onError={setError} /> : null}
+
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_1fr]">
           <section className="rounded-xl border border-line bg-elevated p-5 sm:p-6">
             <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-lg bg-teal/10 text-teal"><Users className="size-5" /></div><div><h3 className="font-display text-xl font-semibold">الفريق الحالي</h3><p className="text-sm text-muted">{staff.length} حساب داخل المعمل</p></div></div>
@@ -182,6 +189,7 @@ function TeamPage() {
                             <p className="font-medium">{member.name || member.username}</p>
                             <span className="rounded-full bg-teal/10 px-2 py-0.5 text-[11px] text-teal">{ROLE_LABELS[member.role]}</span>
                             <span className={`rounded-full px-2 py-0.5 text-[11px] ${member.isActive ? "bg-ok/10 text-ok" : "bg-high/10 text-high"}`}>{member.isActive ? "نشط" : "موقوف"}</span>
+                            {member.role !== "owner" && member.branchId ? <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-700">{branches.find((b) => b.id === member.branchId)?.name ?? "فرع"}</span> : null}
                           </div>
                           <p className="mt-1 text-xs text-muted" dir="ltr">{member.username}</p>
                         </div>
@@ -197,6 +205,15 @@ function TeamPage() {
                           </div>
                         ) : null}
                       </div>
+
+                      {isOwner && member.role !== "owner" && branches.length > 0 ? (
+                        <MemberBranchSelect
+                          member={member}
+                          branches={branches}
+                          onChanged={(branchId) => setStaff((cur) => cur.map((m) => (m.id === member.id ? { ...m, branchId } : m)))}
+                          onError={setError}
+                        />
+                      ) : null}
 
                       {member.role !== "owner" ? (
                         <div className="rounded-lg bg-paper p-3">
@@ -312,4 +329,115 @@ function Field({ label, value, onChange, required, placeholder, dir, type = "tex
   label: string; value: string; onChange: (value: string) => void; required?: boolean; placeholder?: string; dir?: "ltr" | "rtl"; type?: string; minLength?: number;
 }) {
   return <div className="space-y-1.5"><Label>{label}</Label><Input type={type} value={value} onChange={(e) => onChange(e.target.value)} required={required} minLength={minLength} placeholder={placeholder} dir={dir} /></div>;
+}
+
+function MemberBranchSelect({ member, branches, onChanged, onError }: { member: LabStaff; branches: Branch[]; onChanged: (branchId: string | null) => void; onError: (message: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  async function change(value: string) {
+    onError("");
+    setBusy(true);
+    try {
+      await setUserBranch({ data: { labUserId: member.id, branchId: value || null } });
+      onChanged(value || null);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "تعذر تغيير الفرع");
+    } finally {
+      setBusy(false);
+    }
+  }
+  // A deactivated branch can stay selected for someone already on it, but can't be picked for others.
+  const options = branches.filter((b) => b.isActive || b.id === member.branchId);
+  return (
+    <div className="rounded-lg bg-paper p-3">
+      <Label>الفرع</Label>
+      <select
+        className="mt-1.5 flex h-11 w-full rounded-sm border border-line bg-elevated px-3 text-sm"
+        value={member.branchId ?? ""}
+        disabled={busy}
+        onChange={(e) => change(e.target.value)}
+      >
+        <option value="">كل الفروع</option>
+        {options.map((b) => <option key={b.id} value={b.id}>{b.name}{b.isActive ? "" : " (موقوف)"}</option>)}
+      </select>
+      <p className="mt-1 text-[11px] leading-5 text-muted">لو اخترت فرع، المستخدم هيشوف تقارير الفرع ده بس. «كل الفروع» = يشوف كل التقارير.</p>
+    </div>
+  );
+}
+
+function BranchesPanel({ branches, setBranches, onError }: { branches: Branch[]; setBranches: (fn: (cur: Branch[]) => Branch[]) => void; onError: (message: string) => void }) {
+  const [name, setName] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  async function add(e: FormEvent) {
+    e.preventDefault();
+    onError("");
+    setBusyId("new");
+    try {
+      const created = await createBranch({ data: { name } });
+      setBranches((cur) => [...cur, created]);
+      setName("");
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "تعذر إضافة الفرع");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function patch(id: string, data: { name?: string; isActive?: boolean }) {
+    onError("");
+    setBusyId(id);
+    try {
+      const updated = await updateBranch({ data: { id, ...data } });
+      setBranches((cur) => cur.map((b) => (b.id === id ? updated : b)));
+      setRenamingId(null);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "تعذر تعديل الفرع");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <section className="mt-6 rounded-xl border border-line bg-elevated p-5 sm:p-6">
+      <div className="flex items-center gap-3">
+        <div className="grid size-10 place-items-center rounded-lg bg-teal/10 text-teal"><Building2 className="size-5" /></div>
+        <div>
+          <h3 className="font-display text-xl font-semibold">فروع المعمل</h3>
+          <p className="text-sm text-muted">{branches.length ? `${branches.length} فرع` : "مفيش فروع. المعمل شغال كوحدة واحدة."} أنت (المالك) بتشوف كل الفروع مع بعض.</p>
+        </div>
+      </div>
+
+      {branches.length ? (
+        <ul className="mt-4 divide-y divide-line rounded-xl border border-line">
+          {branches.map((b) => (
+            <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+              {renamingId === b.id ? (
+                <form className="flex flex-1 gap-2" onSubmit={(e) => { e.preventDefault(); void patch(b.id, { name: renameValue }); }}>
+                  <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} aria-label="اسم الفرع" />
+                  <Button type="submit" size="sm" disabled={busyId === b.id}>حفظ</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setRenamingId(null)}>إلغاء</Button>
+                </form>
+              ) : (
+                <>
+                  <p className="text-sm font-medium">{b.name} <span className={`ms-2 rounded-full px-2 py-0.5 text-[11px] ${b.isActive ? "bg-ok/10 text-ok" : "bg-high/10 text-high"}`}>{b.isActive ? "نشط" : "موقوف"}</span></p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" disabled={busyId === b.id} onClick={() => { setRenamingId(b.id); setRenameValue(b.name); }}>تغيير الاسم</Button>
+                    <Button size="sm" variant={b.isActive ? "secondary" : "primary"} disabled={busyId === b.id} onClick={() => patch(b.id, { isActive: !b.isActive })}>{b.isActive ? "إيقاف" : "تفعيل"}</Button>
+                  </div>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <form onSubmit={add} className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم الفرع، مثل: فرع المعادي" maxLength={60} required aria-label="اسم فرع جديد" />
+        <Button type="submit" disabled={busyId === "new"}>{busyId === "new" ? "جارٍ الإضافة…" : "إضافة فرع"}</Button>
+      </form>
+      <p className="mt-2 text-[11px] leading-5 text-muted">الفرع بيتوقف ومبيتمسحش، عشان تقاريره تفضل محفوظة. الفرع الموقوف مايقبلش تقارير جديدة.</p>
+    </section>
+  );
 }

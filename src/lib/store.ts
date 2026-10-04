@@ -1,4 +1,5 @@
 import { ageToYears, parseAgeUnit, type AgeUnit } from "@/lib/age";
+import type { ReportDesign, ReportDesignAssets } from "@/lib/report-design";
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -18,6 +19,10 @@ export interface LabProfile {
   doctorSpecialty: string;
   logoUrl?: string;
   reportLanguage?: "bilingual" | "ar" | "en";
+  /** Print design; absent = built-in look. */
+  design?: ReportDesign;
+  /** Signature / stamp images (shown on approved reports only). */
+  assets?: ReportDesignAssets;
 }
 
 export interface SavedTest {

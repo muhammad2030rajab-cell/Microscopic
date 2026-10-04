@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ReportDesignEditor } from "@/components/report/report-design-editor";
 import { getCurrentLab, updateCurrentLabProfile, type LabProfileData } from "@/lib/lab-access";
 
 export const Route = createFileRoute("/settings")({
@@ -127,6 +128,16 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
           <Button type="submit" disabled={saving}>{saving ? "جارٍ الحفظ…" : "حفظ بيانات المعمل"}</Button>
         </div>
       </form>
+
+      <ReportDesignEditor
+        labId={lab.lab_id}
+        initialDesign={lab.report_design}
+        lab={{
+          name, nameEn: nameEn || name, phone, address, email, website, doctorName, doctorDegree, doctorSpecialty,
+          logoUrl: logoUrl || undefined,
+          reportLanguage: reportLanguage as "bilingual" | "ar" | "en",
+        }}
+      />
       <InstallBanner />
     </AppShell>
   );

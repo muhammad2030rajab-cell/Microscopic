@@ -85,6 +85,8 @@ export const S = {
   laboratoryDirector: p("Laboratory Director", "مدير المعمل", true),
   laboratory: p("Laboratory", "المعمل", true),
   scanToVerify: p("Scan to verify", "امسح للتحقق", true),
+  endOfReport: p("End of report", "نهاية التقرير", true),
+  letterheadSpace: p("Space for the pre-printed letterhead", "مساحة الترويسة المطبوعة", true),
   footer: p(
     "This report is electronically generated. Please verify patient identity and sample information before clinical use.",
     "هذا التقرير صادر إلكترونيًا. يرجى التأكد من هوية المريض وبيانات العينة قبل الاستخدام الطبي.",

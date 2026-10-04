@@ -665,6 +665,181 @@
   }
 }
 
+
+/* =========================================
+   REPORT DESIGN (per lab) — see src/lib/report-design.ts
+   Defaults reproduce the original look exactly: with no --lab-accent the
+   variables below fall back to the old ink / teal colours.
+   ========================================= */
+
+.lab-sheet {
+  --sheet-accent: var(--lab-accent, var(--color-ink));
+  --sheet-brand: var(--lab-accent, var(--color-teal));
+  --sheet-brand-fg: var(--lab-accent-fg, var(--color-teal-fg));
+}
+
+.lab-corner-navy { background: var(--sheet-accent); }
+.lab-header { border-bottom-color: var(--sheet-accent); }
+.lab-logo { background: var(--sheet-brand); color: var(--sheet-brand-fg); }
+.lab-section-heading { border-inline-start-color: var(--sheet-brand); }
+.lab-grid { border-top-color: var(--sheet-accent); }
+.lab-footer { border-top: 1px solid var(--sheet-accent); }
+
+.lab-notes {
+  padding: 0.55rem 0.8rem;
+  border-inline-start: 4px solid var(--sheet-brand);
+  border-block: 1px solid var(--color-line-strong);
+  background: var(--color-paper);
+}
+
+/* Table style: modern = coloured header row, no zebra */
+.lab-sheet[data-table="modern"] .lab-grid {
+  border-top: 0;
+  border-bottom: 2px solid var(--sheet-brand);
+}
+.lab-sheet[data-table="modern"] .lab-grid th {
+  background: var(--sheet-brand);
+  color: var(--sheet-brand-fg);
+  border-bottom: 0;
+}
+.lab-sheet[data-table="modern"] .lab-grid > tbody > tr:nth-child(even) > td { background: transparent; }
+.lab-sheet[data-table="modern"] .lab-grid > tbody > tr.lab-row-abnormal > td { background: var(--color-high-bg); }
+.lab-sheet[data-table="modern"] .lab-grid > tbody > tr.lab-row-low > td { background: var(--color-flag-low-bg); }
+
+/* Table style: minimal = hairlines only; abnormal rows are marked by the result pill + flag */
+.lab-sheet[data-table="minimal"] .lab-grid {
+  border-top: 1px solid var(--color-line-strong);
+  border-bottom: 1px solid var(--color-line-strong);
+}
+.lab-sheet[data-table="minimal"] .lab-grid th {
+  background: transparent;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--sheet-accent);
+}
+.lab-sheet[data-table="minimal"] .lab-grid > tbody > tr > td,
+.lab-sheet[data-table="minimal"] .lab-grid > tbody > tr:nth-child(even) > td,
+.lab-sheet[data-table="minimal"] .lab-grid > tbody > tr.lab-row-abnormal > td,
+.lab-sheet[data-table="minimal"] .lab-grid > tbody > tr.lab-row-low > td { background: transparent; }
+
+/* Letterhead paper: the pre-printed header lives in this blank space (screen only; print uses @page margins) */
+.lab-lh-gap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: 0.35rem;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+}
+.lab-sheet.is-exporting .lab-lh-gap { border-color: transparent; color: transparent; }
+
+/* Signature + stamp (approved reports only) */
+.lab-sign {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 16mm;
+  margin-top: 0.5rem;
+}
+.lab-stamp { height: 18mm; width: auto; max-width: 30mm; object-fit: contain; opacity: 0.9; }
+.lab-signature { height: 12mm; width: auto; max-width: 40mm; object-fit: contain; margin-inline-start: -8mm; mix-blend-mode: multiply; }
+
+/* Range bar: numbers at the ends of the normal zone */
+.lab-rbar-ends { position: relative; height: 0.8rem; margin-top: 0.15rem; }
+.lab-rbar-ends span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 0.55rem;
+  line-height: 1;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  .lab-sign img,
+  .lab-grid th { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+
+
+/* =========================================
+   "PRO" TEMPLATE — compact multi-page layout (data-template="pro")
+   Header and footer sit in a table's thead/tfoot, which browsers repeat on every
+   printed page; a slim patient strip under the header identifies each page.
+   Opt-in per lab (report-design.ts); the standard template is untouched.
+   ========================================= */
+
+.lab-pages { width: 100%; border-collapse: collapse; }
+.lab-pages > thead > tr > td,
+.lab-pages > tbody > tr > td,
+.lab-pages > tfoot > tr > td { padding: 0; vertical-align: top; }
+.lab-pages > thead { display: table-header-group; }
+.lab-pages > tfoot { display: table-footer-group; }
+
+.lab-pstrip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding: 0.3rem 0.6rem;
+  background: var(--color-paper-2);
+  border-bottom: 1px solid var(--color-line-strong);
+  font-size: 0.7rem;
+}
+
+.lab-sheet[data-template="pro"] { font-size: 0.92em; }
+.lab-sheet[data-template="pro"] .lab-header { border-bottom-width: 3px; padding-bottom: 0.6rem; }
+.lab-sheet[data-template="pro"] .lab-results-title { display: none; }
+.lab-sheet[data-template="pro"] .lab-titlebar { border-bottom: 0; padding-bottom: 0.2rem; }
+
+.lab-sheet[data-template="pro"] .lab-patient-grid {
+  border: 1px solid var(--color-line-strong);
+  border-top: 3px solid var(--sheet-brand);
+  background: #fff;
+}
+
+.lab-sheet[data-template="pro"] .lab-section-heading {
+  margin-bottom: 0;
+  padding: 0.3rem 0.65rem;
+  border: 0;
+  border-radius: 0.2rem 0.2rem 0 0;
+  background: var(--sheet-brand);
+  color: var(--sheet-brand-fg);
+}
+
+.lab-sheet[data-template="pro"] .lab-grid {
+  border-top: 0;
+  border-bottom: 1px solid var(--color-line-strong);
+}
+.lab-sheet[data-template="pro"] .lab-grid th {
+  background: transparent;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--sheet-brand);
+  padding-block: 0.3rem;
+}
+.lab-sheet[data-template="pro"] .lab-grid td { padding-block: 0.28rem; }
+.lab-sheet[data-template="pro"] .lab-grid > tbody > tr:nth-child(even) > td { background: transparent; }
+
+.lab-flag-letter { font-size: 0.7rem; line-height: 1; }
+
+.lab-end {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  color: var(--color-muted);
+}
+
+@media print {
+  .lab-sheet[data-template="pro"] .lab-grid td,
+  .lab-sheet[data-template="pro"] .lab-grid th { padding-block: 1mm; }
+  .lab-pstrip,
+  .lab-sheet[data-template="pro"] .lab-section-heading,
+  .lab-sheet[data-template="pro"] .lab-patient-grid { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .lab-sheet[data-template="pro"] .lab-section-heading { break-after: avoid; }
+}
+
 /* =========================================
    APP BOTTOM NAV
    ========================================= */

@@ -86,6 +86,8 @@ export type LabProfileData = {
   doctor_specialty: string | null;
   logo_url: string | null;
   report_language: "bilingual" | "ar" | "en";
+  /** Raw jsonb (images stripped); run it through normalizeDesign before use. */
+  report_design: unknown;
   is_profile_complete: boolean;
 };
 
@@ -97,6 +99,7 @@ export const getCurrentLab = createServerFn({ method: "GET" })
       select l.id as lab_id, l.name as lab_name, l.name_en as lab_name_en,
              lu.username, lu.role, l.phone, l.whatsapp, l.email, l.website,
              l.address, l.doctor_name, l.doctor_degree, l.doctor_specialty, l.logo_url, l.report_language,
+             (l.report_design - 'signatureUrl' - 'stampUrl') as report_design,
              (length(trim(coalesce(l.name, ''))) >= 2
               and length(trim(coalesce(l.phone, ''))) >= 5
               and length(trim(coalesce(l.address, ''))) >= 5) as is_profile_complete

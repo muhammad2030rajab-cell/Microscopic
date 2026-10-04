@@ -35,7 +35,11 @@ export function RangeBar({
         ? "lab-rbar-dot-low"
         : "lab-rbar-dot-ok";
 
+  // Label the two ends of the normal zone when there is room for both numbers.
+  const showEnds = parsed.min != null && parsed.max != null && g.zoneEnd - g.zoneStart >= 30;
+
   return (
+    <>
     <div className="lab-rbar" aria-hidden>
       <span
         className="lab-rbar-zone"
@@ -49,5 +53,12 @@ export function RangeBar({
         style={{ left: `${g.marker}%` }}
       />
     </div>
+    {showEnds ? (
+      <div className="lab-rbar-ends" aria-hidden dir="ltr">
+        <span style={{ left: `${g.zoneStart}%` }}>{parsed.min}</span>
+        <span style={{ left: `${g.zoneEnd}%` }}>{parsed.max}</span>
+      </div>
+    ) : null}
+    </>
   );
 }

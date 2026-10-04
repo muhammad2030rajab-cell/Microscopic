@@ -42,6 +42,8 @@ export async function downloadReportPdf(element: HTMLElement, filename: string):
     scale: 2, // 2x device pixels for a print-quality (not screen-blurry) result
     useCORS: true,
     backgroundColor: "#ffffff",
+    // The dashed "letterhead space" guide is for the screen only; keep the blank space, drop the outline.
+    onclone: (doc) => { doc.querySelectorAll(".lab-sheet").forEach((el) => el.classList.add("is-exporting")); },
   });
 
   const imgData = canvas.toDataURL("image/png");

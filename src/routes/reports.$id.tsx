@@ -15,6 +15,8 @@ import { downloadReportPdf } from "@/lib/generate-report-pdf";
 import { formatSlashDate, visitIdFrom } from "@/lib/utils";
 import { listReportAttachments, type ReportAttachment } from "@/lib/attachments";
 import { AttachmentsPanel } from "@/components/report/attachments-panel";
+import { getReportDesignAssets } from "@/lib/report-design-settings";
+import { normalizeDesign, normalizeAsset, type ReportDesignAssets } from "@/lib/report-design";
 import { ShareDialog, type ShareChannel } from "@/components/report/share-dialog";
 import { toWhatsAppNumber } from "@/lib/phone";
 import { ageToYears, formatAge } from "@/lib/age";
@@ -73,6 +75,27 @@ function ReportDetail() {
     try { localStorage.setItem("rajab:report-lang", next); } catch { /* ignore */ }
   }
   const printRef = useRef<HTMLDivElement>(null);
+  // Signature + stamp are fetched separately (kept out of the lab payload that every page loads) and
+  // cached on this device, so an offline print still carries them.
+  const labIdForAssets = lab?.lab_id ?? "";
+  const [assets, setAssets] = useState<ReportDesignAssets>({ signatureUrl: null, stampUrl: null });
+  useEffect(() => {
+    if (!labIdForAssets) return;
+    const key = `rajab:report-assets:${labIdForAssets}`;
+    try {
+      const cached = JSON.parse(localStorage.getItem(key) ?? "null");
+      if (cached) setAssets({ signatureUrl: normalizeAsset(cached.signatureUrl), stampUrl: normalizeAsset(cached.stampUrl) });
+    } catch { /* no cache yet */ }
+    let cancelled = false;
+    getReportDesignAssets()
+      .then((fresh) => {
+        if (cancelled) return;
+        setAssets(fresh);
+        try { localStorage.setItem(key, JSON.stringify(fresh)); } catch { /* storage full / private mode */ }
+      })
+      .catch(() => { /* offline: keep the cached ones */ });
+    return () => { cancelled = true; };
+  }, [labIdForAssets]);
 
   if (!lab) return <Navigate to="/login" replace />;
   if (!report) return <AppShell><div className="mx-auto max-w-lg py-16 text-center"><h1 className="font-display text-2xl font-semibold">التقرير غير موجود</h1><Link to="/reports" className="mt-6 inline-flex text-sm text-teal hover:underline">العودة للأرشيف</Link></div></AppShell>;
@@ -91,6 +114,8 @@ function ReportDetail() {
     doctorSpecialty: lab.doctor_specialty || "",
     logoUrl: lab.logo_url || "",
     reportLanguage: (lab.report_language || "bilingual") as "bilingual" | "ar" | "en",
+    design: normalizeDesign(lab.report_design),
+    assets,
   };
 
   const lang: ReportLang = langChoice ?? (labProfile.reportLanguage === "ar" ? "ar" : labProfile.reportLanguage === "en" ? "en" : "bi");

@@ -19,6 +19,8 @@ import {
 import type { LabReport } from "@/lib/lab-reports";
 import { cn, formatSlashDate, visitIdFrom } from "@/lib/utils";
 import { ReportQrCode } from "./report-qr-code";
+import { normalizeDesign, readableOn } from "@/lib/report-design";
+import type { CSSProperties } from "react";
 import { RangeBar } from "./range-bar";
 import { SampleBarcode } from "./sample-barcode";
 import { S, ageSexValue, summaryLine, text, type Pair, type ReportLang } from "@/lib/report-strings";
@@ -170,6 +172,15 @@ export function PrintView({
   const lang: ReportLang = langProp ?? languageFromSetting(lab.reportLanguage);
   const rtl = lang === "ar";
   const brand = { ...defaultLab, ...lab };
+  const design = normalizeDesign(brand.design);
+  const letterhead = design.paper === "letterhead";
+  const approved = report.status === "approved";
+  // A signature / stamp on a draft would make it look authorised: approved reports only.
+  const signature = approved ? brand.assets?.signatureUrl : null;
+  const stamp = approved ? brand.assets?.stampUrl : null;
+  const accentStyle: CSSProperties | undefined = design.accent
+    ? ({ "--lab-accent": design.accent, "--lab-accent-fg": readableOn(design.accent) } as CSSProperties)
+    : undefined;
   const groups = groupTests(report);
   const summary = summarize(report);
 
@@ -179,28 +190,15 @@ export function PrintView({
   );
   const collected = report.collectedAt ? formatSlashDate(report.collectedAt) : null;
 
-  return (
-    <article
-      dir={rtl ? "rtl" : "ltr"}
-      lang={rtl ? "ar" : "en"}
-      className="print-sheet lab-sheet relative mx-auto w-full max-w-4xl overflow-hidden bg-elevated text-ink shadow-[var(--shadow-sheet)]"
-    >
-      {/* =========================================
-          CORNER DECORATION
-         ========================================= */}
+  const pro = design.template === "pro";
 
-      <div
-        className="lab-corner"
-        aria-hidden
-      >
-        <span className="lab-corner-navy" />
-        <span className="lab-corner-red" />
-      </div>
-
-      {/* =========================================
-          HEADER
-         ========================================= */}
-
+  const headerEl = (
+    <>
+      {letterhead ? (
+        <div className="lab-lh-gap no-print" style={{ height: `${design.letterheadTopMm}mm` }} aria-hidden>
+          <span>{text(lang === "ar" ? "ar" : "en", S.letterheadSpace)}</span>
+        </div>
+      ) : (
       <header className="lab-header">
         <div className="flex items-center gap-3">
           {brand.logoUrl ? (
@@ -219,7 +217,7 @@ export function PrintView({
               {brand.name}
             </p>
 
-            <p className="text-[0.72rem] font-medium tracking-[0.04em] text-teal">
+            <p className="text-[0.72rem] font-medium tracking-[0.04em] text-[color:var(--lab-accent,var(--color-teal))]">
               {brand.nameEn}
             </p>
 
@@ -250,7 +248,21 @@ export function PrintView({
           ) : null}
         </div>
       </header>
+      )}
+    </>
+  );
 
+  const patientStrip = pro ? (
+    <div className="lab-pstrip" dir="ltr">
+      <span className="font-semibold">{report.patientName}</span>
+      <span>{report.patientCode || "—"}</span>
+      <span>{ageSexValue(lang, report.age, report.gender, report.ageUnit)}</span>
+      <span className="font-mono tabular-nums">{visit}</span>
+    </div>
+  ) : null;
+
+  const bodyEl = (
+    <>
       {/* =========================================
           REPORT TITLE
          ========================================= */}
@@ -407,7 +419,7 @@ export function PrintView({
           RESULTS TITLE
          ========================================= */}
 
-      <div className="mt-6 flex items-center gap-3">
+      <div className="lab-results-title mt-6 flex items-center gap-3">
         <span className="h-px flex-1 bg-ink" />
 
         <h2 className="font-display text-lg font-semibold tracking-[0.16em] sm:text-xl">
@@ -557,6 +569,7 @@ export function PrintView({
                           {/* FLAG */}
                           <td>
                             <FlagMark
+                              letters={pro}
                               flag={
                                 interp.flag
                               }
@@ -615,7 +628,7 @@ export function PrintView({
          ========================================= */}
 
       {report.notes ? (
-        <p className="mt-5 border border-ink px-3 py-2 text-sm">
+        <p className="lab-notes mt-5 text-sm">
           <span className="font-semibold">
             {text(lang === "ar" ? "ar" : "en", S.notes)}
           </span>{" "}
@@ -677,6 +690,12 @@ export function PrintView({
             </p>
           ) : null}
 
+          {signature || stamp ? (
+            <div className="lab-sign">
+              {stamp ? <img src={stamp} alt="" className="lab-stamp" /> : null}
+              {signature ? <img src={signature} alt="" className="lab-signature" /> : null}
+            </div>
+          ) : null}
           <p className="mt-2 font-display text-base italic text-ink">
             {brand.doctorName ||
               text(lang === "ar" ? "ar" : "en", S.laboratoryDirector)}
@@ -686,7 +705,7 @@ export function PrintView({
             {text(lang === "ar" ? "ar" : "en", S.labDirector)}
           </p>
 
-          {report.status === "approved" ? <ReportQrCode reportId={report.id} caption={text(lang === "ar" ? "ar" : "en", S.scanToVerify)} /> : null}
+          {approved && design.showQr ? <ReportQrCode reportId={report.id} caption={text(lang === "ar" ? "ar" : "en", S.scanToVerify)} /> : null}
 
           {brand.doctorDegree ? (
             <p className="text-[0.68rem] text-muted">
@@ -696,35 +715,121 @@ export function PrintView({
         </div>
       </div>
 
+      {pro ? (
+        <p className="lab-end">— {text(lang === "ar" ? "ar" : "en", S.endOfReport)} —</p>
+      ) : null}
+    </>
+  );
+
+  const footerEl = (
+    <>
       {/* =========================================
           FOOTER
          ========================================= */}
 
-      <footer className="mt-6 border-t border-ink pt-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-soft">
-          <span>
-            {brand.website ||
-              brand.address ||
-              text(lang === "ar" ? "ar" : "en", S.laboratory)}
-          </span>
-
-          {brand.phone ? (
-            <span dir="ltr">
-              {brand.phone}
-            </span>
-          ) : null}
-
-          {brand.email ? (
+      <footer className="lab-footer mt-6 pt-3">
+        {!letterhead ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-soft">
             <span>
-              {brand.email}
+              {brand.website ||
+                brand.address ||
+                text(lang === "ar" ? "ar" : "en", S.laboratory)}
             </span>
-          ) : null}
-        </div>
+
+            {brand.phone ? (
+              <span dir="ltr">
+                {brand.phone}
+              </span>
+            ) : null}
+
+            {brand.email ? (
+              <span>
+                {brand.email}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
+        {design.footerNote ? (
+          <p className="lab-footer-note mt-2 text-center text-xs text-ink-soft">{design.footerNote}</p>
+        ) : null}
 
         <p className="mt-2 text-center text-[0.62rem] text-muted">
           {text(lang === "ar" ? "ar" : "en", S.footer)}
         </p>
       </footer>
+    </>
+  );
+
+  return (
+    <article
+      dir={rtl ? "rtl" : "ltr"}
+      lang={rtl ? "ar" : "en"}
+      data-table={design.tableStyle}
+      data-template={design.template}
+      style={accentStyle}
+      className={cn(
+        "print-sheet lab-sheet relative mx-auto w-full max-w-4xl overflow-hidden bg-elevated text-ink shadow-[var(--shadow-sheet)]",
+        letterhead ? "lab-sheet--letterhead" : "lab-sheet--a4",
+      )}
+    >
+      {/* Letterhead paper: the page margin (not the sheet padding) keeps the pre-printed
+          header/footer clear on EVERY page, so this has to be an @page rule. */}
+      {letterhead ? (
+        <style>{`@media print{@page{size:A4 portrait;margin:${design.letterheadTopMm}mm 0 ${design.letterheadBottomMm}mm 0}.lab-sheet--letterhead{padding-top:0 !important;padding-bottom:0 !important}}`}</style>
+      ) : pro ? (
+        // Pro template on plain A4: page margins instead of sheet padding so every page of a
+        // long report gets the same margins, plus "Page n / N" where the browser supports page
+        // margin boxes (Chrome/Edge 131+; others simply omit the number).
+        <style>{`@media print{@page{size:A4 portrait;margin:8mm 0 14mm 0;@bottom-center{content:counter(page) " / " counter(pages);font:9px sans-serif;color:#64748b}}.lab-sheet[data-template="pro"]{padding-top:0 !important;padding-bottom:0 !important}}`}</style>
+      ) : null}
+
+      {/* =========================================
+          CORNER DECORATION
+         ========================================= */}
+
+      {design.showCorner && !letterhead && !pro ? (
+        <div
+          className="lab-corner"
+          aria-hidden
+        >
+          <span className="lab-corner-navy" />
+          <span className="lab-corner-red" />
+        </div>
+      ) : null}
+
+      {/* =========================================
+          HEADER
+         ========================================= */}
+
+      {pro ? (
+        <table className="lab-pages">
+          <thead>
+            <tr>
+              <td>
+                {headerEl}
+                {patientStrip}
+              </td>
+            </tr>
+          </thead>
+          <tfoot>
+            <tr>
+              <td>{footerEl}</td>
+            </tr>
+          </tfoot>
+          <tbody>
+            <tr>
+              <td>{bodyEl}</td>
+            </tr>
+          </tbody>
+        </table>
+      ) : (
+        <>
+          {headerEl}
+          {bodyEl}
+          {footerEl}
+        </>
+      )}
     </article>
   );
 }
@@ -943,10 +1048,15 @@ function AdaGlucoseRange({
 function FlagMark({
   flag,
   critical,
+  letters = false,
 }: {
   flag: Flag;
   critical: boolean;
+  /** Pro template: also print H / L next to the arrow (readable on black-and-white copies). */
+  letters?: boolean;
 }) {
+  const letter = (l: string) => (letters ? <b className="lab-flag-letter">{l}</b> : null);
+
   if (critical) {
     return (
       <span
@@ -960,6 +1070,7 @@ function FlagMark({
         )}
 
         <TriangleAlert className="size-4" />
+        {letter(flag === "high" ? "H" : "L")}
       </span>
     );
   }
@@ -969,19 +1080,25 @@ function FlagMark({
     flag === "abnormal"
   ) {
     return (
-      <ArrowUp
-        className="size-4 text-high"
-        aria-label="Abnormal High"
-      />
+      <span className="inline-flex items-center gap-0.5 text-high">
+        <ArrowUp
+          className="size-4"
+          aria-label="Abnormal High"
+        />
+        {letter("H")}
+      </span>
     );
   }
 
   if (flag === "low") {
     return (
-      <ArrowDown
-        className="size-4 text-[var(--color-flag-low)]"
-        aria-label="Abnormal Low"
-      />
+      <span className="inline-flex items-center gap-0.5 text-[var(--color-flag-low)]">
+        <ArrowDown
+          className="size-4"
+          aria-label="Abnormal Low"
+        />
+        {letter("L")}
+      </span>
     );
   }
 

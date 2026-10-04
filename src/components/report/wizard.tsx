@@ -25,6 +25,7 @@ import { createLabReport, updateLabReport } from "@/lib/lab-reports";
 import type { LabCatalogRow } from "@/lib/lab-catalog";
 import { searchLabPatients, type PatientSummary } from "@/lib/patients";
 import { isOffline, newRequestId, queueReport } from "@/lib/offline/sync";
+import { EDIT_BLOCKED, queueReportEdit } from "@/lib/sync-engine/outbox-actions";
 
 const STEPS = ["المريض", "التحاليل", "النتائج", "المراجعة"];
 
@@ -255,7 +256,26 @@ export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatal
         }
       }
       if (editReport && isOffline(error)) {
-        toast.error("تعديل المسودة يحتاج اتصالًا بالإنترنت.");
+        // Save the edit on this device; it is sent (and checked against newer changes) when the connection is back.
+        if (!labId) {
+          toast.error("تعديل المسودة يحتاج اتصالًا بالإنترنت.");
+          return;
+        }
+        try {
+          await queueReportEdit({ labId, reportId: editReport.id, payload });
+          resetDraft();
+          toast.success("لا يوجد اتصال — اتحفظ التعديل على الجهاز وهيتبعت تلقائيًا لما الاتصال يرجع.");
+          void navigate({ to: "/reports/$id", params: { id: editReport.id } });
+        } catch (queueError) {
+          const m = queueError instanceof Error ? queueError.message : "";
+          toast.error(
+            m === EDIT_BLOCKED
+              ? "فيه تعديل سابق لسه محتاج مراجعة. اتصل بالنت وراجعه الأول."
+              : m === "NO_LOCAL_COPY_OF_REPORT"
+                ? "مفيش نسخة محفوظة على الجهاز من التقرير ده. تعديله محتاج اتصال."
+                : "تعذر حفظ التعديل على الجهاز. لا تغلق الصفحة، وأعد المحاولة.",
+          );
+        }
         return;
       }
       toast.error(error instanceof Error ? error.message : "تعذر حفظ التقرير");

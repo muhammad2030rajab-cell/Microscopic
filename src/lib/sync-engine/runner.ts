@@ -7,11 +7,12 @@
  * (Web Locks), and the engine itself is safe to re-run.
  */
 import { getCurrentLab } from "@/lib/lab-access";
+import { getCurrentLabPermissions } from "@/lib/lab-users";
 import { setKnownLabId, getKnownLabId } from "@/lib/offline/bootstrap-cache";
 import { isNetworkError } from "@/lib/offline/network-error";
 import { syncOnce } from "./engine";
 import { idbLocalStore, requestPersistentStorage } from "./idb-local-store";
-import { saveLabProfile } from "./offline-fallback";
+import { saveLabPermissions, saveLabProfile } from "./offline-fallback";
 import { serverFnTransport } from "./transport";
 
 export type SyncState = {
@@ -73,6 +74,8 @@ export const syncRunner = {
           labId = lab.lab_id;
           setKnownLabId(labId);
           saveLabProfile(lab);
+          // Best effort: only used to decide which buttons offline screens show.
+          void getCurrentLabPermissions().then((a) => saveLabPermissions(a.permissions)).catch(() => undefined);
         } catch (err) {
           // Offline: normal. Anything else (signed out): nothing to sync, stay quiet.
           return set({ phase: isNetworkError(err, navigator.onLine) ? "offline" : "idle" });

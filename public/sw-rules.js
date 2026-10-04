@@ -26,7 +26,7 @@
     var isNav = r.mode === "navigate" || (r.accept || "").indexOf("text/html") !== -1;
     if (isNav) return OFFLINE_PAGES.indexOf(p) !== -1 ? "page" : "navigate";
     if (p.indexOf("/assets/") === 0) return "immutable";
-    if (/\.(png|svg|jpg|jpeg|webp|ico|woff2?|webmanifest)$/i.test(p) || p === "/offline.html") return "revalidate";
+    if (/\.(png|svg|jpg|jpeg|webp|ico|woff2?|webmanifest)$/i.test(p) || p === "/offline.html" || p === "/offline-archive.js") return "revalidate";
     return "bypass";
   }
 

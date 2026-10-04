@@ -3,7 +3,8 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { requireLabPermission } from "@/lib/lab-users";
 import { createLabReportForUser, deleteLabReportForUser, updateLabReportForUser, type CreateLabReportInput } from "@/lib/lab-reports";
-import { decidePush, type ServerRowInfo } from "@/lib/sync-engine/conflict";
+import { createHash } from "node:crypto";
+import { decidePush, reconcileWithApplied, type ServerRowInfo } from "@/lib/sync-engine/conflict";
 import type { PushResult } from "@/lib/sync-engine/engine";
 import {
   clampSyncLimit,
@@ -150,7 +151,20 @@ export const pushSyncChanges = createServerFn({ method: "POST" })
 type Sql = Awaited<ReturnType<typeof getSql>>;
 
 async function applyOnePush(sql: Sql, userId: string, labId: string, change: PushChangeInput): Promise<PushResult> {
-  const isCreate = change.entity === "reports" && change.op === "upsert" && change.baseVersion === null;
+  // Did this very change id already land? (reply lost, or the device edited again before hearing back)
+  const payloadHash = createHash("sha256").update(JSON.stringify(change.payload ?? null)).digest("hex");
+  const prior = await sql.query<{ result_version: number | null; payload_hash: string }>(
+    `select result_version, payload_hash from sync_applied where lab_id = $1 and id = $2 limit 1`,
+    [labId, change.id],
+  );
+  const reconciled = reconcileWithApplied(
+    prior.length ? { resultVersion: prior[0].result_version === null ? null : Number(prior[0].result_version), payloadHash: prior[0].payload_hash } : null,
+    { baseVersion: change.baseVersion, payloadHash },
+  );
+  if (reconciled.kind === "already_applied") return { id: change.id, status: "applied", version: reconciled.version };
+  const baseVersion = reconciled.baseVersion;
+
+  const isCreate = change.entity === "reports" && change.op === "upsert" && baseVersion === null;
 
   // A report the device created is found by its request id (the server picks the real id);
   // anything else by the id the device holds.
@@ -162,7 +176,7 @@ async function applyOnePush(sql: Sql, userId: string, labId: string, change: Pus
   );
   const server: ServerRowInfo = found.length ? { version: Number(found[0].version), status: found[0].status } : null;
 
-  const decision = decidePush({ entity: change.entity, op: change.op, baseVersion: change.baseVersion, server });
+  const decision = decidePush({ entity: change.entity, op: change.op, baseVersion, server });
   if (decision.kind === "reject") return { id: change.id, status: "rejected", reason: decision.reason };
   if (decision.kind === "conflict") return { id: change.id, status: "conflict", reason: decision.reason };
   if (decision.kind === "already_applied") {
@@ -174,6 +188,7 @@ async function applyOnePush(sql: Sql, userId: string, labId: string, change: Pus
   let reportId = change.entityId;
   if (change.op === "delete") {
     await deleteLabReportForUser(userId, { id: change.entityId });
+    await recordApplied(sql, labId, change.id, change.entityId, null, payloadHash);
     return { id: change.id, status: "applied", version: null };
   }
   if (isCreate) {
@@ -183,5 +198,25 @@ async function applyOnePush(sql: Sql, userId: string, labId: string, change: Pus
     await updateLabReportForUser(userId, { ...(payload as unknown as CreateLabReportInput), id: change.entityId });
   }
   const after = await sql.query<{ version: number }>(`select version from reports where lab_id = $1 and id = $2 limit 1`, [labId, reportId]);
-  return { id: change.id, status: "applied", version: after.length ? Number(after[0].version) : null, serverId: reportId };
+  const version = after.length ? Number(after[0].version) : null;
+  await recordApplied(sql, labId, change.id, reportId, version, payloadHash);
+  return { id: change.id, status: "applied", version, serverId: reportId };
+}
+
+/** Remember what a change id produced. Never fails the push: the change already landed. */
+async function recordApplied(sql: Sql, labId: string, id: string, entityId: string, version: number | null, payloadHash: string) {
+  try {
+    await sql.query(
+      `insert into sync_applied (lab_id, id, entity_id, result_version, payload_hash)
+       values ($1,$2,$3,$4,$5)
+       on conflict (lab_id, id) do update
+         set entity_id = excluded.entity_id, result_version = excluded.result_version,
+             payload_hash = excluded.payload_hash, applied_at = current_timestamp`,
+      [labId, id, entityId, version, payloadHash],
+    );
+    // Housekeeping: nothing retries a change for two months.
+    await sql.query(`delete from sync_applied where lab_id = $1 and applied_at < current_timestamp - interval '60 days'`, [labId]);
+  } catch {
+    /* the worst case is a lost-reply retry being judged as a conflict, which a person then sees */
+  }
 }

@@ -53,6 +53,8 @@ export function idbLocalStore() {
     getRow(entity: SyncEntity, id: string): Promise<Record<string, unknown> | undefined>;
     listRows(entity: SyncEntity): Promise<Record<string, unknown>[]>;
     getResults(reportId: string): Promise<Record<string, unknown>[]>;
+    /** Epoch ms of the last successful pull for this lab (0 = never). */
+    getLastSync(labId: string): Promise<number>;
     /** Every result row (the archive list needs counts for all reports in one read). */
     listAllResults(): Promise<Record<string, unknown>[]>;
     /** Sign-out: drop the copy of the lab's data and cursors, KEEP the outbox (work not yet sent must not be lost). */
@@ -96,12 +98,20 @@ export function idbLocalStore() {
           }
         }
         tx.objectStore(S_META).put({ key: `cursor:${labId}`, value: page.cursor });
+        // Read by /offline.html and the in-app fallbacks: a copy nobody refreshed for weeks is not shown.
+        tx.objectStore(S_META).put({ key: `lastSync:${labId}`, value: Date.now() });
       } catch (err) {
         tx.abort(); // nothing from this page — including the cursor — is kept
         await done.catch(() => undefined);
         throw err;
       }
       await done;
+    },
+
+    async getLastSync(labId) {
+      const d = await db();
+      const row = await wrap(d.transaction(S_META).objectStore(S_META).get(`lastSync:${labId}`));
+      return typeof row?.value === "number" ? row.value : 0;
     },
 
     async listOutbox(labId) {

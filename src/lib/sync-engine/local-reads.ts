@@ -42,6 +42,8 @@ export type LocalReportSummary = {
 
 /** Same fields as the single-report screen gets from `getLabReport`. */
 export type LocalReportDetail = Omit<LocalReportSummary, "tests" | "testCount" | "flaggedCount" | "criticalCount"> & {
+  /** Version of the server row this copy was pulled at: the base for an offline edit. */
+  version: number;
   tests: {
     name: string;
     categoryId: string;
@@ -98,6 +100,7 @@ export function toReportDetail(report: Row | undefined, patient: Row | undefined
   if (!report || !patient) return null;
   return {
     ...base(report, patient),
+    version: Number(report.version ?? 1) || 1,
     tests: [...results]
       .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0) || str(a.test_name).localeCompare(str(b.test_name)))
       .map((t) => ({
@@ -109,5 +112,42 @@ export function toReportDetail(report: Row | undefined, patient: Row | undefined
         unit: str(t.unit),
         customRange: orUndef(t.reference_range),
       })),
+  };
+}
+
+/**
+ * The report as the person last left it on this device: the pulled copy with
+ * their not-yet-sent edit laid on top. Fields the edit does not carry (or
+ * carries malformed) keep the pulled values, so a bad payload can never blank a report.
+ */
+export function applyPendingEdit(report: LocalReportDetail, payload: unknown): LocalReportDetail {
+  const p = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
+  const text = (v: unknown, fallback: string) => (typeof v === "string" ? v : fallback);
+  const age = Number(p.age);
+  const tests = Array.isArray(p.tests)
+    ? p.tests
+        .filter((t): t is Record<string, unknown> => !!t && typeof t === "object" && typeof (t as Record<string, unknown>).name === "string")
+        .map((t) => ({
+          name: String(t.name),
+          categoryId: str(t.categoryId),
+          categoryAr: str(t.categoryAr),
+          categoryEn: str(t.categoryEn),
+          value: str(t.value),
+          unit: str(t.unit),
+          customRange: orUndef(t.customRange),
+        }))
+    : report.tests;
+  return {
+    ...report,
+    patientName: text(p.patientName, report.patientName),
+    patientCode: text(p.patientCode, report.patientCode),
+    age: Number.isFinite(age) && age > 0 ? age : report.age,
+    ageUnit: p.ageUnit === undefined ? report.ageUnit : parseAgeUnit(p.ageUnit),
+    gender: p.gender === "أنثى" || p.gender === "ذكر" ? p.gender : report.gender,
+    phone: orUndef(p.phone) ?? report.phone,
+    doctor: text(p.doctor, report.doctor) || report.doctor,
+    notes: orUndef(p.notes),
+    collectedAt: typeof p.collectedAt === "string" && p.collectedAt ? p.collectedAt.slice(0, 10) : report.collectedAt,
+    tests,
   };
 }

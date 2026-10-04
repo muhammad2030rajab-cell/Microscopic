@@ -26,7 +26,7 @@ export const Route = createFileRoute("/reports/$id")({
       const [report, lab, access] = await Promise.all([getLabReport({ data: { id: params.id } }), getCurrentLab(), getCurrentLabPermissions()]);
       const attachments = await listReportAttachments({ data: { reportId: params.id } }).catch(() => [] as ReportAttachment[]);
       const previous = await getPreviousResults({ data: { reportId: params.id } }).catch(() => null as PreviousResults | null);
-      return { report, lab, permissions: access.permissions, role: access.role as string, attachments, previous, offline: false };
+      return { report, lab, permissions: access.permissions, role: access.role as string, attachments, previous, offline: false, pendingEdit: false };
     } catch (err) {
       // No connection: show the copy kept on this device. Read-only — no permissions, so no action buttons.
       const local = await loadLocalReport<LabProfileData>(err, params.id);
@@ -39,9 +39,10 @@ export const Route = createFileRoute("/reports/$id")({
           attachments: [] as ReportAttachment[],
           previous: null as PreviousResults | null,
           offline: true,
+          pendingEdit: local.pendingEdit,
         };
       }
-      return { offline: false, report: null, lab: null as LabProfileData | null, permissions: {} as Record<string, boolean | undefined>, role: "" as string, attachments: [] as ReportAttachment[], previous: null as PreviousResults | null };
+      return { offline: false, pendingEdit: false, report: null, lab: null as LabProfileData | null, permissions: {} as Record<string, boolean | undefined>, role: "" as string, attachments: [] as ReportAttachment[], previous: null as PreviousResults | null };
     }
   },
   component: ReportDetail,
@@ -49,7 +50,7 @@ export const Route = createFileRoute("/reports/$id")({
 
 function ReportDetail() {
   const data = Route.useLoaderData();
-  const { lab, permissions, role, attachments, previous, offline } = data;
+  const { lab, permissions, role, attachments, previous, offline, pendingEdit } = data;
   const navigate = useNavigate();
   const [report, setReport] = useState(data.report);
   const [loading, setLoading] = useState<"submit" | "approve" | "delete" | null>(null);
@@ -148,6 +149,7 @@ function ReportDetail() {
     <div className="no-print">
       <AppShell>
         <div className="mx-auto w-full max-w-4xl">
+          {pendingEdit ? <p role="status" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">فيه تعديل على التقرير ده محفوظ على جهازك ولسه ما اتبعتش. بيتبعت لوحده لما الاتصال يرجع، والبيانات اللي قدامك فيها التعديل.</p> : null}
           {offline ? <p role="status" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">أنت غير متصل. دي نسخة محفوظة على جهازك للعرض والطباعة فقط، ومفيش تعديل أو اعتماد إلا لما الاتصال يرجع.</p> : null}
           <Link to="/reports" className="mb-3 inline-flex h-11 items-center gap-2 text-sm text-ink-soft"><ArrowRight className="size-4" />الأرشيف</Link>
 

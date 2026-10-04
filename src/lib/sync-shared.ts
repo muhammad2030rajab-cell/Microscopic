@@ -87,3 +87,12 @@ export function parsePushBatch(raw: unknown): PushChangeInput[] {
     return { id: c.id as string, entity: c.entity, entityId: c.entityId as string, op: c.op, baseVersion: c.baseVersion, payload: c.payload };
   });
 }
+
+/** A device copy not refreshed for this long stops being shown offline (keep in step with public/offline-archive.js). */
+export const MAX_OFFLINE_DAYS = 14;
+
+export function isMirrorFresh(lastSyncMs: unknown, nowMs: number, maxDays: number = MAX_OFFLINE_DAYS): boolean {
+  if (typeof lastSyncMs !== "number" || !Number.isFinite(lastSyncMs) || lastSyncMs <= 0) return false;
+  const age = nowMs - lastSyncMs;
+  return age >= 0 && age <= maxDays * 86_400_000;
+}

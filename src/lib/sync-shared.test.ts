@@ -6,7 +6,9 @@ import {
   clampSyncLimit,
   collapseChanges,
   isSyncEntity,
+  MAX_OFFLINE_DAYS,
   PUSH_BATCH_MAX,
+  isMirrorFresh,
   parsePushBatch,
   parseSyncCursor,
   type RawSyncChange,
@@ -100,4 +102,14 @@ test("push batch: size cap and duplicate ids", () => {
   assert.throws(() => parsePushBatch({ changes: many }), /PUSH_BATCH_TOO_LARGE/);
   assert.throws(() => parsePushBatch({ changes: [good, good] }), /PUSH_BATCH_DUPLICATE_ID/);
   assert.equal(parsePushBatch({ changes: [] }).length, 0);
+});
+
+test("device copy freshness: recent shows; old, missing, zero and future timestamps do not", () => {
+  const now = 1_000_000_000_000;
+  const day = 86_400_000;
+  assert.equal(isMirrorFresh(now - day, now), true);
+  assert.equal(isMirrorFresh(now - MAX_OFFLINE_DAYS * day, now), true);
+  assert.equal(isMirrorFresh(now - MAX_OFFLINE_DAYS * day - 1, now), false);
+  for (const bad of [undefined, null, 0, -5, NaN, "x"]) assert.equal(isMirrorFresh(bad, now), false, String(bad));
+  assert.equal(isMirrorFresh(now + day, now), false);
 });

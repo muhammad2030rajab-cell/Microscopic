@@ -6,33 +6,69 @@
   <meta name="theme-color" content="#f8fafc">
   <title>لا يوجد اتصال</title>
   <style>
-    :root { color-scheme: light dark; --bg:#f8fafc; --ink:#0f2942; --muted:#5b6b7c; --card:#fff; --line:#d6dee6; --accent:#0f6b63; }
-    @media (prefers-color-scheme: dark) { :root { --bg:#0e1a26; --ink:#e8eef4; --muted:#9db0c2; --card:#15263a; --line:#26405a; --accent:#5fd0c4; } }
+    :root { color-scheme: light dark; --bg:#f8fafc; --ink:#0f2942; --muted:#5b6b7c; --card:#fff; --line:#d6dee6; --accent:#0f6b63; --hi:#b45309; --lo:#1d4ed8; --cr:#b91c1c; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#0e1a26; --ink:#e8eef4; --muted:#9db0c2; --card:#15263a; --line:#26405a; --accent:#5fd0c4; --hi:#fbbf24; --lo:#93c5fd; --cr:#fca5a5; } }
     * { box-sizing: border-box; }
     [hidden] { display:none !important; }
-    body { margin:0; min-height:100dvh; display:grid; place-items:center; padding:1.5rem; background:var(--bg); color:var(--ink);
+    body { margin:0; min-height:100dvh; padding:1rem; background:var(--bg); color:var(--ink);
            font-family: "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
-    main { width:100%; max-width:26rem; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:1.5rem; }
+    main { width:100%; max-width:42rem; margin:0 auto; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:1.25rem; }
     h1 { margin:0 0 .5rem; font-size:1.25rem; }
+    h2 { margin:0 0 .5rem; font-size:1.05rem; }
     p { margin:0 0 1rem; line-height:1.8; color:var(--muted); font-size:.95rem; }
-    a, button { display:flex; align-items:center; justify-content:center; width:100%; min-height:2.75rem; border-radius:8px;
-                font:inherit; font-weight:600; text-decoration:none; cursor:pointer; }
-    a { background:var(--accent); color:#fff; border:0; margin-bottom:.6rem; }
-    button { background:transparent; color:var(--ink); border:1px solid var(--line); }
-    @media (prefers-color-scheme: dark) { a { color:#08211e; } }
+    .btn { display:flex; align-items:center; justify-content:center; width:100%; min-height:2.75rem; border-radius:8px;
+           font:inherit; font-weight:600; text-decoration:none; cursor:pointer; background:transparent; color:var(--ink); border:1px solid var(--line); margin-bottom:.6rem; }
+    .btn.primary { background:var(--accent); color:#fff; border:0; }
+    @media (prefers-color-scheme: dark) { .btn.primary { color:#08211e; } }
+    .tabs { display:flex; gap:.5rem; margin:1rem 0 .75rem; }
+    .tabs button { flex:1; min-height:2.5rem; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--ink); font:inherit; cursor:pointer; }
+    .tabs button[aria-pressed="true"] { background:var(--ink); color:var(--bg); }
+    input[type=search] { width:100%; min-height:2.75rem; border-radius:8px; border:1px solid var(--line); padding:0 .75rem; font:inherit; background:var(--bg); color:var(--ink); margin-bottom:.75rem; }
+    ul { list-style:none; margin:0; padding:0; }
+    li button { width:100%; text-align:start; background:transparent; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:.7rem .8rem; margin-bottom:.5rem; font:inherit; cursor:pointer; }
+    .sub { display:block; color:var(--muted); font-size:.85rem; margin-top:.15rem; }
+    .note { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:.6rem .8rem; font-size:.85rem; color:var(--muted); margin-bottom:.75rem; }
+    table { width:100%; border-collapse:collapse; font-size:.9rem; margin:.5rem 0 1rem; }
+    th, td { text-align:start; padding:.4rem .3rem; border-bottom:1px solid var(--line); vertical-align:top; }
+    .hi { color:var(--hi); font-weight:700; } .lo { color:var(--lo); font-weight:700; } .cr { color:var(--cr); font-weight:700; }
+    pre { white-space:pre-wrap; font:inherit; line-height:1.8; margin:.5rem 0 1rem; }
+    .head { text-align:center; margin-bottom:.75rem; }
+    .meta { display:grid; grid-template-columns:1fr 1fr; gap:.25rem .75rem; font-size:.9rem; margin-bottom:.5rem; }
+    @media print { body { background:#fff; color:#000; padding:0; } main { border:0; padding:0; } .no-print { display:none !important; } }
   </style>
 </head>
 <body>
   <main>
-    <h1>لا يوجد اتصال بالإنترنت</h1>
-    <p id="msg">الصفحة دي محتاجة اتصال. هتفتح لوحدها أول ما النت يرجع.</p>
-    <a id="newBtn" href="/new" hidden>إنشاء تقرير جديد</a>
-    <button type="button" onclick="location.reload()">إعادة المحاولة</button>
+    <section id="msgBox" class="no-print">
+      <h1>لا يوجد اتصال بالإنترنت</h1>
+      <p id="msg">الصفحة دي محتاجة اتصال. هتفتح لوحدها أول ما النت يرجع.</p>
+      <a id="newBtn" class="btn primary" href="/new" hidden>إنشاء تقرير جديد</a>
+      <button class="btn" type="button" onclick="location.reload()">إعادة المحاولة</button>
+    </section>
+
+    <section id="archive" hidden>
+      <div class="note no-print">نسخة محفوظة على الجهاز للعرض والطباعة فقط. أي تعديل أو اعتماد بعد ما الاتصال يرجع.</div>
+      <div class="tabs no-print" role="tablist">
+        <button type="button" id="tabReports" aria-pressed="true">التقارير</button>
+        <button type="button" id="tabMethods" aria-pressed="false">كيف يتم التحليل؟</button>
+      </div>
+      <input id="q" class="no-print" type="search" placeholder="ابحث بالاسم أو الكود أو رقم العينة أو الهاتف" aria-label="بحث">
+      <div id="count" class="note no-print"></div>
+      <ul id="list"></ul>
+      <div id="detail" hidden></div>
+    </section>
   </main>
+
+  <script src="/offline-archive.js"></script>
   <script>
     (function () {
-      var msg = document.getElementById("msg");
-      var btn = document.getElementById("newBtn");
+      var A = window.OfflineArchive;
+      var LAB_KEY = "rajab:offline:lab-id";
+      var PROFILE_KEY = "microscopic:lab-profile:v1";
+      var $ = function (id) { return document.getElementById(id); };
+      var msg = $("msg"), btn = $("newBtn");
+
+      // --- "new report" shortcut (unchanged behaviour)
       if (window.caches) {
         caches.match("/new").then(function (hit) {
           if (hit) {
@@ -44,6 +80,164 @@
         }).catch(function () {});
       }
       window.addEventListener("online", function () { location.reload(); });
+
+      // --- device copy (IndexedDB written by the app's sync). Read-only; never creates the database.
+      function openExisting() {
+        return new Promise(function (resolve, reject) {
+          var req = indexedDB.open("microscopic-sync");
+          req.onupgradeneeded = function () { req.transaction.abort(); }; // it did not exist: do not create it empty
+          req.onsuccess = function () { resolve(req.result); };
+          req.onerror = function () { reject(req.error || new Error("no-db")); };
+        });
+      }
+      function all(db, store) {
+        return new Promise(function (resolve, reject) {
+          var r = db.transaction(store).objectStore(store).getAll();
+          r.onsuccess = function () { resolve(r.result); };
+          r.onerror = function () { reject(r.error); };
+        });
+      }
+      function get(db, store, key) {
+        return new Promise(function (resolve, reject) {
+          var r = db.transaction(store).objectStore(store).get(key);
+          r.onsuccess = function () { resolve(r.result); };
+          r.onerror = function () { reject(r.error); };
+        });
+      }
+      function byReport(db, id) {
+        return new Promise(function (resolve, reject) {
+          var r = db.transaction("report_results").objectStore("report_results").index("by_report").getAll(IDBKeyRange.only(id));
+          r.onsuccess = function () { resolve(r.result); };
+          r.onerror = function () { reject(r.error); };
+        });
+      }
+
+      function el(tag, text, cls) {
+        var e = document.createElement(tag);
+        if (text != null) e.textContent = text; // textContent only: patient names are never parsed as HTML
+        if (cls) e.className = cls;
+        return e;
+      }
+      function field(label, value) {
+        var d = el("div"); d.appendChild(el("span", label + ": ", "sub")); d.appendChild(document.createTextNode(value || "—")); return d;
+      }
+
+      var profile = null;
+      try { profile = JSON.parse(localStorage.getItem(PROFILE_KEY) || "null"); } catch (e) {}
+      var state = { db: null, labId: null, tab: "reports", reports: [], methods: [] };
+
+      function renderList() {
+        var q = $("q").value, list = $("list");
+        list.textContent = "";
+        $("detail").hidden = true; list.hidden = false; $("q").hidden = false; $("count").hidden = false;
+        var rows = state.tab === "reports" ? state.reports : state.methods;
+        var shown = rows.filter(function (r) { return A.matches(q, state.tab === "reports" ? A.searchFields(r) : [r.name, r.category]); });
+        $("count").textContent = shown.length + " من " + rows.length + (shown.length > 100 ? " (بنعرض أول 100، ضيّق البحث)" : "");
+        shown.slice(0, 100).forEach(function (r) {
+          var li = el("li"), b = el("button");
+          b.type = "button";
+          b.appendChild(el("span", r.name));
+          b.appendChild(el("span", state.tab === "reports"
+            ? [r.age, r.gender, r.code, A.statusText(r.status), r.createdAt.slice(0, 10)].filter(Boolean).join(" · ")
+            : [r.category, r.method ? "طريقة العمل ✓" : "غير مسجّلة"].join(" · "), "sub"));
+          b.onclick = function () { state.tab === "reports" ? openReport(r) : openMethod(r); };
+          li.appendChild(b); list.appendChild(li);
+        });
+      }
+
+      function showDetail(nodes) {
+        var d = $("detail");
+        d.textContent = "";
+        var back = el("button", "رجوع للقايمة", "btn no-print"); back.type = "button"; back.onclick = renderList;
+        d.appendChild(back);
+        nodes.forEach(function (n) { d.appendChild(n); });
+        $("list").hidden = true; $("q").hidden = true; $("count").hidden = true; d.hidden = false;
+        window.scrollTo(0, 0);
+      }
+
+      function labHeader() {
+        var h = el("div", null, "head");
+        if (profile) {
+          h.appendChild(el("h2", profile.lab_name || ""));
+          var line = [profile.address, profile.phone].filter(Boolean).join(" · ");
+          if (line) h.appendChild(el("div", line, "sub"));
+        }
+        return h;
+      }
+
+      function openReport(r) {
+        byReport(state.db, r.id).then(function (results) {
+          results.sort(function (a, b) { return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0); });
+          var nodes = [labHeader(), el("h2", r.name)];
+          var meta = el("div", null, "meta");
+          [["السن", r.age], ["النوع", r.gender], ["كود المريض", r.code], ["رقم العينة", r.sampleId],
+           ["الطبيب", r.doctor], ["التاريخ", r.createdAt.slice(0, 10)], ["الحالة", A.statusText(r.status)]].forEach(function (p) { meta.appendChild(field(p[0], p[1])); });
+          nodes.push(meta);
+          var t = el("table"), head = el("tr");
+          ["التحليل", "النتيجة", "الوحدة", "المدى المرجعي", ""].forEach(function (h) { head.appendChild(el("th", h)); });
+          t.appendChild(head);
+          results.forEach(function (x) {
+            var f = A.flagInfo(x.flag), tr = el("tr");
+            tr.appendChild(el("td", x.test_name));
+            tr.appendChild(el("td", x.result_value, f.cls));
+            tr.appendChild(el("td", x.unit || ""));
+            tr.appendChild(el("td", x.reference_range || ""));
+            tr.appendChild(el("td", f.text, f.cls));
+            t.appendChild(tr);
+          });
+          nodes.push(t);
+          if (r.notes) nodes.push(el("p", "ملاحظات: " + r.notes));
+          if (r.status !== "approved") nodes.push(el("p", "تنبيه: التقرير ده لسه مش معتمد.", "cr"));
+          var pr = el("button", "طباعة", "btn primary no-print"); pr.type = "button"; pr.onclick = function () { window.print(); };
+          nodes.push(pr);
+          showDetail(nodes);
+        });
+      }
+
+      function openMethod(m) {
+        showDetail([el("h2", m.name), el("div", m.category, "sub"), m.method ? el("pre", m.method) : el("p", "لسه محدش سجّل طريقة العمل لهذا التحليل.")]);
+      }
+
+      function setTab(tab) {
+        state.tab = tab;
+        $("tabReports").setAttribute("aria-pressed", String(tab === "reports"));
+        $("tabMethods").setAttribute("aria-pressed", String(tab === "methods"));
+        $("q").value = "";
+        renderList();
+      }
+      $("tabReports").onclick = function () { setTab("reports"); };
+      $("tabMethods").onclick = function () { setTab("methods"); };
+      $("q").addEventListener("input", renderList);
+
+      function stale(why) {
+        msg.textContent = why;
+        $("msgBox").hidden = false;
+      }
+
+      if (typeof indexedDB === "undefined") return;
+      var labId = null;
+      try { labId = localStorage.getItem(LAB_KEY); } catch (e) {}
+      if (!labId) return;
+      openExisting().then(function (db) {
+        return get(db, "meta", "lastSync:" + labId).then(function (meta) {
+          // Not refreshed for weeks = not shown, so an old phone does not keep a lab's patients readable forever.
+          if (!meta || !A.isFresh(meta.value, Date.now())) {
+            stale("النسخة المحفوظة على الجهاز قديمة (آخر مزامنة من أكتر من " + A.MAX_OFFLINE_DAYS + " يوم). افتح التطبيق وانت متصل بالنت عشان تتجدد.");
+            return;
+          }
+          return Promise.all([all(db, "reports"), all(db, "patients"), all(db, "lab_test_catalog")]).then(function (res) {
+            state.db = db; state.labId = labId;
+            state.reports = A.buildList(res[0], res[1], labId);
+            state.methods = res[2].filter(function (c) { return String(c.lab_id) === labId; }).map(function (c) {
+              return { name: String(c.test_name || ""), category: String(c.category_name_ar || ""), method: String(c.method_info || "").trim() };
+            }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+            if (!state.reports.length && !state.methods.length) return;
+            $("archive").hidden = false;
+            $("msgBox").classList.add("no-print");
+            renderList();
+          });
+        });
+      }).catch(function () { /* no local copy: the plain offline message above stays */ });
     })();
   </script>
 </body>

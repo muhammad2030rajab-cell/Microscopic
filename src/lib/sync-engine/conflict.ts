@@ -57,3 +57,25 @@ export function decidePush(input: {
   if (baseVersion === server.version) return { kind: "apply" };
   return { kind: "conflict", reason: baseVersion < server.version ? "server_newer" : "version_mismatch" };
 }
+
+/** What the server remembers about a change id it already applied (null = never seen). */
+export type AppliedRecord = { resultVersion: number | null; payloadHash: string } | null;
+
+export type Reconciled =
+  /** Same change arrived again (the reply was lost). Answer "applied" with the version it produced; write nothing. */
+  | { kind: "already_applied"; version: number | null }
+  /** Decide normally, against this base version. */
+  | { kind: "proceed"; baseVersion: number | null };
+
+/**
+ * Run BEFORE decidePush. Same id + same content = a retry. Same id + different
+ * content = the device edited again before it heard back, so the new content
+ * builds on the version its own earlier write produced — never conflicts with
+ * itself. Someone else's change in between still conflicts (decidePush compares
+ * against the server's real version).
+ */
+export function reconcileWithApplied(applied: AppliedRecord, incoming: { baseVersion: number | null; payloadHash: string }): Reconciled {
+  if (!applied) return { kind: "proceed", baseVersion: incoming.baseVersion };
+  if (applied.payloadHash === incoming.payloadHash) return { kind: "already_applied", version: applied.resultVersion };
+  return { kind: "proceed", baseVersion: applied.resultVersion ?? incoming.baseVersion };
+}

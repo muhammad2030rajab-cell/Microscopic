@@ -8,6 +8,11 @@ const { decide, cacheable } = globalThis.SwRules;
 const origin = "https://app.example";
 const d = (path, extra = {}) => decide({ method: "GET", url: origin + path, origin, ...extra });
 
+test("the offline archive script is served from the cache like offline.html", () => {
+  assert.equal(d("/offline-archive.js"), "revalidate");
+  assert.equal(d("/offline.html"), "revalidate");
+});
+
 test("writes and server functions are never intercepted", () => {
   assert.equal(decide({ method: "POST", url: origin + "/new", origin }), "bypass");
   assert.equal(d("/_serverFn/abc123"), "bypass");

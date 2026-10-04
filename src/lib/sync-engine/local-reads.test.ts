@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { toReportDetail, toReportSummaries } from "./local-reads.ts";
+import { applyPendingEdit, toReportDetail, toReportSummaries } from "./local-reads.ts";
 
 const patient = { id: "p1", full_name: "منى أحمد", patient_code: "P-1", age: 25, age_unit: "years", gender: "أنثى", phone: "01012345678", national_id: null };
 const report = (id: string, created: string, over: Record<string, unknown> = {}) => ({
@@ -58,4 +58,45 @@ test("detail: tests in sort order with the server's field names", () => {
 test("detail: missing report or patient = null, never a half-filled object", () => {
   assert.equal(toReportDetail(undefined, patient, []), null);
   assert.equal(toReportDetail(report("a", "2026-10-01T00:00:00Z"), undefined, []), null);
+});
+
+const baseDetail = () =>
+  toReportDetail(report("a", "2026-10-01T00:00:00Z", { version: 4 }), patient, [
+    { test_name: "Hb", category_id: "hem", category_ar: "دم", category_en: "Hematology", result_value: "13", unit: "g/dL", reference_range: null, sort_order: 0 },
+  ])!;
+
+test("detail carries the pulled version: the base of an offline edit", () => {
+  assert.equal(baseDetail().version, 4);
+  assert.equal(toReportDetail(report("a", "2026-10-01T00:00:00Z"), patient, [])!.version, 1);
+});
+
+test("pending edit is laid over the pulled copy", () => {
+  const out = applyPendingEdit(baseDetail(), {
+    patientName: "منى أحمد علي", age: 26, gender: "أنثى", doctor: "د. سامي", notes: "جائع",
+    tests: [{ name: "Hb", categoryId: "hem", categoryAr: "دم", categoryEn: "Hematology", value: "11.5", unit: "g/dL" }],
+  });
+  assert.equal(out.patientName, "منى أحمد علي");
+  assert.equal(out.age, 26);
+  assert.equal(out.doctor, "د. سامي");
+  assert.equal(out.notes, "جائع");
+  assert.equal(out.tests[0].value, "11.5");
+  assert.equal(out.version, 4); // the base version stays the pulled one
+  assert.equal(out.id, "a");
+});
+
+test("a malformed pending edit never blanks the report", () => {
+  const base = baseDetail();
+  for (const bad of [null, undefined, 5, "x", [], { age: "abc", gender: "?", tests: "no", patientName: 7, collectedAt: "" }]) {
+    const out = applyPendingEdit(base, bad);
+    assert.equal(out.patientName, base.patientName);
+    assert.equal(out.age, base.age);
+    assert.equal(out.gender, base.gender);
+    assert.deepEqual(out.tests, base.tests);
+    assert.equal(out.collectedAt, base.collectedAt);
+  }
+});
+
+test("pending edit: tests without a name are dropped, the rest kept", () => {
+  const out = applyPendingEdit(baseDetail(), { tests: [{ name: "WBC", value: "7" }, { value: "9" }, null] });
+  assert.deepEqual(out.tests.map((t) => t.name), ["WBC"]);
 });

@@ -2,12 +2,13 @@
  * - hashed build assets: cache-first
  * - icons / fonts: stale-while-revalidate
  * - /new HTML: network-first, cached copy only when the page asks (logged in)
- * - every other page: network only, friendly offline.html on failure
+ * - every other page: network only; on failure offline.html, which also shows the device copy
+ *   of the archive (read-only) straight from IndexedDB
  * - server functions, /api, non-GET: never touched, never cached
  * Patient pages are deliberately NOT cached. */
 importScripts("/sw-rules.js");
 
-var VERSION = "v2";
+var VERSION = "v3";
 var STATIC = "rajab-static-" + VERSION;
 var PAGES = "rajab-pages-" + VERSION;
 var KEEP = [STATIC, PAGES];
@@ -16,7 +17,7 @@ self.addEventListener("install", function (event) {
   event.waitUntil(
     caches
       .open(PAGES)
-      .then(function (c) { return c.add("/offline.html"); })
+      .then(function (c) { return c.addAll(["/offline.html", "/offline-archive.js"]); })
       .then(function () { return self.skipWaiting(); }),
   );
 });
@@ -109,7 +110,7 @@ self.addEventListener("message", function (event) {
     // Sign-out: forget every saved page (offline.html is re-added).
     event.waitUntil(
       caches.delete(PAGES).then(function () {
-        return caches.open(PAGES).then(function (c) { return c.add("/offline.html"); });
+        return caches.open(PAGES).then(function (c) { return c.addAll(["/offline.html", "/offline-archive.js"]); });
       }),
     );
   }

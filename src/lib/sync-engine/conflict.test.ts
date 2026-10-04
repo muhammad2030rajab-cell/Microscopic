@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decidePush } from "./conflict.ts";
+import { decidePush, reconcileWithApplied } from "./conflict.ts";
 
 const draft = (version: number) => ({ version, status: "draft" });
 
@@ -47,4 +47,29 @@ test("patients on their own, catalog and attachments cannot be written offline i
       assert.deepEqual(decidePush({ entity, op, baseVersion: 1, server: { version: 1 } }), { kind: "reject", reason: "not_supported_offline" });
     }
   }
+});
+
+test("reconcile: a change id never seen is decided normally", () => {
+  assert.deepEqual(reconcileWithApplied(null, { baseVersion: 3, payloadHash: "h1" }), { kind: "proceed", baseVersion: 3 });
+});
+
+test("reconcile: the same change arriving again is answered, not re-applied", () => {
+  assert.deepEqual(
+    reconcileWithApplied({ resultVersion: 4, payloadHash: "h1" }, { baseVersion: 3, payloadHash: "h1" }),
+    { kind: "already_applied", version: 4 },
+  );
+});
+
+test("reconcile: an edit made again before the reply builds on the device's own earlier write", () => {
+  assert.deepEqual(
+    reconcileWithApplied({ resultVersion: 4, payloadHash: "h1" }, { baseVersion: 3, payloadHash: "h2" }),
+    { kind: "proceed", baseVersion: 4 },
+  );
+  // ...and that is then judged against the server's real version: still a conflict if someone else edited since.
+  assert.deepEqual(decidePush({ entity: "reports", op: "upsert", baseVersion: 4, server: { version: 5, status: "draft" } }), { kind: "conflict", reason: "server_newer" });
+  assert.deepEqual(decidePush({ entity: "reports", op: "upsert", baseVersion: 4, server: { version: 4, status: "draft" } }), { kind: "apply" });
+});
+
+test("reconcile: no recorded version falls back to the incoming base", () => {
+  assert.deepEqual(reconcileWithApplied({ resultVersion: null, payloadHash: "h1" }, { baseVersion: 3, payloadHash: "h2" }), { kind: "proceed", baseVersion: 3 });
 });

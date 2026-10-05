@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { ArrowDown, ArrowRight, ArrowUp, CheckCircle2, ChevronDown, ClipboardCheck, FileDown, Loader2, Mail, MessageCircle, Minus, Pencil, Printer, Send, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, CheckCircle2, ChevronDown, ClipboardCheck, FileDown, Loader2, Mail, MessageCircle, Minus, Pencil, Printer, Send, Share2, Trash2, TriangleAlert } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportSheet } from "@/components/report/report-sheet";
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,14 @@ import { getCurrentLabPermissions } from "@/lib/lab-users";
 import { loadLocalReport } from "@/lib/sync-engine/offline-fallback";
 import { useNavigate } from "@tanstack/react-router";
 import { reportStatusClasses, reportStatusLabels } from "@/lib/report-workflow";
-import { downloadReportPdf } from "@/lib/generate-report-pdf";
+import { buildReportPdf, downloadReportPdf } from "@/lib/generate-report-pdf";
 import { formatSlashDate, visitIdFrom } from "@/lib/utils";
 import { listReportAttachments, type ReportAttachment } from "@/lib/attachments";
 import { AttachmentsPanel } from "@/components/report/attachments-panel";
 import { getReportDesignAssets } from "@/lib/report-design-settings";
 import { normalizeDesign, normalizeAsset, isReportTemplate, REPORT_TEMPLATES, type ReportDesignAssets, type ReportTemplate } from "@/lib/report-design";
 import { ShareDialog, type ShareChannel } from "@/components/report/share-dialog";
+import { PdfShareDialog } from "@/components/report/pdf-share-dialog";
 import { toWhatsAppNumber } from "@/lib/phone";
 import { ageToYears, formatAge } from "@/lib/age";
 import { REPORT_LANGS, isReportLang, type ReportLang } from "@/lib/report-strings";
@@ -59,6 +60,7 @@ function ReportDetail() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [error, setError] = useState("");
   const [shareChannel, setShareChannel] = useState<ShareChannel | null>(null);
+  const [pdfShareOpen, setPdfShareOpen] = useState(false);
   // null = follow the lab's setting; a choice made on this device overrides it.
   const [langChoice, setLangChoice] = useState<ReportLang | null>(null);
   // "" = the lab's own template; a choice made on this device overrides it for printing.
@@ -239,13 +241,14 @@ function ReportDetail() {
                 {REPORT_TEMPLATES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
               </select>
             </div>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               <ShareAction icon={pdfLoading ? <Loader2 className="size-5 animate-spin" /> : <FileDown className="size-5" />} label={pdfLoading ? "جارٍ الإنشاء…" : "حفظ PDF"} color="bg-red-500/10 text-red-600" onClick={downloadPdf} disabled={pdfLoading} />
               <ShareAction icon={<Printer className="size-5" />} label="طباعة" color="bg-slate-500/10 text-slate-600" onClick={() => window.print()} />
+              <ShareAction icon={<Share2 className="size-5" />} label="مشاركة PDF" color="bg-sky-500/10 text-sky-600" onClick={() => setPdfShareOpen(true)} />
               <ShareAction icon={<MessageCircle className="size-5" />} label="واتساب" color="bg-emerald-500/10 text-emerald-600" onClick={() => setShareChannel("whatsapp")} />
               <ShareAction icon={<Mail className="size-5" />} label="بريد" color="bg-teal/10 text-teal" onClick={() => setShareChannel("email")} />
             </div>
-            <p className="mt-2.5 px-1 text-xs leading-5 text-muted">واتساب بيفتح محادثة المريض على رقمه المسجّل، ومعاه رابط تحقق (أو ملخص نصي بعد تأكيدك). لإرسال التقرير بشكله الكامل استخدم "حفظ PDF" وأرفق الملف يدويًا.</p>
+            <p className="mt-2.5 px-1 text-xs leading-5 text-muted">واتساب بيفتح محادثة المريض على رقمه المسجّل، ومعاه رابط تحقق (أو ملخص نصي بعد تأكيدك). لإرسال التقرير بشكله الكامل كملف استخدم "مشاركة PDF" واختار واتساب من القائمة.</p>
           </section>
 
           <AttachmentsPanel reportId={report.id} canEdit={permissions["reports.edit"] === true} initial={attachments} />
@@ -288,6 +291,16 @@ function ReportDetail() {
         </div>
       </AppShell>
     </div>
+    <PdfShareDialog
+      open={pdfShareOpen}
+      onClose={() => setPdfShareOpen(false)}
+      build={() => {
+        if (!printRef.current) return Promise.reject(new Error("التقرير لسه بيتحمّل"));
+        return buildReportPdf(printRef.current);
+      }}
+      filename={`تقرير-${report.patientName}-${visit}.pdf`}
+      title={`تقرير ${report.patientName}`}
+    />
     <ShareDialog
       channel={shareChannel}
       onClose={() => setShareChannel(null)}

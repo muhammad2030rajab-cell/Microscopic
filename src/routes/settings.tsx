@@ -96,9 +96,9 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
           <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-paper text-muted">
             {logoUrl ? <img src={logoUrl} alt="شعار المعمل" className="size-full object-cover" /> : "🔬"}
           </div>
-          <div>
+          <div className="min-w-0">
             <Label htmlFor="lab-logo">شعار المعمل</Label>
-            <input id="lab-logo" type="file" accept="image/*" onChange={onLogoChange} className="mt-1 block text-xs text-muted file:mr-2 file:rounded-md file:border-0 file:bg-teal/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-teal" />
+            <input id="lab-logo" type="file" accept="image/*" onChange={onLogoChange} className="mt-1 block w-full max-w-full text-xs text-muted file:mr-2 file:rounded-md file:border-0 file:bg-teal/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-teal" />
             <p className="mt-1 text-[11px] text-muted">هيظهر تلقائيًا في كل تقرير تطبعه (حد أقصى 500 كيلوبايت)</p>
           </div>
         </div>

@@ -50,7 +50,7 @@ async function waitForImages(root: HTMLElement): Promise<void> {
   if (pending.length) await Promise.race([Promise.all(pending), new Promise((r) => setTimeout(r, 4000))]);
 }
 
-export async function downloadReportPdf(element: HTMLElement, filename: string): Promise<void> {
+export async function buildReportPdf(element: HTMLElement): Promise<Blob> {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
 
   // Behind the app (z-index -1) rather than far off-screen: html2canvas renders elements that are
@@ -141,8 +141,33 @@ export async function downloadReportPdf(element: HTMLElement, filename: string):
       });
     }
 
-    pdf.save(filename);
+    return pdf.output("blob");
   } finally {
     host.remove();
+  }
+}
+
+/** Saves a Blob as a file download (what jsPDF.save() did before the build step was split out). */
+export function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+export async function downloadReportPdf(element: HTMLElement, filename: string): Promise<void> {
+  saveBlob(await buildReportPdf(element), filename);
+}
+
+/** True when this browser can hand a PDF file to the system share sheet (Android Chrome, iOS Safari...). */
+export function canSharePdfFile(file: File): boolean {
+  try {
+    return typeof navigator !== "undefined" && typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
+  } catch {
+    return false;
   }
 }

@@ -73,7 +73,7 @@ export function ShareDialog({
           {isWhatsapp ? "مشاركة عبر واتساب" : "مشاركة عبر البريد"}
         </h2>
 
-        <fieldset className="space-y-2">
+        <fieldset className="min-w-0 space-y-2">
           <legend className="sr-only">محتوى الرسالة</legend>
           <label className="flex cursor-pointer gap-3 rounded-md border border-line p-3 text-sm has-[:checked]:border-teal has-[:checked]:bg-paper">
             <input type="radio" name="share-mode" className="mt-1" checked={mode === "link"} onChange={() => setMode("link")} />

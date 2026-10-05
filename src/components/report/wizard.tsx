@@ -975,9 +975,9 @@ function ReviewStep({ draft, gender, rangeFor }: { draft: Draft; gender: Gender;
         <table className="w-full text-sm">
           <thead className="bg-paper-2/60 text-xs text-muted">
             <tr>
-              <th className="px-4 py-2 text-start font-medium">التحليل</th>
-              <th className="px-4 py-2 text-start font-medium">النتيجة</th>
-              <th className="px-4 py-2 text-start font-medium">الحالة</th>
+              <th className="px-3 py-2 text-start sm:px-4 font-medium">التحليل</th>
+              <th className="px-3 py-2 text-start sm:px-4 font-medium">النتيجة</th>
+              <th className="px-3 py-2 text-start sm:px-4 font-medium">الحالة</th>
             </tr>
           </thead>
           <tbody>
@@ -985,11 +985,11 @@ function ReviewStep({ draft, gender, rangeFor }: { draft: Draft; gender: Gender;
               const interp = interpretResult(t.name, t.value, gender, t.customRange || rangeFor(t), ageNumberOrUndefined, t.categoryId);
               return (
                 <tr key={`${t.categoryId}-${t.name}`} className="border-t border-line">
-                  <td className="px-4 py-2.5">{t.name}</td>
-                  <td className="px-4 py-2.5 tabular-nums">
+                  <td className="px-3 py-2.5 sm:px-4">{t.name}</td>
+                  <td className="px-3 py-2.5 sm:px-4 tabular-nums">
                     {t.value} {t.unit}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-3 py-2.5 sm:px-4">
                     <FlagBadge flag={interp.flag} />
                   </td>
                 </tr>

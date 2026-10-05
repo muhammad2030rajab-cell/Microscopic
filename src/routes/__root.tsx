@@ -50,7 +50,7 @@ export const Route = createRootRoute({
 
       {
         rel: "apple-touch-icon",
-        href: "/icon-192.png",
+        href: "/icon-180.png",
       },
 
       {
@@ -74,10 +74,12 @@ export const Route = createRootRoute({
         crossOrigin: "anonymous",
       },
 
+    ],
+
+    scripts: [
       {
-        rel: "stylesheet",
-        href:
-          "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap",
+        children:
+          '(function(){var l=document.createElement("link");l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap";document.head.appendChild(l);})();',
       },
     ],
   }),

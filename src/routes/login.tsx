@@ -56,15 +56,6 @@ type AccountType = "admin" | "user";
 
 const ACCOUNT_TYPE_KEY = "microscopic:login-account-type";
 
-const WHATSAPP_MESSAGE = `السلام عليكم د. محمد رجب 👋
-أرغب في إنشاء حساب على Microscopic System.
-
-اسم المعمل:
-اسم المسؤول:
-رقم الهاتف:
-
-شكرًا لكم.`;
-
 const ACCOUNT_TYPES: Array<{
   value: AccountType;
   label: string;
@@ -216,10 +207,6 @@ function Login() {
       setLoading(false);
     }
   }
-
-  const whatsappUrl =
-    `https://wa.me/${supportWhatsapp}?text=` +
-    encodeURIComponent(WHATSAPP_MESSAGE);
 
   return (
     <main
@@ -416,7 +403,7 @@ function Login() {
               </p>
 
               <a
-                href={whatsappUrl}
+                href={CONTACT_URL}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/10 px-4 text-sm font-semibold text-[#128C7E] transition-colors hover:bg-[#25D366]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"

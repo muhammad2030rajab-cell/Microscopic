@@ -25,8 +25,8 @@ async function reachable(base) {
   try {
     if (http) {
       // Native request: no CORS and no mixed-content block, so http://192.168.x.x works from this https page.
-      const res = await http.get({ url, connectTimeout: 4000, readTimeout: 4000 });
-      return res.status >= 200 && res.status < 500;
+      const res = await withTimeout(http.get({ url, connectTimeout: 4000, readTimeout: 4000 }), 6000);
+      return res.status >= 100; // any answer means the server is there (even a 503 from its DB check)
     }
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 4000);
@@ -39,6 +39,11 @@ async function reachable(base) {
   } catch {
     return false;
   }
+}
+
+/** Never wait forever: native calls can hang on some networks. */
+function withTimeout(promise, ms) {
+  return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))]);
 }
 
 async function check(settings) {
@@ -61,8 +66,16 @@ async function connect() {
   cancelled = false;
   const settings = load();
   setStatus("جاري الاتصال…");
+  if (settings.mode === "cloud") {
+    setStatus("متصل بالسحابة…", "ok");
+    window.location.href = settings.cloudUrl + "/";
+    return;
+  }
   const reach = await check(settings);
-  if (cancelled) return;
+  if (cancelled) {
+    setStatus("اختار فتح البرنامج أو غيّر الإعدادات.");
+    return;
+  }
   const pick = pickTarget(settings, reach);
   if (!pick) {
     const where = settings.mode === "hub" ? "المركز المحلي" : settings.mode === "auto" ? "السحابة ولا المركز" : "السحابة";

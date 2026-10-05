@@ -118,17 +118,17 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">شكل التقرير</legend>
             <p className="text-[11px] leading-5 text-muted">اختار الشكل الافتراضي للمعمل. الصور دي معاينة ببيانات معملك. وكل مستخدم يقدر يغيّره لطباعة تقرير معيّن من صفحة التقرير.</p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
               {REPORT_TEMPLATES.map((t) => (
                 <button key={t.key} type="button" aria-pressed={design.template === t.key} onClick={() => patch({ template: t.key })}
                   className={`overflow-hidden rounded-xl border-2 bg-paper text-start transition-colors ${design.template === t.key ? "border-teal" : "border-line hover:border-line-strong"}`}>
                   <TemplateThumb template={t.key} lab={previewLab} />
-                  <span className="block px-2.5 py-2">
-                    <span className="flex items-center justify-between gap-2 text-sm font-medium">
+                  <span className="block px-2 py-1.5">
+                    <span className="flex flex-wrap items-center justify-between gap-1 text-[13px] font-medium leading-5">
                       {t.label}
                       {design.template === t.key ? <span className="rounded-full bg-teal px-2 py-0.5 text-[10px] text-teal-fg">المختار</span> : null}
                     </span>
-                    <span className="mt-0.5 block text-[11px] leading-4 text-muted">{t.hint}</span>
+                    <span className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted">{t.hint}</span>
                   </span>
                 </button>
               ))}
@@ -270,7 +270,7 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
  * - The box is forced LTR: this app is RTL, and an 860px block inside a narrower RTL box overflows
  *   to the LEFT, so scaling from the top-left left the preview shifted and clipped.
  * - Height follows the sheet's real height; tiny changes are ignored so the page never "breathes".
- * - `crop` keeps a fixed 4:5 window on the top of the sheet (for the gallery thumbnails).
+ * - `crop` keeps a fixed A4 (210:297) window so the whole page shows in the gallery thumbnails.
  */
 function ScaledSheet({ children, className = "", crop = false }: { children: ReactNode; className?: string; crop?: boolean }) {
   const boxRef = useRef<HTMLDivElement>(null);
@@ -299,7 +299,7 @@ function ScaledSheet({ children, className = "", crop = false }: { children: Rea
       ref={boxRef}
       dir="ltr"
       aria-hidden
-      className={`relative w-full overflow-hidden ${crop ? "aspect-[4/5]" : ""} ${className}`}
+      className={`relative w-full overflow-hidden ${crop ? "aspect-[210/297]" : ""} ${className}`}
       style={crop ? undefined : { height: innerHeight * scale }}
     >
       <div

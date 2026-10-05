@@ -4,7 +4,25 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Microscopic</title>
+  <script>
+    // Open the app at once in cloud mode (the default): decide before anything is drawn, so no launcher flash.
+    // Coming back with the Back button, or any non-cloud mode, keeps the launcher screen.
+    (function () {
+      try {
+        var nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
+        if (nav && nav.type === "back_forward") return;
+        var raw = localStorage.getItem("microscopic.launcher.v1");
+        var s = raw ? JSON.parse(raw) : null;
+        var mode = s && s.mode ? s.mode : "cloud";
+        var url = s && /^https?:\/\//i.test(s.cloudUrl || "") ? s.cloudUrl : "https://microscopic.vercel.app";
+        if (mode !== "cloud") return;
+        document.documentElement.className = "go";
+        window.location.href = url.replace(/\/+$/, "") + "/";
+      } catch (e) { /* fall through to the normal launcher */ }
+    })();
+  </script>
   <style>
+    html.go body { visibility: hidden; }
     :root { color-scheme: light dark; --bg:#f6f7f9; --fg:#14181f; --card:#fff; --line:#d9dde3; --accent:#0f6fff; --bad:#c62828; --ok:#1b7f3b; }
     @media (prefers-color-scheme: dark) { :root { --bg:#10141a; --fg:#eef1f5; --card:#1a2029; --line:#2d3643; } }
     * { box-sizing: border-box; }

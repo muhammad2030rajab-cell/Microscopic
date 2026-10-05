@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Microscopic</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f6f7f9; --fg:#14181f; --card:#fff; --line:#d9dde3; --accent:#0f6fff; --bad:#c62828; --ok:#1b7f3b; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#10141a; --fg:#eef1f5; --card:#1a2029; --line:#2d3643; } }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, "Segoe UI", Tahoma, sans-serif; background:var(--bg); color:var(--fg);
+      padding: max(20px, env(safe-area-inset-top)) 18px max(20px, env(safe-area-inset-bottom)); min-height:100vh; display:flex; flex-direction:column; gap:16px; }
+    h1 { font-size:22px; margin:8px 0 0; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:12px; }
+    label { font-size:14px; display:flex; flex-direction:column; gap:6px; }
+    input[type=text] { font-size:16px; padding:12px; border-radius:10px; border:1px solid var(--line); background:transparent; color:inherit; direction:ltr; text-align:left; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; }
+    button { font-size:16px; padding:12px 16px; border-radius:10px; border:1px solid var(--line); background:transparent; color:inherit; flex:1; min-width:120px; }
+    button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .status { font-size:15px; min-height:22px; }
+    .ok { color:var(--ok); } .bad { color:var(--bad); }
+    .modes label { flex-direction:row; align-items:center; gap:10px; }
+    small { opacity:.7; line-height:1.5; }
+    [hidden] { display:none !important; }
+  </style>
+</head>
+<body>
+  <h1>Microscopic</h1>
+
+  <div class="card">
+    <div id="status" class="status">جاري التحميل…</div>
+    <div class="row">
+      <button id="open" class="primary">فتح البرنامج</button>
+      <button id="toggle">الإعدادات</button>
+    </div>
+  </div>
+
+  <div id="settings" class="card" hidden>
+    <div class="modes">
+      <label><input type="radio" name="mode" value="cloud" /> السحابة فقط</label>
+      <label><input type="radio" name="mode" value="hub" /> المركز المحلي فقط</label>
+      <label><input type="radio" name="mode" value="auto" /> تلقائي (السحابة، ولو مش متاحة المركز)</label>
+    </div>
+    <label>عنوان السحابة
+      <input id="cloudUrl" type="text" inputmode="url" autocapitalize="off" autocomplete="off" />
+    </label>
+    <label>عنوان المركز المحلي (مثال: 192.168.1.20:8080)
+      <input id="hubUrl" type="text" inputmode="url" autocapitalize="off" autocomplete="off" />
+    </label>
+    <div class="row">
+      <button id="save" class="primary">حفظ</button>
+      <button id="test">اختبار الاتصال</button>
+    </div>
+    <div id="testResult" class="status"></div>
+    <small>تنبيه: السحابة والمركز قاعدتا بيانات منفصلتان لحد ما تتفعّل المزامنة بينهما، فالتقارير المكتوبة على واحدة مش هتظهر على التانية.</small>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

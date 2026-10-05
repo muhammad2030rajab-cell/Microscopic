@@ -25,3 +25,8 @@ npm-debug.log*
 .DS_Store
 .vscode/
 .idea/
+
+# Android project is generated in CI (android-app/)
+android-app/android/
+android-app/node_modules/
+android-app/Microscopic.apk

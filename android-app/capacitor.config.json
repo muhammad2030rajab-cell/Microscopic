@@ -1,0 +1,13 @@
+{
+  "appId": "com.microscopic.lab",
+  "appName": "Microscopic",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": ["*"],
+    "cleartext": true
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true }
+  }
+}

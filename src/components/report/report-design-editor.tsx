@@ -109,19 +109,19 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
   );
 
   return (
-    <section className="mx-auto mt-6 max-w-5xl rounded-lg border border-line bg-elevated p-5 sm:p-7">
-      <h2 className="font-display text-2xl font-semibold">شكل التقرير</h2>
+    <section className="mx-auto mt-6 w-full max-w-5xl overflow-hidden rounded-lg border border-line bg-elevated p-4 sm:p-7">
+      <h2 className="font-display text-xl font-semibold sm:text-2xl">شكل التقرير</h2>
       <p className="mt-1 text-sm text-ink-soft">اللي تغيّره هنا بيظهر في المعاينة على طول، ومبيتطبق على التقارير إلا لما تدوس «حفظ شكل التقرير».</p>
 
-      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        <div className="space-y-6">
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">شكل التقرير</legend>
+      <div className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <div className="min-w-0 space-y-6">
+          <fieldset className="min-w-0 space-y-2">
+            <legend className="text-sm font-medium">اختيار القالب</legend>
             <p className="text-[11px] leading-5 text-muted">اختار الشكل الافتراضي للمعمل. الصور دي معاينة ببيانات معملك. وكل مستخدم يقدر يغيّره لطباعة تقرير معيّن من صفحة التقرير.</p>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
               {REPORT_TEMPLATES.map((t) => (
                 <button key={t.key} type="button" aria-pressed={design.template === t.key} onClick={() => patch({ template: t.key })}
-                  className={`overflow-hidden rounded-xl border-2 bg-paper text-start transition-colors ${design.template === t.key ? "border-teal" : "border-line hover:border-line-strong"}`}>
+                  className={`min-w-0 overflow-hidden rounded-lg border bg-paper text-start transition-colors ${design.template === t.key ? "border-teal ring-2 ring-teal/60" : "border-line hover:border-line-strong"}`}>
                   <TemplateThumb template={t.key} lab={previewLab} />
                   <span className="block px-2 py-1.5">
                     <span className="flex flex-wrap items-center justify-between gap-1 text-[13px] font-medium leading-5">
@@ -135,7 +135,7 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
             </div>
           </fieldset>
 
-          <fieldset className="space-y-2">
+          <fieldset className="min-w-0 space-y-2">
             <legend className="text-sm font-medium">التفاصيل اللي تظهر في التقرير</legend>
             <p className="text-[11px] leading-5 text-muted">اقفل اللي مش عايزه عشان التقرير يبقى أنضف. النتيجة الشاذة هتفضل واضحة بلونها وخلفية الصف وشريط المدى حتى لو قفلت العلامات.</p>
             {([
@@ -155,7 +155,7 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
             </button>
           </fieldset>
 
-          <fieldset className="space-y-2">
+          <fieldset className="min-w-0 space-y-2">
             <legend className="text-sm font-medium">لون المعمل</legend>
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={() => patch({ accent: null })} aria-pressed={!design.accent}
@@ -177,7 +177,7 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
           </fieldset>
 
           {design.template === "standard" ? (
-          <fieldset className="space-y-2">
+          <fieldset className="min-w-0 space-y-2">
             <legend className="text-sm font-medium">شكل الجدول</legend>
             <div className="grid grid-cols-3 gap-2">
               {TABLE_STYLES.map((t) => (
@@ -191,7 +191,7 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
           </fieldset>
           ) : null}
 
-          <fieldset className="space-y-2">
+          <fieldset className="min-w-0 space-y-2">
             <legend className="text-sm font-medium">الورق</legend>
             <div className="grid grid-cols-2 gap-2">
               <button type="button" aria-pressed={design.paper === "a4"} onClick={() => patch({ paper: "a4" })}
@@ -222,7 +222,7 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
             ) : null}
           </fieldset>
 
-          <fieldset className="space-y-3">
+          <fieldset className="min-w-0 space-y-3">
             <legend className="text-sm font-medium">التوقيع والختم</legend>
             <p className="text-[11px] leading-5 text-muted">بيظهروا على التقارير <strong>المعتمدة</strong> بس، مش على المسودات. صورة PNG بخلفية شفافة أحسن حاجة (حتى حوالي 140 كيلوبايت).</p>
             {([["signature", "التوقيع", signatureUrl], ["stamp", "الختم", stampUrl]] as const).map(([kind, label, url]) => (
@@ -233,14 +233,14 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
                 <div className="min-w-0">
                   <Label htmlFor={`asset-${kind}`}>{label}</Label>
                   <input id={`asset-${kind}`} type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => pickImage(e, kind)}
-                    className="mt-1 block text-xs text-muted file:mr-2 file:rounded-md file:border-0 file:bg-teal/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-teal" />
+                    className="mt-1 block w-full max-w-full text-xs text-muted file:mr-2 file:rounded-md file:border-0 file:bg-teal/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-teal" />
                   {url ? <button type="button" onClick={() => removeImage(kind)} className="mt-1 text-xs text-high hover:underline">شيل {label}</button> : null}
                 </div>
               </div>
             ))}
           </fieldset>
 
-          <fieldset className="space-y-2">
+          <fieldset className="min-w-0 space-y-2">
             <legend className="text-sm font-medium">التذييل</legend>
             <Textarea value={design.footerNote} maxLength={FOOTER_NOTE_MAX} rows={2} onChange={(e) => patch({ footerNote: e.target.value })}
               placeholder="مثال: مواعيد العمل من 8 صباحًا حتى 10 مساءً · خدمة سحب العينات من المنزل" />

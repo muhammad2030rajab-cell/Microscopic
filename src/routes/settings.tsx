@@ -1,5 +1,5 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { InstallBanner } from "@/components/install-banner";
 import { AppShell } from "@/components/layout/app-shell";
@@ -40,6 +40,15 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
   const [logoUrl, setLogoUrl] = useState(lab.logo_url ?? "");
   const [reportLanguage, setReportLanguage] = useState(lab.report_language ?? "bilingual");
   const [saving, setSaving] = useState(false);
+
+  const previewProfile = useMemo(
+    () => ({
+      name, nameEn: nameEn || name, phone, address, email, website, doctorName, doctorDegree, doctorSpecialty,
+      logoUrl: logoUrl || undefined,
+      reportLanguage: reportLanguage as "bilingual" | "ar" | "en",
+    }),
+    [name, nameEn, phone, address, email, website, doctorName, doctorDegree, doctorSpecialty, logoUrl, reportLanguage],
+  );
 
   if (lab.role !== "owner") {
     return <Navigate to="/lab" />;
@@ -132,11 +141,7 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
       <ReportDesignEditor
         labId={lab.lab_id}
         initialDesign={lab.report_design}
-        lab={{
-          name, nameEn: nameEn || name, phone, address, email, website, doctorName, doctorDegree, doctorSpecialty,
-          logoUrl: logoUrl || undefined,
-          reportLanguage: reportLanguage as "bilingual" | "ar" | "en",
-        }}
+        lab={previewProfile}
       />
       <InstallBanner />
     </AppShell>

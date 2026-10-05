@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from "react";
+import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
@@ -59,19 +59,6 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
     return () => { cancelled = true; };
   }, []);
 
-  // Scale the A4-ish sheet to whatever width the card has.
-  const boxRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.5);
-  useLayoutEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const fit = () => setScale(Math.min(1, el.clientWidth / SHEET_WIDTH));
-    fit();
-    const ro = new ResizeObserver(fit);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
   async function pickImage(e: ChangeEvent<HTMLInputElement>, kind: "signature" | "stamp") {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -113,7 +100,13 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
   }
 
   const accentValue = design.accent ?? "";
-  const previewLab: LabProfile = { ...lab, design, assets: { signatureUrl, stampUrl } };
+  // The page is RTL but the scaled sheet must be laid out LTR from its left edge (see ScaledSheet).
+  // Previews re-render a full report each; defer them so typing / dragging the colour stays smooth.
+  const deferredDesign = useDeferredValue(design);
+  const previewLab: LabProfile = useMemo(
+    () => ({ ...lab, design: deferredDesign, assets: { signatureUrl, stampUrl } }),
+    [lab, deferredDesign, signatureUrl, stampUrl],
+  );
 
   return (
     <section className="mx-auto mt-6 max-w-5xl rounded-lg border border-line bg-elevated p-5 sm:p-7">
@@ -263,35 +256,68 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
 
         <div>
           <p className="mb-2 text-xs text-muted">معاينة (بيانات تجريبية)</p>
-          <div ref={boxRef} className="overflow-hidden rounded-lg border border-line bg-paper-2" style={{ height: 1180 * scale }}>
-            <div style={{ width: SHEET_WIDTH, transform: `scale(${scale})`, transformOrigin: "top left" }} className="pointer-events-none select-none" aria-hidden>
-              <ReportSheet report={SAMPLE_REPORT} lab={previewLab} lang="bi" />
-            </div>
-          </div>
+          <ScaledSheet className="rounded-lg border border-line bg-paper-2">
+            <ReportSheet report={SAMPLE_REPORT} lab={previewLab} lang="bi" />
+          </ScaledSheet>
         </div>
       </div>
     </section>
   );
 }
 
-/** A small live preview of one template (top of the page), scaled down to the card width. */
-function TemplateThumb({ template, lab }: { template: ReportTemplate; lab: LabProfile }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.2);
+/**
+ * Shows a full-size sheet scaled to the width of its box.
+ * - The box is forced LTR: this app is RTL, and an 860px block inside a narrower RTL box overflows
+ *   to the LEFT, so scaling from the top-left left the preview shifted and clipped.
+ * - Height follows the sheet's real height; tiny changes are ignored so the page never "breathes".
+ * - `crop` keeps a fixed 4:5 window on the top of the sheet (for the gallery thumbnails).
+ */
+function ScaledSheet({ children, className = "", crop = false }: { children: ReactNode; className?: string; crop?: boolean }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.4);
+  const [innerHeight, setInnerHeight] = useState(1100);
+
   useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const fit = () => setScale(el.clientWidth / SHEET_WIDTH);
-    fit();
-    const ro = new ResizeObserver(fit);
-    ro.observe(el);
+    const box = boxRef.current;
+    const inner = innerRef.current;
+    if (!box || !inner) return;
+    const measure = () => {
+      const next = Math.min(1, box.clientWidth / SHEET_WIDTH);
+      setScale((prev) => (Math.abs(prev - next) < 0.003 ? prev : next));
+      setInnerHeight((prev) => (Math.abs(prev - inner.offsetHeight) < 4 ? prev : inner.offsetHeight));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    ro.observe(inner);
     return () => ro.disconnect();
   }, []);
+
   return (
-    <div ref={ref} className="relative aspect-[4/5] w-full overflow-hidden border-b border-line bg-paper-2" aria-hidden>
-      <div className="pointer-events-none absolute start-0 top-0 select-none" style={{ width: SHEET_WIDTH, transform: `scale(${scale})`, transformOrigin: "top left" }}>
-        <ReportSheet report={SAMPLE_REPORT} lab={lab} lang="bi" template={template} />
+    <div
+      ref={boxRef}
+      dir="ltr"
+      aria-hidden
+      className={`relative w-full overflow-hidden ${crop ? "aspect-[4/5]" : ""} ${className}`}
+      style={crop ? undefined : { height: innerHeight * scale }}
+    >
+      <div
+        ref={innerRef}
+        className="pointer-events-none absolute left-0 top-0 select-none"
+        style={{ width: SHEET_WIDTH, transform: `scale(${scale})`, transformOrigin: "top left" }}
+      >
+        {children}
       </div>
     </div>
   );
 }
+
+/** A small live preview of one template (top of the page). Memoised: it only re-renders when the design really changes. */
+const TemplateThumb = memo(function TemplateThumb({ template, lab }: { template: ReportTemplate; lab: LabProfile }) {
+  return (
+    <ScaledSheet crop className="border-b border-line bg-paper-2">
+      <ReportSheet report={SAMPLE_REPORT} lab={lab} lang="bi" template={template} />
+    </ScaledSheet>
+  );
+});

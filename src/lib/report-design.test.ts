@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ASSET_MAX_CHARS, DEFAULT_REPORT_DESIGN, normalizeAsset, normalizeDesign, normalizeHex, readableOn } from "./report-design.ts";
+import { ASSET_MAX_CHARS, DEFAULT_ACCENT, DEFAULT_REPORT_DESIGN, accentPalette, mixHex, normalizeAsset, normalizeDesign, normalizeHex, readableOn } from "./report-design.ts";
 
 test("normalizeDesign: empty / garbage input gives the defaults", () => {
   assert.deepEqual(normalizeDesign(null), DEFAULT_REPORT_DESIGN);
@@ -22,7 +22,7 @@ test("normalizeDesign: keeps valid values and fixes invalid ones", () => {
   const bad = normalizeDesign({ accent: "red", tableStyle: "weird", paper: "x", letterheadTopMm: "abc" });
   assert.equal(bad.accent, null);
   assert.equal(normalizeDesign({ template: "fancy" }).template, "standard");
-  for (const key of ["standard", "pro", "modern", "compact", "formal"]) assert.equal(normalizeDesign({ template: key }).template, key);
+  for (const key of ["standard", "pro", "modern", "compact", "formal", "banner", "elegant", "stripe"]) assert.equal(normalizeDesign({ template: key }).template, key);
   assert.equal(bad.tableStyle, "classic");
   assert.equal(bad.paper, "a4");
   assert.equal(bad.letterheadTopMm, DEFAULT_REPORT_DESIGN.letterheadTopMm);
@@ -56,4 +56,21 @@ test("readableOn picks white on dark accents and dark on light ones", () => {
   assert.equal(readableOn("#1d4ed8"), "#ffffff");
   assert.equal(readableOn("#fde68a"), "#0f172a");
   assert.equal(readableOn("#ffffff"), "#0f172a");
+});
+
+test("mixHex blends toward the other colour", () => {
+  assert.equal(mixHex("#000000", "#ffffff", 0.5), "#808080");
+  assert.equal(mixHex("#123456", "#ffffff", 0), "#123456");
+  assert.equal(mixHex("#123456", "#ffffff", 1), "#ffffff");
+});
+
+test("accentPalette: plain hex/rgba only (the PDF export cannot parse color-mix)", () => {
+  for (const accent of [null, "#0f766e", "#fde68a", "#0f172a"]) {
+    const p = accentPalette(accent);
+    for (const v of [p.accent, p.deep, p.soft, p.tint, p.line, p.fg]) assert.match(v, /^#[0-9a-f]{6}$/);
+    assert.match(p.fgSoft, /^rgba\(/);
+  }
+  assert.equal(accentPalette(null).accent, DEFAULT_ACCENT);
+  assert.equal(accentPalette("#fde68a").fg, "#0f172a");
+  assert.equal(accentPalette("#1d4ed8").fg, "#ffffff");
 });

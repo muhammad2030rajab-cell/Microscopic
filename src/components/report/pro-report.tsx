@@ -5,9 +5,10 @@ import { isCritical, interpretResult, type Flag } from "@/lib/medical";
 import { getNormalRange } from "@/lib/tests-catalog";
 import { defaultLab, type LabProfile } from "@/lib/store";
 import { ageToYears } from "@/lib/age";
-import { normalizeDesign, readableOn, type ReportTemplate } from "@/lib/report-design";
+import { accentPalette, normalizeDesign, type ReportTemplate } from "@/lib/report-design";
 import { S, ageSexValue, summaryLine, text, type Pair, type ReportLang } from "@/lib/report-strings";
 import { cn, formatSlashDate, visitIdFrom } from "@/lib/utils";
+import { formatUnit } from "@/lib/unit-format";
 import {
   AdaGlucoseRange,
   displayName,
@@ -36,11 +37,11 @@ function PairLabel({ pair, lang }: { pair: Pair; lang: ReportLang }) {
   return <span className="rp-l-en">{text(lang, pair)}</span>;
 }
 
-function Cell({ label, lang, value, rtl, mono, wide }: { label: Pair; lang: ReportLang; value: ReactNode; rtl?: boolean; mono?: boolean; wide?: boolean }) {
+function Cell({ label, lang, value, mono, wide }: { label: Pair; lang: ReportLang; value: ReactNode; rtl?: boolean; mono?: boolean; wide?: boolean }) {
   return (
     <div className={cn("rp-cell", wide && "rp-cell-wide")}>
       <span className="rp-label"><PairLabel pair={label} lang={lang} /></span>
-      <span className={cn("rp-value", mono && "rp-mono")} dir={rtl ? "rtl" : "ltr"}>{value || "—"}</span>
+      <span className={cn("rp-value", mono && "rp-mono")} dir={mono ? "ltr" : "auto"}>{value || "—"}</span>
     </div>
   );
 }
@@ -67,16 +68,25 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
   const groups = groupTests(report);
   const summary = summarize(report);
   const visit = visitIdFrom(report.id);
+  const criticalTests = report.tests.filter((t) => t.value.trim() && isCritical(t.name, t.value));
   const requested = formatSlashDate(report.createdAt);
   const collected = report.collectedAt ? formatSlashDate(report.collectedAt) : null;
   const sampleCode = report.sampleId || visit;
 
-  const style: CSSProperties | undefined = design.accent
-    ? ({ "--lab-accent": design.accent, "--lab-accent-fg": readableOn(design.accent) } as CSSProperties)
-    : undefined;
+  const pal = accentPalette(design.accent);
+  const style = {
+    "--rp-accent": pal.accent,
+    "--rp-accent-deep": pal.deep,
+    "--rp-accent-2": pal.soft,
+    "--rp-tint": pal.tint,
+    "--rp-line": pal.line,
+    "--rp-fg": pal.fg,
+    "--rp-fg-soft": pal.fgSoft,
+  } as CSSProperties;
 
   const primaryName = rtl ? brand.name : brand.nameEn || brand.name;
   const secondaryName = lang === "bi" && brand.name && brand.name !== primaryName ? brand.name : "";
+  const longName = Math.max(primaryName.length, secondaryName.length) > 34;
 
   const contacts: { icon: ReactNode; value: string; ltr?: boolean }[] = [
     brand.address ? { icon: <MapPin />, value: brand.address } : null,
@@ -95,6 +105,12 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
             : `@media print{@page{size:A4 portrait;margin:0 0 13mm 0;@bottom-center{content:counter(page) " / " counter(pages);font:8.5px sans-serif;color:#64748b}}}`}
         </style>
 
+        {!approved ? (
+          <div className="report-watermark" data-watermark aria-hidden>
+            <span>{text(l2, S.prelimReport)}</span>
+          </div>
+        ) : null}
+
         <table className="rp-pages">
           <thead>
             <tr>
@@ -104,7 +120,7 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
                     <span>{text(l2, S.letterheadSpace)}</span>
                   </div>
                 ) : (
-                  <header className="rp-header">
+                  <header className={cn("rp-header", longName && "rp-long")}>
                     <div className="rp-brand">
                       {brand.logoUrl ? (
                         <img src={brand.logoUrl} alt="" aria-hidden className="rp-logo" />
@@ -131,11 +147,11 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
                 )}
                 {!letterhead ? <div className="rp-rule" aria-hidden /> : null}
                 {/* Slim identity line: repeats on every printed page so a loose page is never anonymous. */}
-                <div className="rp-strip" dir="ltr">
-                  <span className="rp-strip-name">{report.patientName}</span>
-                  <span>{report.patientCode || "—"}</span>
-                  <span>{ageSexValue(lang, report.age, report.gender, report.ageUnit)}</span>
-                  {design.showReportId ? <span className="rp-mono">{visit}</span> : null}
+                <div className="rp-strip">
+                  <span className="rp-strip-name" dir="auto">{report.patientName}</span>
+                  <span dir="ltr">{report.patientCode || "—"}</span>
+                  <span dir="auto">{ageSexValue(lang, report.age, report.gender, report.ageUnit)}</span>
+                  {design.showReportId ? <span className="rp-mono" dir="ltr">{visit}</span> : null}
                 </div>
               </td>
             </tr>
@@ -198,6 +214,20 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
                   </div>
                 ) : null}
 
+                {summary.critical > 0 && design.showSummary ? (
+                  <div className="rp-critical" role="alert">
+                    <b>{text(l2, S.criticalValues)}</b>
+                    <ul>
+                      {criticalTests.map((t) => (
+                        <li key={`${t.categoryId}-${t.name}`}>
+                          <span dir="ltr">{displayName(t.name)}</span>
+                          <b dir="ltr">{t.value} {formatUnit(t.unit)}</b>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
                 {groups.map((group) => (
                   <section key={group.en} className="rp-section">
                     <div className="rp-sec-head">
@@ -213,8 +243,8 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
                           <tr>
                             <th><PairLabel pair={S.test} lang={lang} /></th>
                             <th><PairLabel pair={S.result} lang={lang} /></th>
-                            {design.showFlags ? <th className="rp-th-flag">{text(l2, S.flag)}</th> : null}
-                            <th>{text(l2, S.unit)}</th>
+                            {design.showFlags ? <th className="rp-th-flag"><PairLabel pair={S.flag} lang={lang} /></th> : null}
+                            <th><PairLabel pair={S.unit} lang={lang} /></th>
                             <th><PairLabel pair={S.reference} lang={lang} /></th>
                           </tr>
                         </thead>
@@ -233,7 +263,7 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
                                 </td>
                                 <td className={cn("rp-t-res", tone !== "none" && `rp-res-${tone}`)}>{test.value}</td>
                                 {design.showFlags ? <td className="rp-t-flag">{code ? <b className={`rp-flag rp-flag-${tone}`}>{code}</b> : <span className="rp-dash">—</span>}</td> : null}
-                                <td className="rp-t-unit">{test.unit || "—"}</td>
+                                <td className="rp-t-unit" dir="ltr">{formatUnit(test.unit) || "—"}</td>
                                 <td className="rp-t-ref">
                                   {isGlucose(test.name) ? (
                                     <AdaGlucoseRange value={test.value} />

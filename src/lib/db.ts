@@ -123,7 +123,11 @@ async function createPgliteSql(): Promise<Sql> {
   // data survives source edits (it resets on dev-server restart).
   globalRef.__pgliteInstance__ ??= (async () => {
     const { PGlite } = await import("@electric-sql/pglite");
+    // Hub mode (HUB_DATA_DIR set): keep the database on disk so it survives restarts.
+    // Unset = the original throw-away in-memory database.
+    const hubDataDir = process.env.HUB_DATA_DIR?.trim();
     const pg = new PGlite({
+      ...(hubDataDir ? { dataDir: hubDataDir } : {}),
       parsers: {
         [OID_INT8]: Number,
         [OID_DATE]: identity,

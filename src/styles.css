@@ -763,6 +763,36 @@
 }
 
 
+
+/* =========================================
+   WATERMARK for reports that are not approved yet (both sheet types).
+   Sits behind the content (the sheets are stacking contexts); repeats on every printed page.
+   For multi-page PDFs, generate-report-pdf.ts removes it and draws one per page.
+   ========================================= */
+.lab-sheet, .rp-sheet { z-index: 0; }
+.rp-sheet { position: relative; }
+.report-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  container-type: inline-size;
+}
+.report-watermark span {
+  transform: rotate(-30deg);
+  font-size: 7.4cqw; /* scales with the sheet so it fits on a phone and on A4 */
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: rgba(180, 83, 9, 0.1);
+}
+@media print {
+  .report-watermark { position: fixed; }
+}
+
 /* =========================================
    APP BOTTOM NAV
    ========================================= */

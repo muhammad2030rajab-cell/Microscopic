@@ -86,6 +86,7 @@ export const S = {
   laboratory: p("Laboratory", "المعمل", true),
   scanToVerify: p("Scan to verify", "امسح للتحقق", true),
   endOfReport: p("End of report", "نهاية التقرير", true),
+  criticalValues: p("Critical values — please inform the physician", "قيم حرجة — برجاء إبلاغ الطبيب"),
   medicalLaboratory: p("MEDICAL LABORATORY", "المعمل الطبي", true),
   labSpecialist: p("Lab Specialist", "أخصائي المعمل"),
   pathologist: p("Pathologist / Lab Director", "الطبيب المسؤول / مدير المعمل"),

@@ -16,6 +16,9 @@ export const REPORT_TEMPLATES = [
   { key: "modern", label: "عصري", hint: "ترويسة ملوّنة كاملة وأرقام كبيرة وأقسام بخط ملوّن" },
   { key: "compact", label: "مختصر", hint: "مدمج لتقارير فيها تحاليل كتير؛ يوفّر ورق وحبر" },
   { key: "formal", label: "رسمي", hint: "ترويسة في النص وخطوط سوداء ولمسة مستشفيات" },
+  { key: "banner", label: "بانر", hint: "لافتة باسم المعمل في النص، وشريط ملوّن تحت الصفحة" },
+  { key: "elegant", label: "أنيق", hint: "بدون ألوان تعبئة: خطوط رفيعة ومساحات واسعة" },
+  { key: "stripe", label: "جانبي", hint: "شريط ملوّن على حافة الصفحة وبطاقات خفيفة" },
 ] as const;
 
 export type ReportTemplate = (typeof REPORT_TEMPLATES)[number]["key"];
@@ -148,4 +151,45 @@ export function readableOn(hex: string): "#ffffff" | "#0f172a" {
   const withWhite = 1.05 / (L + 0.05);
   const withDark = (L + 0.05) / (luminance("#0f172a") + 0.05);
   return withWhite >= withDark ? "#ffffff" : "#0f172a";
+}
+
+function toRgb(hex: string): [number, number, number] {
+  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+}
+
+/** Blend `a` toward `b` by t (0..1); both "#rrggbb". Returns "#rrggbb". */
+export function mixHex(a: string, b: string, t: number): string {
+  const x = toRgb(a);
+  const y = toRgb(b);
+  return "#" + x.map((c, i) => Math.round(c * (1 - t) + y[i] * t).toString(16).padStart(2, "0")).join("");
+}
+
+export const DEFAULT_ACCENT = "#1d4fb8";
+
+export type AccentPalette = {
+  accent: string;
+  deep: string;
+  soft: string;
+  tint: string;
+  line: string;
+  fg: string;
+  fgSoft: string;
+};
+
+/**
+ * Every colour the printed sheet derives from the accent, as plain hex/rgba. Computed here instead of
+ * with CSS color-mix() because the PDF download (html2canvas) throws on color-mix / color() values.
+ */
+export function accentPalette(accent: string | null): AccentPalette {
+  const a = normalizeHex(accent) ?? DEFAULT_ACCENT;
+  const fg = readableOn(a);
+  return {
+    accent: a,
+    deep: mixHex(a, "#000000", 0.2),
+    soft: mixHex(a, "#ffffff", 0.4),
+    tint: mixHex(a, "#ffffff", 0.93),
+    line: mixHex(a, "#ffffff", 0.86),
+    fg,
+    fgSoft: fg === "#ffffff" ? "rgba(255,255,255,0.45)" : "rgba(15,23,42,0.45)",
+  };
 }

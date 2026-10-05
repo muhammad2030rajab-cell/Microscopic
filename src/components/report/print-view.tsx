@@ -19,6 +19,7 @@ import {
 import type { LabReport } from "@/lib/lab-reports";
 import { cn, formatSlashDate, visitIdFrom } from "@/lib/utils";
 import { ReportQrCode } from "./report-qr-code";
+import { formatUnit } from "@/lib/unit-format";
 import { normalizeDesign, readableOn } from "@/lib/report-design";
 import type { CSSProperties } from "react";
 import { RangeBar } from "./range-bar";
@@ -579,7 +580,7 @@ export function PrintView({
 
                           {/* UNIT */}
                           <td className="text-ink-soft">
-                            {test.unit || "—"}
+                            {formatUnit(test.unit) || "—"}
                           </td>
 
                           {/* REFERENCE RANGE */}
@@ -779,6 +780,11 @@ export function PrintView({
           CORNER DECORATION
          ========================================= */}
 
+      {!approved ? (
+        <div className="report-watermark" data-watermark aria-hidden>
+          <span>{text(lang === "ar" ? "ar" : "en", S.prelimReport)}</span>
+        </div>
+      ) : null}
       {design.showCorner && !letterhead ? (
         <div
           className="lab-corner"

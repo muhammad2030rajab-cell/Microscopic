@@ -120,7 +120,7 @@ export async function loadLocalReport<L>(
   }
 }
 
-type CatalogLike = { lab_id: string; category_id: string; test_name: string; is_active?: boolean; [k: string]: unknown };
+type CatalogLike = { category_id: string; test_name: string; is_active?: boolean };
 
 /**
  * Everything the edit screen needs with no connection: the report (with any

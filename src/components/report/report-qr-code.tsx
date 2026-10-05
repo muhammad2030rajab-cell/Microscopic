@@ -16,7 +16,7 @@ export function ReportQrCode({ reportId, caption = "Scan to verify" }: { reportI
   if (!dataUrl) return null;
   return (
     <div className="mt-2 flex flex-col items-center gap-1">
-      <img src={dataUrl} alt="رمز التحقق من التقرير" className="size-16 rounded-md border border-line/60 bg-white p-1" />
+      <img src={dataUrl} alt="رمز التحقق من التقرير" className="size-16 rounded-md border border-line bg-white p-1" />
       <span className="text-[0.55rem] text-muted">{caption}</span>
     </div>
   );

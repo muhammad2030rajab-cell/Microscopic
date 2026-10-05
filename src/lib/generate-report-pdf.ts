@@ -1,63 +1,148 @@
+import { paginate } from "@/lib/pdf-pagination";
+
 /**
  * Client-only "Download PDF" for a report.
  *
- * Renders the already-visible print sheet DOM to a canvas (html2canvas) and
- * places it on a single PDF page sized to match (jsPDF) — so the button
- * downloads a real .pdf file in one click, instead of relying on the person
- * to open the browser's print dialog and manually choose "Save as PDF"
- * (which is what the old "حفظ PDF" button did: it only called
- * `window.print()`).
+ * How it works (and what it deliberately does):
+ *  1. The visible report is CLONED into an off-screen host that is exactly A4 wide (794 CSS px),
+ *     so the PDF looks the same on a phone and on a desktop. (Capturing the visible element used to
+ *     give a phone-width layout squeezed onto the page.)
+ *  2. The clone is rasterised once with html2canvas.
+ *  3. If it fits one A4 page it is placed as is. If not, it is cut into A4 pages at row/block
+ *     boundaries (see pdf-pagination.ts), never through a table row. For the pro templates the
+ *     header (and footer) are repeated on every page, and every page gets "n / N".
  *
- * Trade-off, stated plainly: this rasterizes the report (the PDF holds an
- * image, not selectable/searchable text). The alternative — a real
- * vector-text PDF — needs either a headless browser (Puppeteer/Chromium,
- * impractical to run reliably in a Vercel serverless function without extra
- * buildpack packages like @sparticuz/chromium) or rebuilding the entire
- * report layout a second time in a PDF-specific renderer (e.g.
- * @react-pdf/renderer, which also needs its own Arabic RTL text-shaping
- * setup to render correctly). Both are substantially larger efforts. For a
- * document whose purpose is to be printed, archived, or emailed as-is, a
- * crisp rasterized page is normally an acceptable trade for shipping a
- * one-click export now.
+ * Trade-off, stated plainly: the PDF holds images, not selectable text. A vector-text PDF needs a
+ * headless browser or a second PDF-specific layout engine (see git history of this file for the
+ * discussion); for a document that is printed, archived or sent on WhatsApp a crisp raster is the
+ * pragmatic choice.
  *
- * Single-page only: if the captured content is taller than one A4 page, the
- * PDF page grows to fit it (rather than cropping), so nothing is ever cut
- * off — but very long reports won't get a clean page 2/3 split the way
- * browser printing does. In practice lab reports here are designed as one
- * fixed A4 sheet (see `.lab-sheet` in styles.css), so this should not come
- * up for a normal report.
- *
- * NEW DEPENDENCIES — not yet in package.json. Before this works, run:
- *   npm install html2canvas jspdf
- * (Could not verify the install or a real build here — this review has no
- * network access. Test the button after installing.)
+ * html2canvas cannot parse modern CSS colour functions (color-mix(), oklch(), color()). Nothing in the
+ * report sheets may use them: derived colours are computed in JS (report-design.ts: accentPalette).
  */
+
+const A4_W_PX = 794; // 210 mm at 96 dpi
+const A4_H_PX = 1123; // 297 mm at 96 dpi
+const PAGE_NUMBER_RESERVE = 38; // px kept free at the bottom of every multi-page page
+const MAX_CANVAS_PIXELS = 14_000_000; // stay under iOS Safari's ~16.7M-pixel canvas limit
+
+/** Elements after which a page break is allowed (their bottom edge). */
+const BREAK_AFTER = [
+  ".rp-table tbody tr",
+  ".lab-grid tbody tr",
+  ".rp-title",
+  ".rp-patient",
+  ".rp-summary",
+  ".rp-notes",
+  ".rp-legend",
+  ".rp-sign",
+  ".rp-end",
+].join(",");
+
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+async function waitForImages(root: HTMLElement): Promise<void> {
+  const pending = [...root.querySelectorAll("img")]
+    .filter((img) => !img.complete)
+    .map((img) => new Promise<void>((resolve) => { img.onload = () => resolve(); img.onerror = () => resolve(); }));
+  if (pending.length) await Promise.race([Promise.all(pending), new Promise((r) => setTimeout(r, 4000))]);
+}
+
 export async function downloadReportPdf(element: HTMLElement, filename: string): Promise<void> {
-  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-    import("html2canvas"),
-    import("jspdf"),
-  ]);
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
 
-  const canvas = await html2canvas(element, {
-    scale: 2, // 2x device pixels for a print-quality (not screen-blurry) result
-    useCORS: true,
-    backgroundColor: "#ffffff",
-    // The dashed "letterhead space" guide is for the screen only; keep the blank space, drop the outline.
-    onclone: (doc) => { doc.querySelectorAll(".lab-sheet").forEach((el) => el.classList.add("is-exporting")); },
-  });
+  // Behind the app (z-index -1) rather than far off-screen: html2canvas renders elements that are
+  // laid out in the viewport more reliably than ones at left:-10000px.
+  const host = document.createElement("div");
+  host.setAttribute("aria-hidden", "true");
+  host.style.cssText = `position:fixed;left:0;top:0;z-index:-1;width:${A4_W_PX}px;background:#fff;pointer-events:none;`;
+  const clone = element.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll(".lab-sheet, .rp-sheet").forEach((el) => el.classList.add("is-exporting"));
+  host.appendChild(clone);
+  document.body.appendChild(host);
 
-  const imgData = canvas.toDataURL("image/png");
-  const pageWidthMm = 210; // A4 portrait width
-  const pageHeightMm = (canvas.height * pageWidthMm) / canvas.width;
+  try {
+    await nextFrame();
+    await nextFrame();
+    if (document.fonts?.ready) await document.fonts.ready;
+    await waitForImages(clone);
 
-  const pdf = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    // Use a real A4 page when the content fits it; otherwise size the page
-    // to the content itself so nothing gets cropped (see docstring above).
-    format: pageHeightMm > 297 ? [pageWidthMm, pageHeightMm] : "a4",
-  });
+    const target = (clone.querySelector(".rp-sheet") ?? clone.querySelector(".print-sheet") ?? clone) as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const total = Math.ceil(rect.height);
+    const rel = (el: Element, edge: "top" | "bottom") => el.getBoundingClientRect()[edge] - rect.top;
 
-  pdf.addImage(imgData, "PNG", 0, 0, pageWidthMm, pageHeightMm);
-  pdf.save(filename);
+    const thead = target.querySelector(".rp-pages > thead");
+    const tfoot = target.querySelector(".rp-pages > tfoot");
+    const headerHeight = thead ? Math.round(rel(thead, "bottom")) : 0;
+    const footerHeight = tfoot ? Math.round(total - rel(tfoot, "top")) : 0;
+    const breakpoints = [...target.querySelectorAll(BREAK_AFTER)].map((el) => rel(el, "bottom"));
+
+    const slices = paginate({ totalHeight: total, pageHeight: A4_H_PX, headerHeight, footerHeight, bottomReserve: PAGE_NUMBER_RESERVE, breakpoints });
+
+    // "Preliminary" watermark: one big one is fine on a single page; across pages it would land on a
+    // single page only, so it is taken out of the capture and drawn on every page below.
+    const watermark = target.querySelector<HTMLElement>("[data-watermark]");
+    const watermarkText = watermark?.textContent?.trim() ?? "";
+    if (watermark && slices.length > 1) watermark.remove();
+
+    const scale = Math.max(1, Math.min(2, Math.sqrt(MAX_CANVAS_PIXELS / (A4_W_PX * total))));
+    const canvas = await html2canvas(target, {
+      scale,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      windowWidth: A4_W_PX,
+      width: A4_W_PX,
+    });
+
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+    if (slices.length === 1) {
+      // One page: exactly what is on screen.
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, 210, (total * 210) / A4_W_PX);
+    } else {
+      const k = canvas.width / A4_W_PX; // real canvas pixels per CSS px
+      const page = document.createElement("canvas");
+      page.width = canvas.width;
+      page.height = Math.round(A4_H_PX * k);
+      const ctx = page.getContext("2d");
+      if (!ctx) throw new Error("canvas unavailable");
+
+      slices.forEach((slice, i) => {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, page.width, page.height);
+        // header (repeats), body slice, footer (repeats, sits above the page number)
+        if (headerHeight > 0) ctx.drawImage(canvas, 0, 0, canvas.width, headerHeight * k, 0, 0, canvas.width, headerHeight * k);
+        ctx.drawImage(canvas, 0, slice.from * k, canvas.width, (slice.to - slice.from) * k, 0, headerHeight * k, canvas.width, (slice.to - slice.from) * k);
+        if (footerHeight > 0) {
+          ctx.drawImage(canvas, 0, (total - footerHeight) * k, canvas.width, footerHeight * k, 0, (A4_H_PX - PAGE_NUMBER_RESERVE - footerHeight) * k, canvas.width, footerHeight * k);
+        }
+        if (watermarkText) {
+          ctx.save();
+          ctx.translate(page.width / 2, (A4_H_PX / 2) * k);
+          ctx.rotate(-Math.PI / 6);
+          ctx.fillStyle = "rgba(180, 83, 9, 0.1)";
+          ctx.font = `800 ${74 * k}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(watermarkText, 0, 0);
+          ctx.restore();
+        }
+        ctx.fillStyle = "#64748b";
+        ctx.font = `${9 * k}px sans-serif`;
+        ctx.textBaseline = "alphabetic";
+        ctx.textAlign = "center";
+        ctx.fillText(`${i + 1} / ${slices.length}`, page.width / 2, (A4_H_PX - 14) * k);
+
+        if (i > 0) pdf.addPage();
+        pdf.addImage(page.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, 210, 297);
+      });
+    }
+
+    pdf.save(filename);
+  } finally {
+    host.remove();
+  }
 }

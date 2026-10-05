@@ -66,7 +66,8 @@ export default defineConfig(({ command, isPreview }) => ({
     ...(command === "build" || isPreview
       ? [
           nitro({
-            preset: "vercel",
+            // HUB_BUILD=1 builds a plain Node server for the lab PC (see HUB.md); default = Vercel.
+            preset: process.env.HUB_BUILD === "1" ? "node-server" : "vercel",
           }),
         ]
       : []),

@@ -104,11 +104,26 @@ const vercelHosts = [env("VERCEL_PROJECT_PRODUCTION_URL"), env("VERCEL_URL")]
   .filter((h): h is string => Boolean(h))
   .map((h) => `https://${h}`);
 
+/**
+ * Hub mode: this process is the lab's local server on the Windows PC (see HUB.md).
+ * Phones reach it over plain http on the lab Wi-Fi, where a `Secure` / `__Host-`
+ * cookie would be refused by the browser, so both are switched off here and ONLY here.
+ * Never set HUB_MODE on the cloud deployment.
+ */
+export const isHubMode = env("HUB_MODE") === "1" && !isHostedDeploy; // never on Vercel
+
+/** Extra origins the hub accepts, e.g. "http://192.168.1.20:8080,http://lab-pc:8080". */
+const hubOrigins = (env("HUB_TRUSTED_ORIGINS") ?? "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 const trustedOrigins: string[] = [
   "https://microscopic.vercel.app",
   ...(explicitBaseURL ? [explicitBaseURL] : []),
   ...vercelHosts,
   ...LOCAL_DEV_ORIGINS,
+  ...(isHubMode ? hubOrigins : []),
 ];
 
 const databaseUrl = env("DATABASE_URL");
@@ -125,7 +140,8 @@ const database = databaseUrl
     };
 
 /** Session token cookie name. */
-export const SESSION_TOKEN_COOKIE = "__Host-app-auth.session_token";
+const cookiePrefix = isHubMode ? "app-auth" : "__Host-app-auth";
+export const SESSION_TOKEN_COOKIE = `${cookiePrefix}.session_token`;
 
 export const auth = betterAuth({
   baseURL,
@@ -189,7 +205,7 @@ export const auth = betterAuth({
     useSecureCookies: false,
 
     defaultCookieAttributes: {
-      secure: true,
+      secure: !isHubMode,
       sameSite: "lax",
       path: "/",
     },
@@ -200,15 +216,15 @@ export const auth = betterAuth({
       },
 
       session_data: {
-        name: "__Host-app-auth.session_data",
+        name: `${cookiePrefix}.session_data`,
       },
 
       account_data: {
-        name: "__Host-app-auth.account_data",
+        name: `${cookiePrefix}.account_data`,
       },
 
       dont_remember: {
-        name: "__Host-app-auth.dont_remember",
+        name: `${cookiePrefix}.dont_remember`,
       },
     },
   },

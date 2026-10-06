@@ -22,6 +22,7 @@ import { PdfShareDialog } from "@/components/report/pdf-share-dialog";
 import { toWhatsAppNumber } from "@/lib/phone";
 import { ageToYears, formatAge } from "@/lib/age";
 import { REPORT_LANGS, type ReportLang } from "@/lib/report-strings";
+import { CLINICAL_FLAGS, SAMPLE_TYPES, normalizeIntake } from "@/lib/report-intake";
 
 export const Route = createFileRoute("/reports/$id")({
   loader: async ({ params }) => {
@@ -178,6 +179,18 @@ function ReportDetail() {
   const canDelete = permissions["reports.delete"] === true && (report.status !== "approved" || role === "owner");
 
   const visit = visitIdFrom(report.id);
+  const intakeInfo = (() => {
+    const i = normalizeIntake(report.intake);
+    const labels = [
+      ...(i.vip ? ["VIP"] : []),
+      ...(i.takenOutside ? ["العينة اتسحبت خارج المعمل"] : []),
+      ...(i.referral ? [`الإحالة: ${i.referral}`] : []),
+      ...i.sampleTypes.map((k) => SAMPLE_TYPES.find((x) => x.key === k)?.ar ?? k),
+      ...(i.fasting ? [i.fastingHours ? `صائم ${i.fastingHours} ساعة` : "صائم"] : []),
+      ...i.flags.map((k) => CLINICAL_FLAGS.find((x) => x.key === k)?.ar ?? k),
+    ];
+    return labels.length ? labels : null;
+  })();
   const pdfFilename = (() => {
     const safeName = report.patientName.replace(/[\\/:*?"<>|\s]+/g, "-").replace(/^-+|-+$/g, "");
     return `${lang === "ar" ? "تقرير" : "Report"}-${visit}${safeName ? `-${safeName}` : ""}.pdf`;
@@ -287,6 +300,13 @@ function ReportDetail() {
             </summary>
             <ul className="space-y-1.5 border-t border-line px-4 py-3 text-sm text-ink-soft">{notes.map(({ f, t }) => <li key={`${t.categoryId}-${t.name}`}><span className="font-medium text-ink">{t.name}:</span> {f.note}</li>)}</ul>
           </details> : null}
+
+          {intakeInfo ? <section className="mb-5 rounded-lg border border-line bg-elevated p-4 text-sm">
+            <p className="mb-2 text-xs font-medium text-ink-soft">بيانات الحالة <span className="text-muted">(للموظفين، مش بتتطبع)</span></p>
+            <div className="flex flex-wrap gap-2">
+              {intakeInfo.map((label) => <span key={label} className="rounded-full bg-paper-2 px-3 py-1 text-xs text-ink-soft">{label}</span>)}
+            </div>
+          </section> : null}
         </div>
 
         <div ref={printRef} className="mx-auto w-full max-w-4xl">

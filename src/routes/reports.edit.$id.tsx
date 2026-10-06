@@ -56,7 +56,7 @@ function EditReportPage() {
     phone: report.phone || "", nationalId: report.nationalId || "", doctor: report.doctor,
     collectedAt: report.collectedAt || new Date().toISOString().slice(0, 10),
     selectedCategoryIds: Array.from(new Set(report.tests.map((t) => t.categoryId))),
-    tests: report.tests, notes: report.notes || "", step: 0,
+    tests: report.tests, notes: report.notes || "", intake: report.intake, step: 0,
   };
   return <AppShell><ReportWizard catalog={catalog} editReport={{ id: report.id, draft }} labId={lab.lab_id} /></AppShell>;
 }

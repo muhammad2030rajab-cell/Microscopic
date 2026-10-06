@@ -352,6 +352,9 @@
 }
 
 
+/* ---------- sample types / fasting line under the patient card ---------- */
+.rp-sample { margin: 2mm 0 0; font-size: 0.8em; color: #475569; }
+
 /* ---------- critical values callout ---------- */
 .rp-critical { margin-top: 3mm; padding: 6px 10px; border: 1px solid var(--color-high); border-inline-start-width: 5px; border-radius: 2mm; background: #fff5f4; color: #7f1d1d; font-size: 0.82em; break-inside: avoid; }
 .rp-critical ul { display: flex; flex-wrap: wrap; gap: 2px 18px; margin: 3px 0 0; padding: 0; list-style: none; }

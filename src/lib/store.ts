@@ -1,3 +1,4 @@
+import { EMPTY_INTAKE, type Intake } from "@/lib/report-intake";
 import { ageToYears, parseAgeUnit, type AgeUnit } from "@/lib/age";
 import type { ReportDesign, ReportDesignAssets } from "@/lib/report-design";
 import { useEffect, useState } from "react";
@@ -68,6 +69,8 @@ export interface Draft {
   selectedCategoryIds: string[];
   tests: DraftTest[];
   notes: string;
+  /** Registration details. Drafts saved before this existed have none: read with normalizeIntake(). */
+  intake?: Intake;
   step: number;
 }
 
@@ -201,6 +204,7 @@ const emptyDraft = (): Draft => ({
   selectedCategoryIds: [],
   tests: [],
   notes: "",
+  intake: EMPTY_INTAKE,
   step: 0,
 });
 

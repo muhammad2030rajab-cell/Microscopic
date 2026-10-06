@@ -20,6 +20,7 @@ import {
   Files,
   FlaskConical,
   Settings2,
+  UsersRound,
   TriangleAlert,
   UserRoundSearch,
   Users,
@@ -345,6 +346,7 @@ function LabDashboard() {
         <Shortcut to="/catalog" icon={<ClipboardList />} label="دليل التحاليل" />
         <Shortcut to="/methods" icon={<FlaskConical />} label="كيف يتم التحليل" />
         <Shortcut to="/analytics" icon={<BarChart3 />} label="الإحصائيات" />
+        {lab.role === "owner" || permissions["users.manage"] === true ? <Shortcut to="/team" icon={<UsersRound />} label="الفريق وكود الانضمام" /> : null}
         {lab.role === "owner" ? <Shortcut to="/settings" icon={<Settings2 />} label="الإعدادات" /> : null}
         <Shortcut to="/help" icon={<CircleHelp />} label="مساعدة" />
       </section>

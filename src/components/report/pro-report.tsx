@@ -9,6 +9,7 @@ import { accentPalette, normalizeDesign, type ReportTemplate } from "@/lib/repor
 import { S, ageSexValue, summaryLine, text, type Pair, type ReportLang } from "@/lib/report-strings";
 import { cn, formatSlashDate, visitIdFrom } from "@/lib/utils";
 import { formatUnit } from "@/lib/unit-format";
+import { normalizeIntake, sampleLine } from "@/lib/report-intake";
 import {
   AdaGlucoseRange,
   displayName,
@@ -68,6 +69,7 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
   const groups = groupTests(report);
   const summary = summarize(report);
   const visit = visitIdFrom(report.id);
+  const sampleText = report.intake ? sampleLine(normalizeIntake(report.intake), lang === "ar" ? "ar" : "en") : "";
   const criticalTests = report.tests.filter((t) => t.value.trim() && isCritical(t.name, t.value));
   const requested = formatSlashDate(report.createdAt);
   const collected = report.collectedAt ? formatSlashDate(report.collectedAt) : null;
@@ -206,6 +208,7 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
                     <div className="rp-barcode"><SampleBarcode value={sampleCode} /></div>
                   </div>
                 </section>
+                {sampleText ? <p className="rp-sample" dir="auto">{sampleText}</p> : null}
 
                 {summary.measured > 0 && design.showSummary ? (
                   <div className={cn("rp-summary", summary.outside === 0 ? "rp-summary-ok" : "rp-summary-flag")}>

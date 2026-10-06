@@ -14,6 +14,8 @@ import { AGE_UNITS, ageProblem, ageToYears, formatAge, parseAgeUnit } from "@/li
 import { FlagBadge } from "@/components/report/flag-badge";
 import { interpretResult } from "@/lib/medical";
 import { useLabStore, type Draft } from "@/lib/store";
+import { IntakeSection } from "@/components/report/intake-section";
+import { isEmptyIntake, normalizeIntake } from "@/lib/report-intake";
 import {
   CATEGORIES,
   getNormalRange,
@@ -260,6 +262,7 @@ export function ReportWizard({ catalog, groups = [], editReport, labId }: { cata
       patientName: draft.patientName, patientCode: draft.patientCode, age, ageUnit: parseAgeUnit(draft.ageUnit), gender: draft.gender,
       phone: draft.phone, doctor: draft.doctor, notes: draft.notes,
       collectedAt: draft.collectedAt, tests: draft.tests,
+      intake: isEmptyIntake(normalizeIntake(draft.intake)) ? undefined : normalizeIntake(draft.intake),
     };
     // One id per save attempt: if the request reaches the server but the answer
     // is lost, the queued retry carries the same id and the server ignores it.
@@ -630,6 +633,7 @@ function PatientStep({
             placeholder="سبب التحليل أو ملاحظات فنية"
           />
         </div>
+        <IntakeSection intake={normalizeIntake(draft.intake)} onChange={(intake) => setDraft({ intake })} gender={draft.gender} />
       </div>
     </div>
   );

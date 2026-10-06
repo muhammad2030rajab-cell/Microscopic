@@ -11,6 +11,7 @@ import { getSql } from "@/lib/db";
 import { addCalculatedTests, interpretResult, isCritical, type DraftTest } from "@/lib/medical";
 import { getNormalRange } from "@/lib/tests-catalog";
 import { requireLabPermission, type LabPermission } from "@/lib/lab-users";
+import { isEmptyIntake, normalizeIntake, type Intake } from "@/lib/report-intake";
 
 async function getLabContext(userId: string, permission?: LabPermission) {
   const sql = await getSql();
@@ -76,6 +77,8 @@ export type CreateLabReportInput = {
   expectedLabId?: string;
   /** Owner only: which branch the report belongs to (staff use their own branch). */
   branchId?: string;
+  /** Registration details (sample types, fasting, clinical questions…). Validated by normalizeIntake. */
+  intake?: unknown;
 };
 
 /** Plain-function core of `createLabReport`: also used by device sync (see sync.ts). */
@@ -142,9 +145,9 @@ export async function createLabReportForUser(userId: string, data: CreateLabRepo
   );
 
   await sql.query(
-    `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by, created_at, client_request_id, branch_id)
-     values ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10,$11)`,
-    [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id, now.toISOString(), clientRequestId, reportBranchId],
+    `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by, created_at, client_request_id, branch_id, intake)
+     values ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10,$11,$12::jsonb)`,
+    [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id, now.toISOString(), clientRequestId, reportBranchId, intakeJson(data.intake)],
   );
 
   for (let i = 0; i < tests.length; i += 1) {
@@ -184,7 +187,18 @@ export const createLabReport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }: { context: { userId: string }; data: CreateLabReportInput }) => createLabReportForUser(context.userId, data));
 
+function safeJson(text: string): unknown {
+  try { return JSON.parse(text); } catch { return null; }
+}
+
+/** What is stored in reports.intake: null when nothing was recorded. */
+function intakeJson(input: unknown): string | null {
+  const intake = normalizeIntake(input);
+  return isEmptyIntake(intake) ? null : JSON.stringify(intake);
+}
+
 export type LabReport = {
+  intake?: Intake;
   id: string;
   patientName: string;
   patientCode: string;
@@ -244,8 +258,8 @@ export async function updateLabReportForUser(userId: string, data: CreateLabRepo
     [data.patientCode?.trim() || null, patientName, age, ageUnit, data.gender, phoneDigits(data.phone), data.nationalId?.trim() || null, data.notes?.trim() || null, current[0].patient_id, lab_id],
   );
   await sql.query(
-    `update reports set referring_doctor=$1, notes=$2, collected_at=$3, updated_at=current_timestamp where id=$4 and lab_id=$5 and status='draft'`,
-    [data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, data.id, lab_id],
+    `update reports set referring_doctor=$1, notes=$2, collected_at=$3, intake=$4::jsonb, updated_at=current_timestamp where id=$5 and lab_id=$6 and status='draft'`,
+    [data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, intakeJson(data.intake), data.id, lab_id],
   );
   await sql.query(`delete from report_results where report_id=$1`, [data.id]);
   for (let i = 0; i < tests.length; i += 1) {
@@ -360,10 +374,10 @@ export const getLabReport = createServerFn({ method: "GET" })
     const rows = await sql<{
       id: string; patient_code: string | null; full_name: string; age: number; age_unit: string | null; gender: "ذكر" | "أنثى"; phone: string | null; national_id: string | null;
       sample_id: string | null; referring_doctor: string | null; created_at: string | Date; notes: string | null; collected_at: string | Date | null;
-      status: "draft" | "pending_review" | "approved" | "cancelled"; reviewed_by: string | null; approved_at: string | Date | null;
+      status: "draft" | "pending_review" | "approved" | "cancelled"; reviewed_by: string | null; approved_at: string | Date | null; intake: unknown;
     }>`
       select r.id, p.patient_code, p.full_name, p.age, p.age_unit, p.gender, p.phone, p.national_id,
-             r.sample_id, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at
+             r.sample_id, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at, r.intake
       from reports r
       inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
       where r.id = ${data.id} and r.lab_id = ${lab_id} and (${branch_id}::text is null or r.branch_id = ${branch_id})
@@ -385,6 +399,7 @@ export const getLabReport = createServerFn({ method: "GET" })
       phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "",
       doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), collectedAt: r.collected_at ? String(r.collected_at).slice(0, 10) : undefined,
       notes: r.notes || undefined,
+      intake: normalizeIntake(typeof r.intake === "string" ? safeJson(r.intake) : r.intake),
       status: r.status, reviewedBy: r.reviewed_by || undefined, approvedAt: r.approved_at ? String(r.approved_at) : undefined,
       tests: results.map((t) => ({
         name: t.test_name, categoryId: t.category_id || "", categoryAr: t.category_ar || "",

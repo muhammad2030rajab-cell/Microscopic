@@ -3,12 +3,14 @@ import {
   HeadContent,
   Outlet,
   Scripts,
+  useRouter,
 } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Toaster, toast } from "sonner";
 
 import { AuthProvider } from "@/lib/auth/provider";
 import { registerServiceWorker } from "@/lib/offline/sync";
+import { installAndroidBackButton } from "@/lib/native-back";
 
 import appCss from "../styles.css?url";
 
@@ -88,6 +90,18 @@ export const Route = createRootRoute({
 });
 
 function RootComponent() {
+  const router = useRouter();
+  // Android app only: back goes one screen back, and leaving the app needs two presses on a home screen.
+  useEffect(
+    () =>
+      installAndroidBackButton({
+        pathname: () => router.state.location.pathname,
+        goHome: () => void router.navigate({ to: "/lab" }),
+        hint: () => toast("اضغط رجوع مرة تانية للخروج", { duration: 2000 }),
+      }),
+    [router],
+  );
+
   useEffect(() => {
     registerServiceWorker(() => toast.success("التطبيق جاهز للعمل بدون إنترنت"));
   }, []);

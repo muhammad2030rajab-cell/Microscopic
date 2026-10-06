@@ -11,6 +11,7 @@
       try {
         var nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
         if (nav && nav.type === "back_forward") return;
+        if (/[?&]settings=1/.test(window.location.search)) return;
         var raw = localStorage.getItem("microscopic.launcher.v1");
         var s = raw ? JSON.parse(raw) : null;
         var mode = s && s.mode ? s.mode : "cloud";

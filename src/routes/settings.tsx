@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeAppLink } from "@/components/native-app-link";
 import { ReportDesignEditor } from "@/components/report/report-design-editor";
 import { getCurrentLab, updateCurrentLabProfile, type LabProfileData } from "@/lib/lab-access";
 
@@ -144,6 +145,7 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
         lab={previewProfile}
         onReportLanguageChange={(language) => setReportLanguage(language)}
       />
+      <NativeAppLink />
       <InstallBanner />
     </AppShell>
   );

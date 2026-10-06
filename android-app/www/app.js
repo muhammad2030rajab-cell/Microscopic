@@ -136,5 +136,11 @@ window.addEventListener("pageshow", (e) => {
 });
 
 const nav = performance.getEntriesByType?.("navigation")?.[0];
-if (nav && nav.type === "back_forward") setStatus("اختار فتح البرنامج أو غيّر الإعدادات.");
+if (/[?&]settings=1/.test(window.location.search)) {
+  // Opened on purpose from the app's settings page: show the connection settings, do not connect.
+  cancelled = true;
+  setStatus("اختار فتح البرنامج أو غيّر الإعدادات.");
+  $("settings").hidden = false;
+  fillForm();
+} else if (nav && nav.type === "back_forward") setStatus("اختار فتح البرنامج أو غيّر الإعدادات.");
 else void connect();

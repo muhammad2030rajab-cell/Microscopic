@@ -8,6 +8,9 @@ import { requireLabPermission, type LabPermission } from "@/lib/lab-users";
 
 async function currentLab(userId: string, permission?: LabPermission) {
   const sql = await getSql();
+  // Permission check runs while the lab lookup is in flight (saves a round trip); error order is unchanged.
+  const permissionCheck = permission ? requireLabPermission(userId, permission) : undefined;
+  permissionCheck?.catch(() => {}); // handled below; stops an early rejection from being reported as unhandled
   const rows = await sql<{ lab_id: string }>`
     select lu.lab_id
     from lab_users lu
@@ -17,7 +20,7 @@ async function currentLab(userId: string, permission?: LabPermission) {
   `;
 
   if (!rows.length) throw new Error("LAB_ACCESS_REQUIRED");
-  if (permission) await requireLabPermission(userId, permission);
+  if (permissionCheck) await permissionCheck;
 
   return { sql, labId: rows[0].lab_id };
 }

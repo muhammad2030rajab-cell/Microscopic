@@ -38,7 +38,7 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
   const [doctorDegree, setDoctorDegree] = useState(lab.doctor_degree ?? "");
   const [doctorSpecialty, setDoctorSpecialty] = useState(lab.doctor_specialty ?? "");
   const [logoUrl, setLogoUrl] = useState(lab.logo_url ?? "");
-  const [reportLanguage, setReportLanguage] = useState(lab.report_language ?? "bilingual");
+  const [reportLanguage, setReportLanguage] = useState(lab.report_language ?? "en");
   const [saving, setSaving] = useState(false);
 
   const previewProfile = useMemo(
@@ -142,6 +142,7 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
         labId={lab.lab_id}
         initialDesign={lab.report_design}
         lab={previewProfile}
+        onReportLanguageChange={(language) => setReportLanguage(language)}
       />
       <InstallBanner />
     </AppShell>

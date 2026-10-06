@@ -14,6 +14,10 @@ import { requireLabPermission, type LabPermission } from "@/lib/lab-users";
 
 async function getLabContext(userId: string, permission?: LabPermission) {
   const sql = await getSql();
+  // The permission check (2 queries of its own) runs WHILE the lab lookup is in flight instead of after it,
+  // so every call saves a database round trip. Error order is unchanged: no lab -> LAB_ACCESS_REQUIRED first.
+  const permissionCheck = permission ? requireLabPermission(userId, permission) : undefined;
+  permissionCheck?.catch(() => {}); // handled below; stops an early rejection from being reported as unhandled
   const rows = await sql<{
     lab_user_id: string;
     lab_id: string;
@@ -31,7 +35,7 @@ async function getLabContext(userId: string, permission?: LabPermission) {
     limit 1
   `;
   if (!rows.length) throw new Error("LAB_ACCESS_REQUIRED");
-  if (permission) await requireLabPermission(userId, permission);
+  if (permissionCheck) await permissionCheck;
   // The owner always sees every branch; staff tied to a branch see only that one.
   const branchId = rows[0].role === "owner" ? null : rows[0].branch_id;
   return { sql, ...rows[0], branch_id: branchId };

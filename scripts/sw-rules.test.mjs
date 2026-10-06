@@ -23,10 +23,22 @@ test("hashed build assets are cache-first", () => {
   assert.equal(d("/assets/index-Ab12.js"), "immutable");
 });
 
-test("only /new HTML is kept offline; patient pages are not", () => {
-  assert.equal(d("/new", { mode: "navigate" }), "page");
+test("the main screens' HTML is kept offline; report and patient-record pages are not", () => {
+  for (const page of ["/new", "/lab", "/patients", "/catalog"]) {
+    assert.equal(d(page, { mode: "navigate" }), "page", page);
+    assert.ok(SwRules.OFFLINE_PAGES.includes(page), page);
+  }
   assert.equal(d("/reports/abc", { mode: "navigate" }), "navigate");
-  assert.equal(d("/patients", { accept: "text/html,application/xhtml+xml" }), "navigate");
+  assert.equal(d("/reports", { accept: "text/html,application/xhtml+xml" }), "navigate");
+  assert.equal(d("/admin", { mode: "navigate" }), "navigate");
+  assert.equal(d("/team", { mode: "navigate" }), "navigate");
+});
+
+test("assetUrls: the build files a saved page needs, unique and in order", () => {
+  const html = '<link rel="modulepreload" href="/assets/a-1.js"><link rel="stylesheet" href="/assets/s-2.css"><script type="module" src="/assets/a-1.js"></script><script src="/assets/b-3.js?x=1"></script><img src="/assets/logo.png"><a href="/reports">x</a><script src="https://cdn.example.com/assets/evil.js"></script>';
+  assert.deepEqual(SwRules.assetUrls(html), ["/assets/a-1.js", "/assets/s-2.css", "/assets/b-3.js"]);
+  assert.deepEqual(SwRules.assetUrls(""), []);
+  assert.deepEqual(SwRules.assetUrls(undefined), []);
 });
 
 test("icons, manifest and google fonts revalidate; other origins are ignored", () => {

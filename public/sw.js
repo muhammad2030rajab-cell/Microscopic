@@ -1,14 +1,15 @@
-/* Service worker: lets the app open and the "new report" flow run offline.
+/* Service worker: lets the app open and the main screens run offline.
  * - hashed build assets: cache-first
  * - icons / fonts: stale-while-revalidate
- * - /new HTML: network-first, cached copy only when the page asks (logged in)
+ * - /new, /lab, /patients, /catalog HTML: network-first, cached copy only when the page asks (logged in);
+ *   the build files that page needs are kept with it
  * - every other page: network only; on failure offline.html, which also shows the device copy
  *   of the archive (read-only) straight from IndexedDB
  * - server functions, /api, non-GET: never touched, never cached
- * Patient pages are deliberately NOT cached. */
+ * Report and patient-record pages are deliberately NOT cached (the saved HTML above carries no patient data). */
 importScripts("/sw-rules.js");
 
-var VERSION = "v3";
+var VERSION = "v4";
 var STATIC = "rajab-static-" + VERSION;
 var PAGES = "rajab-pages-" + VERSION;
 var KEEP = [STATIC, PAGES];
@@ -44,6 +45,20 @@ function put(cacheName, req, res) {
   var copy = res.clone();
   caches.open(cacheName).then(function (c) { return c.put(req, copy); });
   return res;
+}
+
+/** Keep the build files a saved page needs, so another screen opens offline even if it was never visited on this device. */
+function keepAssets(urls) {
+  return caches.open(STATIC).then(function (c) {
+    return Promise.all(
+      urls.map(function (u) {
+        return c.match(u).then(function (hit) {
+          if (hit) return null;
+          return fetch(u).then(function (r) { return SwRules.cacheable(r) ? c.put(u, r) : null; }).catch(function () { return null; });
+        });
+      }),
+    );
+  });
 }
 
 self.addEventListener("fetch", function (event) {
@@ -100,7 +115,12 @@ self.addEventListener("message", function (event) {
       fetch(data.url, { credentials: "same-origin", headers: { accept: "text/html" } })
         .then(function (res) {
           if (!SwRules.cacheable(res)) return null;
-          return caches.open(PAGES).then(function (c) { return c.put(data.url, res); });
+          var copy = res.clone();
+          return caches
+            .open(PAGES)
+            .then(function (c) { return c.put(data.url, res); })
+            .then(function () { return copy.text(); })
+            .then(function (html) { return keepAssets(SwRules.assetUrls(html)); });
         })
         .then(function () { if (event.source) event.source.postMessage({ type: "cached", url: data.url }); })
         .catch(function () {}),

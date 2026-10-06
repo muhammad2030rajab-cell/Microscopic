@@ -134,6 +134,25 @@ export function registerServiceWorker(onReady: () => void): void {
   void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
 }
 
+/** Pages the worker keeps for offline use. Must match OFFLINE_PAGES in public/sw-rules.js. */
+export const OFFLINE_PAGE_URLS = ["/new", "/lab", "/patients", "/catalog"] as const;
+
+/**
+ * Once per browser session, signed in: ask the worker to keep every offline-capable screen (and the build
+ * files they need), so they all open with no connection even if this device never visited them.
+ */
+const PAGES_KEPT_KEY = "microscopic:pages-kept:v1";
+
+export function requestAllOfflinePages(): void {
+  try {
+    if (sessionStorage.getItem(PAGES_KEPT_KEY)) return;
+    sessionStorage.setItem(PAGES_KEPT_KEY, "1");
+  } catch {
+    /* storage blocked: just ask again next time */
+  }
+  for (const url of OFFLINE_PAGE_URLS) requestPageCache(url);
+}
+
 /** Ask the worker to keep a copy of an offline-capable page (signed-in only). */
 export function requestPageCache(url: string): void {
   if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
@@ -143,6 +162,11 @@ export function requestPageCache(url: string): void {
 /** Sign-out: drop saved pages and the offline profile. Queued reports are kept. */
 export async function clearOfflineCaches(): Promise<void> {
   clearBootstrap();
+  try {
+    sessionStorage.removeItem(PAGES_KEPT_KEY); // the next sign-in must save the screens again
+  } catch {
+    /* ignore */
+  }
   // The device copy of the lab's patients and reports must not outlive the session.
   const { clearLocalData } = await import("../sync-engine/offline-fallback");
   await clearLocalData();

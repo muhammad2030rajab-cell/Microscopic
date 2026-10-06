@@ -14,6 +14,11 @@ import { diffReportEdit, type DiffRow } from "./conflict-review";
 import { outboxStateFor } from "./edit-item";
 import type { OutboxItem } from "./engine";
 import { applyPendingEdit, toReportDetail, toReportSummaries, type LocalReportDetail, type LocalReportSummary } from "./local-reads";
+import { toCatalogRows, toDashboardStats, toPatientReports, toPatientSummaries, toRecentReports } from "./local-screens";
+import type { LabDashboardStats } from "../lab-access";
+import type { LabCatalogRow } from "../lab-catalog";
+import type { RecentReport } from "../lab-reports";
+import type { PatientSummary } from "../patients";
 
 const PROFILE_KEY = "microscopic:lab-profile:v1";
 const PERMS_KEY = "microscopic:lab-perms:v1";
@@ -115,6 +120,81 @@ export async function loadLocalReport<L>(
     // An edit made on this device and not yet sent is shown on top of the pulled copy.
     const { pending } = outboxStateFor(await store.listOutbox(labId), reportId);
     return { report: pending ? applyPendingEdit(detail, pending.payload) : detail, lab, pendingEdit: Boolean(pending) };
+  } catch {
+    return null;
+  }
+}
+
+/** The device copy, only when the failure was "no connection" and the copy is complete and recent enough. */
+async function openMirror(err: unknown): Promise<{ store: ReturnType<typeof idbLocalStore>; labId: string } | null> {
+  if (!canUseLocal(err)) return null;
+  const labId = getKnownLabId();
+  if (!labId) return null;
+  try {
+    const store = idbLocalStore();
+    if ((await store.getCursor(labId)) === 0) return null;
+    if (!isMirrorFresh(await store.getLastSync(labId), Date.now())) return null;
+    return { store, labId };
+  } catch {
+    return null;
+  }
+}
+
+/** Patient search from the device copy (read-only). null = no usable copy. */
+export async function loadLocalPatientSearch(err: unknown, query: string): Promise<PatientSummary[] | null> {
+  const m = await openMirror(err);
+  if (!m) return null;
+  try {
+    const [patients, reports] = await Promise.all([m.store.listRows("patients"), m.store.listRows("reports")]);
+    return toPatientSummaries(patients.filter(ofLab(m.labId)), reports.filter(ofLab(m.labId)), query);
+  } catch {
+    return null;
+  }
+}
+
+/** One patient's report list from the device copy. */
+export async function loadLocalPatientReports(err: unknown, patientId: string): Promise<{ id: string; sample_id: string | null; status: string; created_at: string }[] | null> {
+  const m = await openMirror(err);
+  if (!m) return null;
+  try {
+    const reports = await m.store.listRows("reports");
+    return toPatientReports(reports.filter(ofLab(m.labId)), patientId);
+  } catch {
+    return null;
+  }
+}
+
+/** Home screen (counters, latest reports, lab header, permissions) from the device copy. */
+export async function loadLocalDashboard<L>(err: unknown): Promise<{ lab: L; stats: LabDashboardStats; recent: RecentReport[]; permissions: Record<string, boolean | undefined> } | null> {
+  const m = await openMirror(err);
+  const lab = loadLabProfile<L>();
+  if (!m || !lab) return null;
+  try {
+    const [reports, patients, results] = await Promise.all([m.store.listRows("reports"), m.store.listRows("patients"), m.store.listAllResults()]);
+    const myReports = reports.filter(ofLab(m.labId));
+    const myPatients = patients.filter(ofLab(m.labId));
+    const grouped = new Map<string, Row[]>();
+    for (const r of results) {
+      const key = String(r.report_id);
+      grouped.set(key, [...(grouped.get(key) ?? []), r]);
+    }
+    const stats = toDashboardStats(myPatients, myReports, results, Date.now());
+    const recent = toRecentReports(toReportSummaries(myReports, myPatients, grouped));
+    return { lab, stats, recent, permissions: loadLabPermissions() };
+  } catch {
+    return null;
+  }
+}
+
+/** Test catalog (read-only) plus the lab header, from the device copy. */
+export async function loadLocalCatalog<L>(err: unknown): Promise<{ lab: L; items: LabCatalogRow[] } | null> {
+  const m = await openMirror(err);
+  const lab = loadLabProfile<L>();
+  if (!m || !lab) return null;
+  try {
+    const rows = await m.store.listRows("lab_test_catalog");
+    const mine = rows.filter(ofLab(m.labId));
+    return mine.length ? { lab, items: toCatalogRows(mine) } : null;
   } catch {
     return null;
   }

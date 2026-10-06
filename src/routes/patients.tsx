@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { isValidPhone, phoneDigits } from "@/lib/phone";
 import { Plus, Search, UserRound, X } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/app-shell";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,9 @@ import { getCurrentLabPermissions } from "@/lib/lab-users";
 import { formatArDate } from "@/lib/utils";
 import { AGE_UNITS, formatAge, parseAgeUnit, type AgeUnit } from "@/lib/age";
 import { normalizeNumerals } from "@/lib/numerals";
+import { loadLocalPatientReports, loadLocalPatientSearch } from "@/lib/sync-engine/offline-fallback";
+import { requestAllOfflinePages } from "@/lib/offline/sync";
+import { useOnline } from "@/lib/offline/use-offline";
 
 export const Route = createFileRoute("/patients")({
   loader: async () => {
@@ -41,6 +44,13 @@ function PatientsPage() {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const online = useOnline();
+  // true = the list on screen came from the copy saved on this device, not from the server
+  const [fromDevice, setFromDevice] = useState(false);
+
+  useEffect(() => {
+    if (navigator.onLine) requestAllOfflinePages();
+  }, []);
 
   async function search() {
     if (q.trim().length < 2) return;
@@ -55,8 +65,18 @@ function PatientsPage() {
       setPatients(result);
       setSelected(null);
       setHistory([]);
-    } catch {
-      toast.error("تعذر البحث عن المرضى");
+      setFromDevice(false);
+    } catch (error) {
+      // No connection: search the copy saved on this device (read-only).
+      const local = await loadLocalPatientSearch(error, q);
+      if (local) {
+        setPatients(local);
+        setSelected(null);
+        setHistory([]);
+        setFromDevice(true);
+      } else {
+        toast.error("تعذر البحث عن المرضى");
+      }
     } finally {
       setLoading(false);
     }
@@ -72,8 +92,10 @@ function PatientsPage() {
           data: { patientId: patient.id },
         }),
       );
-    } catch {
-      toast.error("تعذر تحميل سجل التقارير");
+    } catch (error) {
+      const local = await loadLocalPatientReports(error, patient.id);
+      if (local) setHistory(local);
+      else toast.error("تعذر تحميل سجل التقارير");
     } finally {
       setHistoryLoading(false);
     }
@@ -94,10 +116,16 @@ function PatientsPage() {
           <p className="mt-2 text-sm text-muted">
             ملف موحد لكل مريض، مع سجل تقاريره داخل المعمل.
           </p>
+
+          {!online || fromDevice ? (
+            <p className="mt-2 text-xs text-ink-soft">
+              شغّال بدون إنترنت: البحث بيتم من النسخة المحفوظة على الجهاز، وإضافة مريض جديد محتاجة اتصال.
+            </p>
+          ) : null}
         </div>
 
         {canCreate ? (
-          <Button onClick={() => setShowForm(true)}>
+          <Button onClick={() => setShowForm(true)} disabled={!online} title={online ? undefined : "إضافة مريض محتاجة اتصال بالإنترنت"}>
             <Plus className="size-4" />
             مريض جديد
           </Button>

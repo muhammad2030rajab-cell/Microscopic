@@ -17,8 +17,10 @@ import {
   type ReportTemplate,
   type ReportTableStyle,
 } from "@/lib/report-design";
-import { getReportDesignAssets, updateReportDesign } from "@/lib/report-design-settings";
+import { getReportDesignAssets, setReportLanguage, updateReportDesign, type ReportLanguageSetting } from "@/lib/report-design-settings";
+import { languageFromSetting } from "@/components/report/print-view";
 import type { LabProfile } from "@/lib/store";
+import type { ReportLang } from "@/lib/report-strings";
 
 const SHEET_WIDTH = 860; // px the preview sheet is laid out at before being scaled down
 
@@ -42,7 +44,29 @@ function readImage(file: File, maxChars: number): Promise<string> {
   });
 }
 
-export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProfile; labId: string; initialDesign: unknown }) {
+const LANGUAGES: { value: ReportLanguageSetting; label: string; hint: string }[] = [
+  { value: "en", label: "English", hint: "إنجليزي بالكامل" },
+  { value: "ar", label: "العربية", hint: "عربي بالكامل" },
+  { value: "bilingual", label: "English + العربية", hint: "ثنائي اللغة" },
+];
+
+export function ReportDesignEditor({ lab, labId, initialDesign, onReportLanguageChange }: { lab: LabProfile; labId: string; initialDesign: unknown; onReportLanguageChange: (language: ReportLanguageSetting) => void }) {
+  const reportLang = languageFromSetting(lab.reportLanguage);
+  const [langBusy, setLangBusy] = useState(false);
+  async function changeLanguage(language: ReportLanguageSetting) {
+    if (language === (lab.reportLanguage ?? "en") || langBusy) return;
+    setLangBusy(true);
+    try {
+      await setReportLanguage({ data: { language } });
+      onReportLanguageChange(language);
+      toast.success("تم تغيير لغة التقرير");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذر تغيير لغة التقرير");
+    } finally {
+      setLangBusy(false);
+    }
+  }
+
   const [design, setDesign] = useState<ReportDesign>(() => normalizeDesign(initialDesign));
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [stampUrl, setStampUrl] = useState<string | null>(null);
@@ -116,13 +140,30 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
       <div className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <div className="min-w-0 space-y-6">
           <fieldset className="min-w-0 space-y-2">
+            <legend className="text-sm font-medium">لغة التقرير</legend>
+            <p className="text-[11px] leading-5 text-muted">بتتحفظ فورًا وبتتطبق على كل تقارير المعمل. «English» = كل العناوين والتسميات إنجليزي واتجاه الصفحة من الشمال لليمين. (اسم المريض والطبيب بيظهروا زي ما اتكتبوا.)</p>
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="لغة التقرير">
+              {LANGUAGES.map((l) => {
+                const active = (lab.reportLanguage ?? "en") === l.value;
+                return (
+                  <button key={l.value} type="button" role="radio" aria-checked={active} disabled={langBusy} onClick={() => changeLanguage(l.value)}
+                    className={`rounded-lg border p-2.5 text-start ${active ? "border-teal bg-teal/5" : "border-line bg-paper"}`}>
+                    <span className="block text-sm font-medium" dir="auto">{l.label}</span>
+                    <span className="block text-[11px] text-muted">{l.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          <fieldset className="min-w-0 space-y-2">
             <legend className="text-sm font-medium">اختيار القالب</legend>
             <p className="text-[11px] leading-5 text-muted">اختار الشكل الافتراضي للمعمل. الصور دي معاينة ببيانات معملك. وكل مستخدم يقدر يغيّره لطباعة تقرير معيّن من صفحة التقرير.</p>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
               {REPORT_TEMPLATES.map((t) => (
                 <button key={t.key} type="button" aria-pressed={design.template === t.key} onClick={() => patch({ template: t.key })}
                   className={`min-w-0 overflow-hidden rounded-lg border bg-paper text-start transition-colors ${design.template === t.key ? "border-teal ring-2 ring-teal/60" : "border-line hover:border-line-strong"}`}>
-                  <TemplateThumb template={t.key} lab={previewLab} />
+                  <TemplateThumb template={t.key} lab={previewLab} lang={reportLang} />
                   <span className="block px-2 py-1.5">
                     <span className="flex flex-wrap items-center justify-between gap-1 text-[13px] font-medium leading-5">
                       {t.label}
@@ -257,7 +298,7 @@ export function ReportDesignEditor({ lab, labId, initialDesign }: { lab: LabProf
         <div>
           <p className="mb-2 text-xs text-muted">معاينة (بيانات تجريبية)</p>
           <ScaledSheet className="rounded-lg border border-line bg-paper-2">
-            <ReportSheet report={SAMPLE_REPORT} lab={previewLab} lang="bi" />
+            <ReportSheet report={SAMPLE_REPORT} lab={previewLab} lang={reportLang} />
           </ScaledSheet>
         </div>
       </div>
@@ -314,10 +355,10 @@ function ScaledSheet({ children, className = "", crop = false }: { children: Rea
 }
 
 /** A small live preview of one template (top of the page). Memoised: it only re-renders when the design really changes. */
-const TemplateThumb = memo(function TemplateThumb({ template, lab }: { template: ReportTemplate; lab: LabProfile }) {
+const TemplateThumb = memo(function TemplateThumb({ template, lab, lang }: { template: ReportTemplate; lab: LabProfile; lang: ReportLang }) {
   return (
     <ScaledSheet crop className="border-b border-line bg-paper-2">
-      <ReportSheet report={SAMPLE_REPORT} lab={lab} lang="bi" template={template} />
+      <ReportSheet report={SAMPLE_REPORT} lab={lab} lang={lang} template={template} />
     </ScaledSheet>
   );
 });

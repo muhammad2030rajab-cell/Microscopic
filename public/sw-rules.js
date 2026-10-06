@@ -4,9 +4,11 @@
   if (typeof module === "object" && module.exports) module.exports = factory();
   else root.SwRules = factory();
 })(typeof self !== "undefined" ? self : globalThis, function () {
-  // Only these HTML pages are kept for offline use. They contain no patient
-  // data (lab profile + test catalog only). Report pages are never cached.
-  var OFFLINE_PAGES = ["/new"];
+  // Only these HTML pages are kept for offline use. Their saved HTML carries no patient data:
+  // /new has the lab profile + test catalog, /patients only a permission flag, and /lab and
+  // /catalog load their data in the browser (ssr: false), so the HTML is an empty shell.
+  // Report pages are never cached.
+  var OFFLINE_PAGES = ["/new", "/lab", "/patients", "/catalog"];
   var FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 
   /**
@@ -35,5 +37,14 @@
     return !!res && res.status === 200 && !res.redirected && (res.type === "basic" || res.type === "cors");
   }
 
-  return { decide: decide, cacheable: cacheable, OFFLINE_PAGES: OFFLINE_PAGES };
+  /** Build files (/assets/*.js and *.css) a saved page needs, so they are kept too. Unique, in page order. */
+  function assetUrls(html) {
+    var out = [];
+    var re = /(?:src|href)="(\/assets\/[^"?#]+\.(?:js|css))(?:[?#][^"]*)?"/g;
+    var m;
+    while ((m = re.exec(String(html || "")))) if (out.indexOf(m[1]) === -1) out.push(m[1]);
+    return out;
+  }
+
+  return { decide: decide, cacheable: cacheable, assetUrls: assetUrls, OFFLINE_PAGES: OFFLINE_PAGES };
 });

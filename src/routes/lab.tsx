@@ -7,7 +7,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import {
   BarChart3,
   CheckCircle2,
@@ -27,7 +27,9 @@ import {
 
 import { AppShell } from "@/components/layout/app-shell";
 import { UserButton, useCurrentUserState } from "@/lib/auth/gates";
-import { getCurrentAccess, getCurrentLab, getLabDashboardStats } from "@/lib/lab-access";
+import { getCurrentAccess, getCurrentLab, getLabDashboardStats, type LabProfileData } from "@/lib/lab-access";
+import { loadLocalDashboard } from "@/lib/sync-engine/offline-fallback";
+import { requestAllOfflinePages } from "@/lib/offline/sync";
 import { getRecentLabReports, type RecentReport } from "@/lib/lab-reports";
 import { getCurrentLabPermissions, type LabPermissions } from "@/lib/lab-users";
 import { formatAge } from "@/lib/age";
@@ -36,6 +38,9 @@ import { reportStatusClasses, reportStatusLabels } from "@/lib/report-workflow";
 import { cn, formatListDate } from "@/lib/utils";
 
 export const Route = createFileRoute("/lab")({
+  // The data loads in the browser (never in the server-rendered HTML): the saved offline copy of this page
+  // then holds no patient data, and with no connection the loader answers from the device copy instead.
+  ssr: false,
   loader: async () => {
     try {
       const [lab, stats, access, recent] = await Promise.all([
@@ -46,8 +51,15 @@ export const Route = createFileRoute("/lab")({
         getRecentLabReports().catch(() => [] as RecentReport[]),
       ]);
 
-      return { lab, stats, permissions: access.permissions, recent, loadFailed: false };
-    } catch {
+      return { lab, stats, permissions: access.permissions, recent, loadFailed: false, offline: false };
+    } catch (error) {
+      // No connection: the home screen from the device copy (counters, latest reports, lab header).
+      if (typeof window !== "undefined") {
+        const local = await loadLocalDashboard<LabProfileData>(error);
+        if (local) {
+          return { lab: local.lab, stats: local.stats, permissions: local.permissions as LabPermissions, recent: local.recent, loadFailed: false, offline: true };
+        }
+      }
       // لو الحساب اتوقف وهو داخل، نحوّله لصفحة الدخول (فيها رسالة التواصل مع المدير)
       const access = await getCurrentAccess().catch(() => null);
       if (access?.type === "suspended") throw redirect({ to: "/login" });
@@ -58,6 +70,7 @@ export const Route = createFileRoute("/lab")({
         lab: null,
         // الحساب سليم ومرتبط بمعمل لكن التحميل فشل: نعرض رسالة بدل دايرة login <-> lab.
         loadFailed: access?.type === "lab",
+        offline: false,
         stats: {
           patients: 0,
           reportsToday: 0,
@@ -81,8 +94,13 @@ function LabDashboard() {
 
   const { user, isPending } = useCurrentUserState();
 
-  const { lab, stats, permissions, recent, loadFailed } = Route.useLoaderData();
+  const { lab, stats, permissions, recent, loadFailed, offline } = Route.useLoaderData();
   const router = useRouter();
+
+  // Signed in and loaded: keep the other offline screens ready on this device.
+  useEffect(() => {
+    if (lab && !loadFailed && navigator.onLine) requestAllOfflinePages();
+  }, [lab, loadFailed]);
 
   /*
    * Child routes such as /lab/setup are rendered through Outlet.
@@ -91,7 +109,7 @@ function LabDashboard() {
     return <Outlet />;
   }
 
-  if (isPending) {
+  if (isPending && !offline) {
     return (
       <main className="grid min-h-screen place-items-center bg-paper">
         جارٍ التحقق…
@@ -119,7 +137,10 @@ function LabDashboard() {
     );
   }
 
-  if (!user || !lab) {
+  // With no connection the sign-in session cannot be re-checked (it is read from the server), so a home
+  // screen answered from the device copy is allowed without it. That copy is only ever used after a network
+  // failure, never after the server rejected the session, and it is wiped on sign-out.
+  if (!lab || (!user && !offline)) {
     return <Navigate to="/login" replace />;
   }
 

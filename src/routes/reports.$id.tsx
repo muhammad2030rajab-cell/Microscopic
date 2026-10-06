@@ -21,7 +21,7 @@ import { ShareDialog, type ShareChannel } from "@/components/report/share-dialog
 import { PdfShareDialog } from "@/components/report/pdf-share-dialog";
 import { toWhatsAppNumber } from "@/lib/phone";
 import { ageToYears, formatAge } from "@/lib/age";
-import { REPORT_LANGS, isReportLang, type ReportLang } from "@/lib/report-strings";
+import { REPORT_LANGS, type ReportLang } from "@/lib/report-strings";
 
 export const Route = createFileRoute("/reports/$id")({
   loader: async ({ params }) => {
@@ -69,16 +69,16 @@ function ReportDetail() {
   // Remembered per device. Read after mount so server and client HTML match.
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("rajab:report-lang");
-      if (isReportLang(saved)) setLangChoice(saved);
+      // The report language is the lab's setting now. An old per-device choice used to stick here and
+      // kept showing Arabic after the lab switched to English, so it is dropped.
+      localStorage.removeItem("rajab:report-lang");
       const savedTemplate = localStorage.getItem("rajab:report-template");
       if (isReportTemplate(savedTemplate)) setTemplateChoice(savedTemplate);
     } catch { /* storage blocked: keep the default */ }
   }, []);
 
   function chooseLang(next: ReportLang) {
-    setLangChoice(next);
-    try { localStorage.setItem("rajab:report-lang", next); } catch { /* ignore */ }
+    setLangChoice(next); // only for this view / print / PDF; the default is set in Settings
   }
   function chooseTemplate(next: ReportTemplate | "") {
     setTemplateChoice(next);
@@ -165,8 +165,7 @@ function ReportDetail() {
     setError("");
     setPdfLoading(true);
     try {
-      const visit = visitIdFrom(report.id);
-      await downloadReportPdf(printRef.current, `تقرير-${report.patientName}-${visit}.pdf`);
+      await downloadReportPdf(printRef.current, pdfFilename);
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذر إنشاء ملف PDF");
     } finally {
@@ -179,6 +178,10 @@ function ReportDetail() {
   const canDelete = permissions["reports.delete"] === true && (report.status !== "approved" || role === "owner");
 
   const visit = visitIdFrom(report.id);
+  const pdfFilename = (() => {
+    const safeName = report.patientName.replace(/[\\/:*?"<>|\s]+/g, "-").replace(/^-+|-+$/g, "");
+    return `${lang === "ar" ? "تقرير" : "Report"}-${visit}${safeName ? `-${safeName}` : ""}.pdf`;
+  })();
 
   return <div className="print-root min-h-dvh bg-paper">
     <div className="no-print">
@@ -298,7 +301,7 @@ function ReportDetail() {
         if (!printRef.current) return Promise.reject(new Error("التقرير لسه بيتحمّل"));
         return buildReportPdf(printRef.current);
       }}
-      filename={`تقرير-${report.patientName}-${visit}.pdf`}
+      filename={pdfFilename}
       title={`تقرير ${report.patientName}`}
     />
     <ShareDialog

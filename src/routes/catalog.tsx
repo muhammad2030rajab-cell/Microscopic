@@ -1,19 +1,28 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { Search, Settings2 } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { listLabCatalog, updateLabCatalogItem, type LabCatalogRow } from "@/lib/lab-catalog";
-import { getCurrentLab } from "@/lib/lab-access";
+import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
+import { loadLocalCatalog } from "@/lib/sync-engine/offline-fallback";
+import { requestAllOfflinePages } from "@/lib/offline/sync";
 import { parseAgeRanges } from "@/lib/age-ranges";
 
 export const Route = createFileRoute("/catalog")({
+  // Loads in the browser so the saved offline copy of this page is an empty shell, and so that with no
+  // connection the loader can answer from the device copy (read-only).
+  ssr: false,
   loader: async () => {
     try {
       const [lab, items] = await Promise.all([getCurrentLab(), listLabCatalog()]);
       return { lab, items };
-    } catch {
-      return { lab: null, items: [] };
+    } catch (error) {
+      if (typeof window !== "undefined") {
+        const local = await loadLocalCatalog<LabProfileData>(error);
+        if (local) return { lab: local.lab as LabProfileData | null, items: local.items };
+      }
+      return { lab: null as LabProfileData | null, items: [] as LabCatalogRow[] };
     }
   },
   component: CatalogPage,
@@ -38,10 +47,18 @@ function CatalogPage() {
     (!q.trim() || `${x.test_name} ${x.category_name_ar} ${x.category_name_en}`.toLowerCase().includes(q.trim().toLowerCase()))
   ), [items, q, cat]);
 
+  useEffect(() => {
+    if (lab && navigator.onLine) requestAllOfflinePages();
+  }, [lab]);
+
   if (!lab) return <NavigateToLogin />;
 
   async function save(item: LabCatalogRow) {
     setSaveError(null);
+    if (!navigator.onLine) {
+      setSaveError({ id: item.id, message: "تعديل الكتالوج محتاج اتصال بالإنترنت. اتصل وجرّب تاني." });
+      return;
+    }
     const parsed = parseAgeRanges(item.age_ranges);
     if (!parsed.ok) {
       setOpenAge(item.id);

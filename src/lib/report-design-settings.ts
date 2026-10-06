@@ -64,3 +64,17 @@ export const updateReportDesign = createServerFn({ method: "POST" })
     await logAudit(sql, { labId: lab_id, actorUserId: id, actorAuthUserId: context.userId, action: "lab.report_design_updated", entityType: "lab", entityId: lab_id });
     return { design, signatureUrl, stampUrl };
   });
+
+export type ReportLanguageSetting = "bilingual" | "ar" | "en";
+
+/** Owner-only: the language every printed report of this lab uses by default (labs.report_language). */
+export const setReportLanguage = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }: { context: { userId: string }; data: { language: ReportLanguageSetting } }) => {
+    const { sql, id, lab_id, role } = await getLabUser(context.userId);
+    if (role !== "owner") throw new Error("OWNER_ACCESS_REQUIRED");
+    if (!["bilingual", "ar", "en"].includes(data.language)) throw new Error("لغة غير معروفة");
+    await sql.query(`update labs set report_language = $1, updated_at = current_timestamp where id = $2`, [data.language, lab_id]);
+    await logAudit(sql, { labId: lab_id, actorUserId: id, actorAuthUserId: context.userId, action: "lab.report_language_set", entityType: "lab", entityId: lab_id });
+    return { language: data.language };
+  });

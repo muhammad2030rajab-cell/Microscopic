@@ -28,6 +28,9 @@ export type SyncState = {
 };
 
 const INTERVAL_MS = 60_000;
+/** The lab profile and permissions only matter for offline screens; re-reading them every minute was two extra server calls per sync. */
+const PROFILE_REFRESH_MS = 10 * 60_000;
+let profileCheckedAt = 0;
 let state: SyncState = { phase: "idle", lastSyncedAt: null, error: null, persistent: null, attention: 0, pending: 0 };
 const listeners = new Set<() => void>();
 let started = false;
@@ -69,16 +72,22 @@ export const syncRunner = {
       set({ phase: "syncing", error: null });
       try {
         let labId: string;
-        try {
-          const lab = await getCurrentLab();
-          labId = lab.lab_id;
-          setKnownLabId(labId);
-          saveLabProfile(lab);
-          // Best effort: only used to decide which buttons offline screens show.
-          void getCurrentLabPermissions().then((a) => saveLabPermissions(a.permissions)).catch(() => undefined);
-        } catch (err) {
-          // Offline: normal. Anything else (signed out): nothing to sync, stay quiet.
-          return set({ phase: isNetworkError(err, navigator.onLine) ? "offline" : "idle" });
+        const knownLab = getKnownLabId();
+        if (knownLab && Date.now() - profileCheckedAt < PROFILE_REFRESH_MS) {
+          labId = knownLab; // signed-out clears the known lab, so a different account always re-reads it
+        } else {
+          try {
+            const lab = await getCurrentLab();
+            labId = lab.lab_id;
+            setKnownLabId(labId);
+            saveLabProfile(lab);
+            profileCheckedAt = Date.now();
+            // Best effort: only used to decide which buttons offline screens show.
+            void getCurrentLabPermissions().then((a) => saveLabPermissions(a.permissions)).catch(() => undefined);
+          } catch (err) {
+            // Offline: normal. Anything else (signed out): nothing to sync, stay quiet.
+            return set({ phase: isNetworkError(err, navigator.onLine) ? "offline" : "idle" });
+          }
         }
         const store = idbLocalStore();
         const result = await syncOnce(store, serverFnTransport, labId);

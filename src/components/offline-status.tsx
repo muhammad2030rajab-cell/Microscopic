@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { deletePending, retryPending, syncPending } from "@/lib/offline/sync";
 import { useOnline, usePendingReports } from "@/lib/offline/use-offline";
 import { syncRunner } from "@/lib/sync-engine/runner";
+import { isInstalledApp } from "@/lib/native-back";
 import { useSyncState } from "@/lib/sync-engine/use-sync";
 
 /**
@@ -43,7 +44,10 @@ export function OfflineStatus() {
     syncRunner.start();
   }, []);
   // Data is on the device but Chrome may delete it when storage runs low: tell the person, once it matters.
-  const storageAtRisk = syncState.persistent === false && syncState.lastSyncedAt !== null;
+  // Not inside the installed app (Android app / home-screen PWA): the advice is "install it", and it already is.
+  const [installed, setInstalled] = useState(false);
+  useEffect(() => setInstalled(isInstalledApp()), []);
+  const storageAtRisk = !installed && syncState.persistent === false && syncState.lastSyncedAt !== null;
 
   const pending = items.filter((i) => i.status === "pending");
   const failed = items.filter((i) => i.status === "failed");

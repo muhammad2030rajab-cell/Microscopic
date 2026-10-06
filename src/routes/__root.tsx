@@ -11,6 +11,7 @@ import { Toaster, toast } from "sonner";
 import { AuthProvider } from "@/lib/auth/provider";
 import { registerServiceWorker } from "@/lib/offline/sync";
 import { installAndroidBackButton } from "@/lib/native-back";
+import { NavProgress } from "@/components/nav-progress";
 
 import appCss from "../styles.css?url";
 
@@ -119,6 +120,7 @@ function RootComponent() {
 
       <body>
         <AuthProvider>
+          <NavProgress />
           <Outlet />
 
           <Toaster

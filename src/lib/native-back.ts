@@ -26,6 +26,14 @@ export function isNativeApp(): boolean {
   return cap?.isNativePlatform?.() === true;
 }
 
+/** True inside the Android app or an installed (home-screen) PWA: the "install the app" advice makes no sense there. */
+export function isInstalledApp(): boolean {
+  if (typeof window === "undefined") return false;
+  if (isNativeApp()) return true;
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  return window.matchMedia?.("(display-mode: standalone)").matches === true || nav.standalone === true;
+}
+
 /** True when the router history has an earlier screen of this app (TanStack Router numbers its entries from 0). */
 export function hasEarlierScreen(): boolean {
   const index = (window.history.state as { __TSR_index?: number } | null)?.__TSR_index;

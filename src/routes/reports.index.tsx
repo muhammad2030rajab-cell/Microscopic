@@ -1,10 +1,11 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { Loader2, Search, SlidersHorizontal, Trash2, TriangleAlert } from "lucide-react";
+import { Download, Loader2, Search, SlidersHorizontal, Trash2, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { FlagDot } from "@/components/report/flag-badge";
 import { formatAge } from "@/lib/age";
 import { matchesSearch } from "@/lib/search-text";
+import { reportsToCsv } from "@/lib/reports-csv";
 import { loadReportFilters, saveReportFilters, type ReportPeriodFilter, type ReportStatusFilter } from "@/lib/reports-filters";
 import { Input } from "@/components/ui/input";
 import { deleteLabReport, listLabReports } from "@/lib/lab-reports";
@@ -82,6 +83,19 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
   useEffect(() => {
     saveReportFilters({ q, status, period, onlyCritical });
   }, [q, status, period, onlyCritical]);
+
+  /** Downloads the reports currently shown (after the filters) as a CSV that opens in Excel. Owner only. */
+  function exportCsv() {
+    const csv = reportsToCsv(filtered, (st) => reportStatusLabels[st as keyof typeof reportStatusLabels] ?? st);
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `reports-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
 
   const criticalTotal = useMemo(() => reports.filter((r) => r.criticalCount > 0).length, [reports]);
 
@@ -168,7 +182,14 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
       </div>
 
       <div className="mb-3 flex items-center justify-between text-xs text-muted">
-        <span>عرض {filtered.length} من {reports.length} تقرير</span>
+        <span className="flex items-center gap-3">
+          عرض {filtered.length} من {reports.length} تقرير
+          {isOwner && !offline && filtered.length > 0 ? (
+            <button type="button" onClick={exportCsv} className="inline-flex items-center gap-1 font-medium text-teal hover:underline">
+              <Download className="size-3.5" /> تصدير Excel
+            </button>
+          ) : null}
+        </span>
         {(q || status !== "all" || period !== "all" || onlyCritical || branch !== "all") ? <button type="button" onClick={() => { setQ(""); setStatus("all"); setPeriod("all"); setOnlyCritical(false); setBranch("all"); }} className="font-medium text-teal hover:underline">مسح الفلاتر</button> : null}
       </div>
 

@@ -39,6 +39,9 @@ jobs:
       - name: Create the Android project
         run: npx cap add android
 
+      - name: Generate the app icon and splash screen
+        run: npx capacitor-assets generate --android
+
       - name: Allow plain http to the lab hub
         run: node scripts/patch-android.mjs android/app/src/main/AndroidManifest.xml
 

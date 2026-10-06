@@ -6,6 +6,8 @@ export type CurrentAccess =
   | { type: "admin"; userId: string; name: string | null; email: string | null }
   | { type: "lab"; userId: string; labId: string; labName: string; username: string; role: string }
   | { type: "suspended" }
+  /** Asked to join with a join code; a manager has not answered yet. No access of any kind. */
+  | { type: "pending" }
   | { type: "none" };
 
 export const getCurrentAccess = createServerFn({ method: "GET" })
@@ -55,6 +57,13 @@ export const getCurrentAccess = createServerFn({ method: "GET" })
         role: lab[0].role,
       };
     }
+
+    // طلب انضمام بكود الانضمام لسه مستني موافقة المدير (لازم يتفحص قبل "موقوف").
+    // (If the column is not there yet because the update has not finished migrating, sign-in must still work.)
+    const pending = await sql<{ id: string }>`
+      select id from lab_users where auth_user_id = ${context.userId} and pending_approval = true limit 1
+    `.catch(() => [] as { id: string }[]);
+    if (pending.length) return { type: "pending" };
 
     // حساب معمل موجود لكن موقوف (المستخدم نفسه أو المعمل كله).
     const suspended = await sql<{ id: string }>`

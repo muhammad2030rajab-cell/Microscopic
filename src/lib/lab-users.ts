@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit";
 import { logEvent } from "@/lib/logger.server";
 import { passwordPolicyError } from "@/lib/password-policy";
 import { assertCanAddUser } from "@/lib/lab-plans";
+import { formatJoinCode, generateJoinCode, hashJoinCode, isJoinRole, JOIN_DEFAULT_ROLE, presetPermissions } from "@/lib/join-requests";
 
 /** See the identical helper + docstring in `platform-admin.ts`. */
 async function deleteAuthUser(sql: Sql, authUserId: string): Promise<void> {
@@ -154,7 +155,7 @@ export const listLabStaff = createServerFn({ method: "GET" })
       from lab_users lu
       left join "user" u on u.id = lu.auth_user_id
       left join lab_user_permissions lup on lup.lab_user_id = lu.id
-      where lu.lab_id = ${labId}
+      where lu.lab_id = ${labId} and lu.pending_approval = false
       order by case when lu.role = 'owner' then 0 when lu.role = 'supervisor' then 1 else 2 end, lu.created_at asc
     `;
     return rows.map((row) => ({
@@ -268,4 +269,102 @@ export const updateLabStaff = createServerFn({ method: "POST" })
     });
 
     return { ok: true };
+  });
+
+
+// ───────────────────────── طلبات الانضمام (كود الانضمام) ─────────────────────────
+// Same rule as creating staff by hand: the owner, or anyone with "users.manage".
+
+export type JoinOverview = { enabled: boolean; pending: number };
+export type JoinRequestRow = { id: string; username: string; name: string | null; requestedAt: string };
+
+/** Is the join code on, and how many people are waiting for an answer. */
+export const getJoinOverview = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<JoinOverview> => {
+    const { sql, labId } = await getManagerContext(context.userId);
+    const rows = await sql<{ enabled: boolean; pending: number }>`
+      select (join_code_hash is not null) as enabled,
+             (select count(*)::int from lab_users where lab_id = labs.id and pending_approval = true) as pending
+      from labs where id = ${labId}
+    `;
+    return { enabled: Boolean(rows[0]?.enabled), pending: Number(rows[0]?.pending ?? 0) };
+  });
+
+/** Make a new code (the old one stops working at once) or switch joining off. The code is only ever shown here, once. */
+export const setJoinCode = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }: { context: { userId: string }; data: { action: "generate" | "disable" } }): Promise<{ code: string | null }> => {
+    const { sql, labId, labUserId } = await getManagerContext(context.userId);
+    const audit = (action: string) =>
+      logAudit(sql, { labId, actorUserId: labUserId, actorAuthUserId: context.userId, action, entityType: "lab", entityId: labId });
+
+    if (data.action === "disable") {
+      await sql.query(`update labs set join_code_hash = null where id = $1`, [labId]);
+      await audit("join.code_disable");
+      return { code: null };
+    }
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const code = generateJoinCode();
+      try {
+        await sql.query(`update labs set join_code_hash = $1 where id = $2`, [await hashJoinCode(code), labId]);
+      } catch (error) {
+        if (/23505|duplicate key|labs_join_code_hash_idx/i.test(`${error instanceof Error ? error.message : ""} ${(error as { code?: string }).code ?? ""}`)) continue; // two labs drew the same code
+        throw error;
+      }
+      await audit("join.code_generate");
+      return { code: formatJoinCode(code) };
+    }
+    throw new Error("تعذر إنشاء كود جديد. جرّب تاني");
+  });
+
+/** People who used the code and are waiting, oldest first. */
+export const listJoinRequests = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<JoinRequestRow[]> => {
+    const { sql, labId } = await getManagerContext(context.userId);
+    const rows = await sql<{ id: string; username: string; name: string | null; created_at: string | Date }>`
+      select lu.id, lu.username, u.name, lu.created_at
+      from lab_users lu
+      left join "user" u on u.id = lu.auth_user_id
+      where lu.lab_id = ${labId} and lu.pending_approval = true
+      order by lu.created_at asc
+    `;
+    return rows.map((r) => ({ id: r.id, username: r.username, name: r.name, requestedAt: String(r.created_at) }));
+  });
+
+/** Approve (with a role; its standard permissions are given) or reject (the account is deleted). */
+export const decideJoinRequest = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }: { context: { userId: string }; data: { id: string; approve: boolean; role?: string } }) => {
+    const { sql, labId, labUserId: actor } = await getManagerContext(context.userId);
+    // lab_id in every WHERE keeps this inside the manager's own lab.
+    const rows = await sql<{ id: string; auth_user_id: string | null }>`
+      select id, auth_user_id from lab_users where id = ${data.id} and lab_id = ${labId} and pending_approval = true limit 1
+    `;
+    if (!rows.length) throw new Error("الطلب مش موجود (ممكن يكون اتقرر فيه قبل كده)");
+    const audit = (action: string) =>
+      logAudit(sql, { labId, actorUserId: actor, actorAuthUserId: context.userId, action, entityType: "lab_user", entityId: data.id });
+
+    if (!data.approve) {
+      if (rows[0].auth_user_id) await deleteAuthUser(sql, rows[0].auth_user_id); // cascades to the lab_users row
+      else await sql.query(`delete from lab_users where id = $1 and lab_id = $2`, [data.id, labId]);
+      await audit("join.reject");
+      return { ok: true as const };
+    }
+
+    const role = isJoinRole(data.role) ? data.role : JOIN_DEFAULT_ROLE;
+    await assertCanAddUser(sql, labId);
+    await sql.query(
+      `update lab_users set is_active = true, pending_approval = false, role = $1, updated_at = current_timestamp
+       where id = $2 and lab_id = $3 and pending_approval = true`,
+      [role, data.id, labId],
+    );
+    await sql.query(
+      `insert into lab_user_permissions (lab_user_id, permissions) values ($1,$2::jsonb)
+       on conflict (lab_user_id) do update set permissions = excluded.permissions, updated_at = current_timestamp`,
+      [data.id, JSON.stringify(presetPermissions(role))],
+    );
+    await audit("join.approve");
+    return { ok: true as const };
   });

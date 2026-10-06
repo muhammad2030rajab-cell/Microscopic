@@ -26,8 +26,17 @@ export function hubOrigins(ips, port) {
   return [...ips.map((ip) => `http://${ip}:${port}`), `http://localhost:${port}`, `http://127.0.0.1:${port}`];
 }
 
-/** Environment for the server process. Hub mode, on-disk database, listen on every interface. */
-export function buildHubEnv({ home, port, ips, secret }) {
+/** The app's own port, reachable only from this PC (the gateway on the public port is the door to it). */
+export function internalPort(port) {
+  return port + 10000 <= 65535 ? port + 10000 : port - 1000;
+}
+
+/**
+ * Environment for the app process: hub mode, database on disk, listening on THIS PC ONLY (127.0.0.1).
+ * Phones never talk to it directly: they go through the gateway, which the owner switches on and off.
+ * The sign-in origin is the gateway's address (what the browser sees), not the app's.
+ */
+export function buildHubEnv({ home, port, ips, secret, appPort = internalPort(port) }) {
   const origins = hubOrigins(ips, port);
   return {
     HUB_MODE: "1",
@@ -36,9 +45,9 @@ export function buildHubEnv({ home, port, ips, secret }) {
     BETTER_AUTH_URL: origins[0],
     BETTER_AUTH_SECRET: secret,
     VITE_AUTH_ENABLED: "true",
-    HOST: "0.0.0.0",
-    NITRO_HOST: "0.0.0.0",
-    PORT: String(port),
-    NITRO_PORT: String(port),
+    HOST: "127.0.0.1",
+    NITRO_HOST: "127.0.0.1",
+    PORT: String(appPort),
+    NITRO_PORT: String(appPort),
   };
 }

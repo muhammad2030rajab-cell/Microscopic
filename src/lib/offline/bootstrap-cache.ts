@@ -6,29 +6,32 @@
 const KEY = "rajab:offline:bootstrap:v1";
 const LAB_KEY = "rajab:offline:lab-id";
 
-export interface NewReportBootstrap<L = unknown, C = unknown> {
+export interface NewReportBootstrap<L = unknown, C = unknown, G = unknown> {
   lab: L;
   catalog: C[];
+  /** The lab's test groups (older saved copies have none). */
+  groups: G[];
   canCreate: boolean;
   labId: string;
   savedAt: string;
 }
 
-export function saveBootstrap<L, C>(data: Omit<NewReportBootstrap<L, C>, "savedAt">): void {
+export function saveBootstrap<L, C, G = unknown>(data: Omit<NewReportBootstrap<L, C, G>, "savedAt" | "groups"> & { groups?: G[] }): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ ...data, savedAt: new Date().toISOString() }));
+    localStorage.setItem(KEY, JSON.stringify({ ...data, groups: data.groups ?? [], savedAt: new Date().toISOString() }));
     localStorage.setItem(LAB_KEY, data.labId);
   } catch {
     /* storage full or blocked: offline mode just won't be available */
   }
 }
 
-export function loadBootstrap<L = unknown, C = unknown>(): NewReportBootstrap<L, C> | null {
+export function loadBootstrap<L = unknown, C = unknown, G = unknown>(): NewReportBootstrap<L, C, G> | null {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as NewReportBootstrap<L, C>;
-    return parsed && parsed.labId && Array.isArray(parsed.catalog) ? parsed : null;
+    const parsed = JSON.parse(raw) as NewReportBootstrap<L, C, G>;
+    if (!parsed || !parsed.labId || !Array.isArray(parsed.catalog)) return null;
+    return { ...parsed, groups: Array.isArray(parsed.groups) ? parsed.groups : [] };
   } catch {
     return null;
   }

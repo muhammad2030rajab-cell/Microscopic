@@ -4,6 +4,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ReportWizard } from "@/components/report/wizard";
 import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
 import { listLabCatalog, type LabCatalogRow } from "@/lib/lab-catalog";
+import { listLabTestGroups } from "@/lib/lab-test-groups";
+import type { TestGroup } from "@/lib/test-groups";
 import { getCurrentLabPermissions } from "@/lib/lab-users";
 import { loadBootstrap, saveBootstrap } from "@/lib/offline/bootstrap-cache";
 import { isNetworkError } from "@/lib/offline/network-error";
@@ -12,6 +14,8 @@ import { requestPageCache } from "@/lib/offline/sync";
 type NewReportData = {
   lab: LabProfileData | null;
   catalog: LabCatalogRow[];
+  /** The lab's ready-made test groups (empty if none, or if they could not be loaded). */
+  groups: TestGroup[];
   canCreate: boolean;
   /** true = served from the device copy because there is no connection */
   offline: boolean;
@@ -22,34 +26,40 @@ type NewReportData = {
 export const Route = createFileRoute("/new")({
   loader: async (): Promise<NewReportData> => {
     try {
-      const [lab, catalog, access] = await Promise.all([getCurrentLab(), listLabCatalog(), getCurrentLabPermissions()]);
-      return { lab, catalog, canCreate: access.permissions["reports.create"] === true, offline: false, unavailableOffline: false };
+      // Groups are a convenience: if they cannot be loaded the page must still open.
+      const [lab, catalog, access, groups] = await Promise.all([
+        getCurrentLab(),
+        listLabCatalog(),
+        getCurrentLabPermissions(),
+        listLabTestGroups().catch(() => [] as TestGroup[]),
+      ]);
+      return { lab, catalog, groups, canCreate: access.permissions["reports.create"] === true, offline: false, unavailableOffline: false };
     } catch (error) {
       // Only in the browser, and only for "no answer" failures — a real auth or
       // permission error must still send the user to sign in.
       if (typeof window !== "undefined" && isNetworkError(error, navigator.onLine)) {
-        const cached = loadBootstrap<LabProfileData, LabCatalogRow>();
+        const cached = loadBootstrap<LabProfileData, LabCatalogRow, TestGroup>();
         if (cached) {
-          return { lab: cached.lab, catalog: cached.catalog, canCreate: cached.canCreate, offline: true, unavailableOffline: false };
+          return { lab: cached.lab, catalog: cached.catalog, groups: cached.groups, canCreate: cached.canCreate, offline: true, unavailableOffline: false };
         }
-        return { lab: null, catalog: [], canCreate: false, offline: true, unavailableOffline: true };
+        return { lab: null, catalog: [], groups: [], canCreate: false, offline: true, unavailableOffline: true };
       }
-      return { lab: null, catalog: [], canCreate: false, offline: false, unavailableOffline: false };
+      return { lab: null, catalog: [], groups: [], canCreate: false, offline: false, unavailableOffline: false };
     }
   },
   component: NewReportPage,
 });
 
 function NewReportPage() {
-  const { lab, catalog, canCreate, offline, unavailableOffline } = Route.useLoaderData();
+  const { lab, catalog, groups, canCreate, offline, unavailableOffline } = Route.useLoaderData();
 
   // Online and signed in: refresh the device copy so this page also opens with
   // no connection next time.
   useEffect(() => {
     if (!lab || !canCreate || offline) return;
-    saveBootstrap({ lab, catalog, canCreate, labId: lab.lab_id });
+    saveBootstrap({ lab, catalog, groups, canCreate, labId: lab.lab_id });
     requestPageCache("/new");
-  }, [lab, catalog, canCreate, offline]);
+  }, [lab, catalog, groups, canCreate, offline]);
 
   if (unavailableOffline) {
     return (
@@ -67,7 +77,7 @@ function NewReportPage() {
   if (!canCreate) return <Navigate to="/reports" replace />;
   return (
     <AppShell>
-      <ReportWizard catalog={catalog} labId={lab.lab_id} />
+      <ReportWizard catalog={catalog} groups={groups} labId={lab.lab_id} />
     </AppShell>
   );
 }

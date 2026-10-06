@@ -7,7 +7,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   BarChart3,
   CheckCircle2,
@@ -31,7 +31,7 @@ import { getCurrentAccess, getCurrentLab, getLabDashboardStats, type LabProfileD
 import { loadLocalDashboard } from "@/lib/sync-engine/offline-fallback";
 import { requestAllOfflinePages } from "@/lib/offline/sync";
 import { getRecentLabReports, type RecentReport } from "@/lib/lab-reports";
-import { getCurrentLabPermissions, type LabPermissions } from "@/lib/lab-users";
+import { getCurrentLabPermissions, getJoinOverview, type LabPermissions } from "@/lib/lab-users";
 import { formatAge } from "@/lib/age";
 import { presetReportFilters, type ReportFilters } from "@/lib/reports-filters";
 import { reportStatusClasses, reportStatusLabels } from "@/lib/report-workflow";
@@ -62,7 +62,7 @@ export const Route = createFileRoute("/lab")({
       }
       // لو الحساب اتوقف وهو داخل، نحوّله لصفحة الدخول (فيها رسالة التواصل مع المدير)
       const access = await getCurrentAccess().catch(() => null);
-      if (access?.type === "suspended") throw redirect({ to: "/login" });
+      if (access?.type === "suspended" || access?.type === "pending") throw redirect({ to: "/login" });
       // حساب المدير ملوش معمل: نوديه للوحته بدل ما نرجّعه لتسجيل الدخول.
       if (access?.type === "admin") throw redirect({ to: "/admin" });
 
@@ -96,6 +96,20 @@ function LabDashboard() {
 
   const { lab, stats, permissions, recent, loadFailed, offline } = Route.useLoaderData();
   const router = useRouter();
+
+  // For managers: how many people asked to join with the join code and wait for an answer.
+  // (Not a manager, or no connection: the call fails and nothing is shown.)
+  const [joinPending, setJoinPending] = useState(0);
+  useEffect(() => {
+    if (!lab || offline || loadFailed) return;
+    let alive = true;
+    getJoinOverview()
+      .then((o) => alive && setJoinPending(o.pending))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [lab, offline, loadFailed]);
 
   // Signed in and loaded: keep the other offline screens ready on this device.
   useEffect(() => {
@@ -196,6 +210,26 @@ function LabDashboard() {
       </section>
 
       {/* Today at a glance — each card opens the archive already filtered */}
+      {joinPending > 0 ? (
+        <Link
+          to="/team"
+          role="status"
+          className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-teal/40 bg-teal/10 p-4 transition-colors hover:bg-teal/15"
+        >
+          <span className="flex items-center gap-3">
+            <span className="relative grid size-10 place-items-center rounded-full bg-teal text-paper">
+              <span className="absolute inset-0 animate-ping rounded-full bg-teal/40" aria-hidden />
+              <span className="relative text-sm font-bold">{joinPending}</span>
+            </span>
+            <span>
+              <span className="block text-sm font-semibold">{joinPending === 1 ? "طلب انضمام جديد" : "طلبات انضمام جديدة"}</span>
+              <span className="block text-xs text-muted">مستنيين موافقتك. اضغط عشان تراجعهم</span>
+            </span>
+          </span>
+          <span className="text-sm font-medium text-teal">مراجعة ←</span>
+        </Link>
+      ) : null}
+
       <section aria-label="ملخص اليوم" className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
         <StatLink
           to="/reports"

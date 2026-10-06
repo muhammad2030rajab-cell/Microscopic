@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   CircleAlert,
@@ -82,6 +82,8 @@ function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [suspended, setSuspended] = useState(false);
+  // Asked to join with a join code and no manager has answered yet
+  const [awaitingApproval, setAwaitingApproval] = useState(false);
 
   const isAdmin = accountType === "admin";
 
@@ -93,6 +95,11 @@ function Login() {
     getCurrentAccess()
       .then(async (access) => {
         if (cancelled) return;
+        if (access.type === "pending") {
+          await authClient.signOut().catch(() => undefined);
+          if (!cancelled) setAwaitingApproval(true);
+          return;
+        }
         if (access.type === "suspended") {
           // الحساب اتوقف وهو داخل: نطلّعه ونعرض رسالة التواصل مع المدير
           await authClient.signOut().catch(() => undefined);
@@ -185,6 +192,11 @@ function Login() {
 
       const access = await withTimeout(getCurrentAccess(), 20_000);
 
+      if (access.type === "pending") {
+        await authClient.signOut();
+        setAwaitingApproval(true);
+        return;
+      }
       if (access.type === "suspended") {
         await authClient.signOut();
         setSuspended(true);
@@ -342,6 +354,15 @@ function Login() {
             </div>
 
             <div aria-live="polite" className="space-y-3">
+              {awaitingApproval ? (
+                <div
+                  role="status"
+                  className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-3 text-sm leading-7 text-teal-900"
+                >
+                  <p className="font-semibold">طلبك وصل وبينتظر موافقة مدير المعمل.</p>
+                  <p className="mt-1 text-teal-800">أول ما يوافق تقدر تدخل بنفس اسم المستخدم وكلمة المرور اللي كتبتهم.</p>
+                </div>
+              ) : null}
               {suspended ? (
                 <div
                   role="alert"
@@ -411,6 +432,13 @@ function Login() {
                 <MessageCircle className="size-4" />
                 اطلب حساب عبر WhatsApp
               </a>
+
+              <Link
+                to="/join"
+                className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-teal-600/30 bg-teal-50 px-4 text-sm font-semibold text-teal-800 transition-colors hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              >
+                عندي كود انضمام من مدير المعمل
+              </Link>
 
               {supportText ? <p className="mt-3 text-center text-xs leading-6 text-slate-500">{supportText}</p> : null}
               {supportEmail || websiteUrl ? (

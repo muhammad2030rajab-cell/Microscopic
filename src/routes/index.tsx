@@ -43,8 +43,8 @@ function WelcomePage() {
     getCurrentAccess()
       .then((access) => {
         if (cancelled) return;
-        if (access.type === "suspended") {
-          // حساب موقوف: صفحة الدخول بتعرض الرسالة وتطلّع المستخدم
+        if (access.type === "suspended" || access.type === "pending") {
+          // حساب موقوف أو طلب انضمام مستني الموافقة: صفحة الدخول بتعرض الرسالة وتطلّع المستخدم
           void navigate({ to: "/login", replace: true });
           return;
         }

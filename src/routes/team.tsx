@@ -12,6 +12,7 @@ import {
 } from "@/lib/lab-users";
 import { createBranch, listBranches, setUserBranch, updateBranch, type Branch } from "@/lib/branches";
 import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
+import { JoinRequestsPanel } from "@/components/team/join-requests-panel";
 
 export const Route = createFileRoute("/team")({
   loader: async () => {
@@ -168,6 +169,8 @@ function TeamPage() {
 
         {success ? <div className="mt-5 flex items-start gap-3 rounded-xl border border-ok/20 bg-ok/5 p-4 text-sm"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-ok" /><p>{success}</p></div> : null}
         {error ? <div className="mt-5 rounded-xl border border-high/20 bg-high/5 p-4 text-sm text-high">{error}</div> : null}
+
+        <JoinRequestsPanel onError={setError} />
 
         {isOwner ? <BranchesPanel branches={branches} setBranches={setBranches} onError={setError} /> : null}
 

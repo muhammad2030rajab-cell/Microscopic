@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { createLabReport, updateLabReport } from "@/lib/lab-reports";
 import { listBranches, type Branch } from "@/lib/branches";
 import type { LabCatalogRow } from "@/lib/lab-catalog";
+import { resolveGroupTests, type TestGroup } from "@/lib/test-groups";
 import { searchLabPatients, type PatientSummary } from "@/lib/patients";
 import { isOffline, newRequestId, queueReport } from "@/lib/offline/sync";
 import { EDIT_BLOCKED, queueReportEdit } from "@/lib/sync-engine/outbox-actions";
@@ -41,7 +42,7 @@ const PACKS: { label: string; ids: string[] }[] = [
   { label: "كشف شامل", ids: ["c1", "c2", "c3", "c4", "c5"] },
 ];
 
-export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatalogRow[]; editReport?: { id: string; draft: Draft }; labId?: string }) {
+export function ReportWizard({ catalog, groups = [], editReport, labId }: { catalog: LabCatalogRow[]; groups?: TestGroup[]; editReport?: { id: string; draft: Draft }; labId?: string }) {
   const draft = useLabStore((s) => s.draft);
   const setDraft = useLabStore((s) => s.setDraft);
   const resetDraft = useLabStore((s) => s.resetDraft);
@@ -150,6 +151,24 @@ export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatal
     setDraft({ selectedCategoryIds, tests: [...draft.tests, ...added] });
     if (added.length) {
       toast.success(`تمت إضافة ${added.length} تحليل`, { action: { label: "تراجع", onClick: () => setDraft(before) } });
+    }
+  }
+
+  /** A lab-defined group adds all of its (active) tests at once; tests already chosen are kept as they are. */
+  function applyGroup(group: TestGroup) {
+    const before = { selectedCategoryIds: draft.selectedCategoryIds, tests: draft.tests };
+    const { tests: rows, missing } = resolveGroupTests(group.catalogIds, catalog);
+    const have = new Set(draft.tests.map((t) => `${t.categoryId}:${t.name}`));
+    const added = rows
+      .filter((r) => !have.has(`${r.category_id}:${r.test_name}`))
+      .map((r) => ({ name: r.test_name, categoryId: r.category_id, categoryAr: r.category_name_ar, categoryEn: r.category_name_en, value: "", unit: r.unit }));
+    const selectedCategoryIds = Array.from(new Set([...draft.selectedCategoryIds, ...added.map((a) => a.categoryId)]));
+    setDraft({ selectedCategoryIds, tests: [...draft.tests, ...added] });
+    const note = missing ? ` (${missing} غير متاح)` : "";
+    if (added.length) {
+      toast.success(`تمت إضافة ${added.length} تحليل من «${group.name}»${note}`, { action: { label: "تراجع", onClick: () => setDraft(before) } });
+    } else {
+      toast.info(rows.length ? "كل تحاليل المجموعة مضافة بالفعل" : `تحاليل المجموعة غير متاحة دلوقتي${note}`);
     }
   }
 
@@ -359,6 +378,8 @@ export function ReportWizard({ catalog, editReport, labId }: { catalog: LabCatal
           setQuery={setQuery}
           toggleCategory={toggleCategory}
           applyPack={applyPack}
+          groups={groups}
+          applyGroup={applyGroup}
           toggleTest={toggleTest}
           selectAllInCategory={selectAllInCategory}
           categories={catalogCategories}
@@ -620,6 +641,8 @@ function TestsStep({
   setQuery,
   toggleCategory,
   applyPack,
+  groups,
+  applyGroup,
   toggleTest,
   selectAllInCategory,
   categories,
@@ -630,6 +653,8 @@ function TestsStep({
   setQuery: (v: string) => void;
   toggleCategory: (id: string) => void;
   applyPack: (ids: string[]) => void;
+  groups: TestGroup[];
+  applyGroup: (g: TestGroup) => void;
   toggleTest: (c: Category, name: string) => void;
   selectAllInCategory: (c: Category) => void;
   categories: Category[];
@@ -637,6 +662,24 @@ function TestsStep({
 }) {
   return (
     <div className="space-y-5">
+      {groups.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-medium text-ink-soft">مجموعات المعمل</p>
+          <div className="flex flex-wrap gap-2">
+            {groups.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => applyGroup(g)}
+                className="h-9 rounded-full border border-teal/50 bg-elevated px-3 text-xs text-teal transition-colors hover:border-teal hover:bg-teal/10"
+              >
+                {g.name} <span className="text-muted">· {g.catalogIds.length}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div>
         <p className="mb-2 text-xs font-medium text-ink-soft">باقات جاهزة</p>
         <div className="flex flex-wrap gap-2">

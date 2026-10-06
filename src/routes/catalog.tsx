@@ -3,6 +3,7 @@ import { Search, Settings2 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { TestGroupsPanel } from "@/components/catalog/test-groups-panel";
 import { listLabCatalog, updateLabCatalogItem, type LabCatalogRow } from "@/lib/lab-catalog";
 import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
 import { loadLocalCatalog } from "@/lib/sync-engine/offline-fallback";
@@ -119,6 +120,7 @@ function CatalogPage() {
         </div>
       </header>
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        <TestGroupsPanel items={items} isOwner={lab.role === "owner"} />
         <div className="rounded-2xl border border-line bg-elevated p-4 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1"><Search className="pointer-events-none absolute top-3.5 start-3 size-4 text-muted" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث باسم التحليل أو القسم" className="ps-9" /></div>

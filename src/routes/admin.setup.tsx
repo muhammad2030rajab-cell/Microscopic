@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
-import { UserPlus } from "lucide-react";
+import { KeyRound, UserPlus } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { claimFirstPlatformAdmin, deleteSelfIfOrphaned, platformAdminExists } from "@/lib/platform-admin";
+import { activateLicense, getLicenseStatus, licenseErrorMessage } from "@/lib/license";
 import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, passwordPolicyError } from "@/lib/password-policy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,17 +15,20 @@ export const Route = createFileRoute("/admin/setup")({
   // reach a real account-creation form indefinitely. A public existence
   // check is safe here: it reveals nothing beyond "has this ever been set up".
   loader: async () => {
+    const license = await getLicenseStatus().catch(() => ({ required: false, activated: true }));
     try {
-      return { adminExists: await platformAdminExists() };
+      return { adminExists: await platformAdminExists(), license };
     } catch {
-      return { adminExists: false };
+      return { adminExists: false, license };
     }
   },
   component: AdminSetup,
 });
 
 function AdminSetup() {
-  const { adminExists } = Route.useLoaderData();
+  const { adminExists, license } = Route.useLoaderData();
+  const [activated, setActivated] = useState(license.activated);
+  const [code, setCode] = useState("");
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -54,7 +58,17 @@ function AdminSetup() {
       setError(signUp.error.message ?? "تعذر إنشاء الحساب");
       return;
     }
-    const claimed = await claimFirstPlatformAdmin();
+    let claimed = false;
+    try {
+      claimed = await claimFirstPlatformAdmin();
+    } catch (err) {
+      // Not activated (or the check failed): do not leave a stray account behind.
+      await deleteSelfIfOrphaned().catch(() => undefined);
+      await authClient.signOut();
+      setLoading(false);
+      setError(licenseErrorMessage(err));
+      return;
+    }
     if (!claimed) {
       // Lost the race: someone else claimed the first-admin slot between our
       // page load and this submit. `signUp.email` above already created a
@@ -71,6 +85,54 @@ function AdminSetup() {
   }
 
   if (adminExists) return <Navigate to="/login" replace />;
+
+  async function activate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await activateLicense({ data: { code } });
+      setActivated(true);
+    } catch (err) {
+      setError(licenseErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (license.required && !activated) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-paper px-4 py-8">
+        <section className="w-full max-w-md rounded-2xl border border-line bg-elevated p-6 shadow-sm sm:p-8">
+          <div className="mb-7">
+            <div className="mb-4 grid size-12 place-items-center rounded-xl bg-teal/10 text-teal"><KeyRound className="size-6" /></div>
+            <h1 className="font-display text-2xl font-semibold">تفعيل البرنامج</h1>
+            <p className="mt-2 text-sm leading-6 text-muted">اكتب كود التفعيل اللي استلمته. البرنامج بيتأكد منه على جهازك من غير إنترنت، وكل بياناتك بتفضل عندك. بعد التفعيل هتنشئ اسم المستخدم وكلمة المرور بتوعك، ومش هتحتاج الكود تاني.</p>
+          </div>
+          <form onSubmit={activate} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="license-code">كود التفعيل</Label>
+              <textarea
+                id="license-code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+                rows={4}
+                dir="ltr"
+                spellCheck={false}
+                autoCapitalize="characters"
+                placeholder="RJB-XXXXXX-XXXXXX-…"
+                className="w-full resize-none rounded-sm border border-line bg-elevated px-3 py-2 font-mono text-sm tracking-wide"
+              />
+              <p className="text-xs text-muted">الأفضل تلزقه (Paste) كامل بدل ما تكتبه.</p>
+            </div>
+            {error ? <p className="rounded-lg border border-high/20 bg-high/5 px-3 py-2 text-sm text-high">{error}</p> : null}
+            <Button type="submit" size="lg" className="w-full" disabled={loading || code.trim().length < 20}>{loading ? "جارٍ التحقق…" : "تفعيل"}</Button>
+          </form>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="grid min-h-screen place-items-center bg-paper px-4 py-8">

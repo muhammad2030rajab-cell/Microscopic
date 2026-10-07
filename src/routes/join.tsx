@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Check, CircleAlert, Clock, KeyRound, Loader2, Microscope, ShieldCheck } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { checkJoinCode, requestLabAccess } from "@/lib/lab-join";
+import { checkLabInviteCode, createLabWithInvite } from "@/lib/lab-invites";
+import { inviteErrorMessage } from "@/lib/lab-invite-input";
 import { JOIN_CODE_LENGTH, joinErrorMessage } from "@/lib/join-requests";
 import { normalizeNumerals } from "@/lib/numerals";
 import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
@@ -22,6 +24,10 @@ function JoinPage() {
   const [step, setStep] = useState<Step>("code");
   const [code, setCode] = useState("");
   const [labName, setLabName] = useState("");
+  // "lab" = a manager's join code (staff request); "invite" = a platform invitation (create your own lab).
+  const [kind, setKind] = useState<"lab" | "invite">("lab");
+  const [newLabName, setNewLabName] = useState("");
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(0);
@@ -37,18 +43,33 @@ function JoinPage() {
     let cancelled = false;
     setBusy(true);
     setError(null);
+    const message = (e: unknown) => (e instanceof Error ? e.message : "");
+    const fail = (e: unknown) => {
+      if (cancelled) return;
+      setError(/INVITE_/.test(message(e)) ? inviteErrorMessage(e) : joinErrorMessage(e));
+      setShake((n) => n + 1);
+      setCode("");
+      codeInput.current?.focus();
+    };
+    // A manager's join code first; if it is not one, try a platform invitation code.
     checkJoinCode({ data: { code } })
       .then((res) => {
         if (cancelled) return;
+        setKind("lab");
         setLabName(res.labName);
         setStep("details");
       })
-      .catch((e) => {
+      .catch(async (e) => {
         if (cancelled) return;
-        setError(joinErrorMessage(e));
-        setShake((n) => n + 1);
-        setCode("");
-        codeInput.current?.focus();
+        if (!/JOIN_CODE_INVALID/.test(message(e))) return fail(e);
+        try {
+          await checkLabInviteCode({ data: { code } });
+          if (cancelled) return;
+          setKind("invite");
+          setStep("details");
+        } catch (e2) {
+          fail(/INVITE_CODE_INVALID/.test(message(e2)) ? e : e2);
+        }
       })
       .finally(() => !cancelled && setBusy(false));
     return () => {
@@ -65,7 +86,7 @@ function JoinPage() {
   const strength = rules.filter((r) => r.ok).length + (password.length >= 14 || /[^a-zA-Z0-9]/.test(password) ? 1 : 0);
   const usernameOk = /^[a-z0-9._-]{3,40}$/.test(username);
   const matches = confirm.length > 0 && confirm === password;
-  const canSend = usernameOk && rules.every((r) => r.ok) && matches && !busy;
+  const canSend = usernameOk && rules.every((r) => r.ok) && matches && !busy && (kind === "lab" || newLabName.trim().length >= 2);
 
   async function send(e: FormEvent) {
     e.preventDefault();
@@ -73,12 +94,23 @@ function JoinPage() {
     setBusy(true);
     setError(null);
     try {
+      if (kind === "invite") {
+        await createLabWithInvite({ data: { code, labName: newLabName, ownerName: name, username, password } });
+        // The lab is ready: sign the new owner in and go to the lab's first-time setup.
+        const signedIn = await authClient.signIn.email({ email: `${username}@lab.local`, password }).then((r) => !r?.error).catch(() => false);
+        if (signedIn) {
+          await navigate({ to: "/lab", replace: true });
+          return;
+        }
+        setStep("done");
+        return;
+      }
       await requestLabAccess({ data: { code, username, name, password } });
       // Creating the login may have signed this browser in as the new (powerless) account: end that session.
       await authClient.signOut().catch(() => undefined);
       setStep("done");
     } catch (err) {
-      setError(joinErrorMessage(err));
+      setError(kind === "invite" ? inviteErrorMessage(err) : joinErrorMessage(err));
       if (/CODE|ATTEMPTS/.test(err instanceof Error ? err.message : "")) {
         setStep("code");
         setCode("");
@@ -107,8 +139,8 @@ function JoinPage() {
           <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-white shadow-lg shadow-teal-900/10 ring-1 ring-slate-200/70">
             <Microscope className="size-8 text-teal-600" strokeWidth={1.75} />
           </div>
-          <h1 className="mt-5 font-display text-3xl font-bold tracking-tight text-slate-800">انضم لفريق المعمل</h1>
-          <p className="mt-2 text-sm text-slate-500">خطوتين وطلبك يوصل لمدير المعمل</p>
+          <h1 className="mt-5 font-display text-3xl font-bold tracking-tight text-slate-800">{kind === "invite" && step !== "code" ? "أنشئ معملك" : "انضم لفريق المعمل"}</h1>
+          <p className="mt-2 text-sm text-slate-500">{kind === "invite" && step !== "code" ? "خطوتين ومعملك وحسابك يبقوا جاهزين" : "خطوتين وطلبك يوصل لمدير المعمل"}</p>
         </div>
 
         {/* خطوات التقدم */}
@@ -134,7 +166,7 @@ function JoinPage() {
               <h2 className="flex items-center gap-2 font-display text-xl font-bold text-slate-800">
                 <KeyRound className="size-5 text-teal-600" /> اكتب كود الانضمام
               </h2>
-              <p className="mt-1 text-sm text-slate-500">الكود ده من مدير المعمل (10 حروف وأرقام).</p>
+              <p className="mt-1 text-sm text-slate-500">الكود اللي وصلك من مدير المعمل أو من إدارة المنصة (10 حروف وأرقام).</p>
 
               <div key={shake} className="join-anim relative mt-6" style={shake ? { animation: "join-shake .45s" } : undefined} dir="ltr">
                 <div className="flex items-center justify-center gap-1.5" aria-hidden>
@@ -188,12 +220,19 @@ function JoinPage() {
               <div className="flex items-center gap-2 rounded-xl bg-teal-50 px-3 py-2.5 text-sm text-teal-900 ring-1 ring-teal-200">
                 <ShieldCheck className="size-5 shrink-0 text-teal-600" />
                 <span>
-                  هتنضم إلى: <strong>{labName}</strong>
+                  {kind === "invite" ? <>كود الدعوة تمام. اكتب بيانات معملك وحسابك.</> : <>هتنضم إلى: <strong>{labName}</strong></>}
                 </span>
               </div>
 
+              {kind === "invite" ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="join-lab">اسم المعمل</Label>
+                  <Input id="join-lab" value={newLabName} maxLength={80} onChange={(e) => setNewLabName(e.target.value)} placeholder="مثال: معمل النور للتحاليل" autoComplete="organization" />
+                </div>
+              ) : null}
+
               <div className="space-y-1.5">
-                <Label htmlFor="join-name">اسمك</Label>
+                <Label htmlFor="join-name">{kind === "invite" ? "اسمك (صاحب المعمل)" : "اسمك"}</Label>
                 <Input id="join-name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder="مثال: أحمد علي" autoComplete="name" />
               </div>
 
@@ -253,10 +292,10 @@ function JoinPage() {
               >
                 {busy ? (
                   <>
-                    <Loader2 className="animate-spin" /> جاري الإرسال…
+                    <Loader2 className="animate-spin" /> {kind === "invite" ? "جاري إنشاء المعمل…" : "جاري الإرسال…"}
                   </>
                 ) : (
-                  "إرسال طلب الانضمام"
+                  kind === "invite" ? "إنشاء المعمل والدخول" : "إرسال طلب الانضمام"
                 )}
               </Button>
               <button type="button" onClick={() => { setStep("code"); setCode(""); setError(null); }} className="flex w-full items-center justify-center gap-1 text-sm text-slate-500 hover:text-slate-700">
@@ -265,7 +304,23 @@ function JoinPage() {
             </form>
           ) : null}
 
-          {step === "done" ? (
+          {step === "done" && kind === "invite" ? (
+            <div className="text-center">
+              <div className="join-anim mx-auto grid size-20 place-items-center rounded-full bg-teal-600 text-white shadow-lg shadow-teal-600/30" style={{ animation: "join-pop .55s ease-out both" }}>
+                <Check className="size-10" strokeWidth={3} />
+              </div>
+              <h2 className="mt-5 font-display text-2xl font-bold text-slate-800">معملك جاهز</h2>
+              <p className="mt-1 text-sm text-slate-500">سجّل دخول باسم المستخدم وكلمة المرور اللي كتبتهم.</p>
+              <p className="mt-6 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600" dir="rtl">
+                اسم المستخدم بتاعك: <strong dir="ltr">{username}</strong>
+              </p>
+              <Link to="/login" className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-xl bg-teal-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-teal-700">
+                تسجيل الدخول
+              </Link>
+            </div>
+          ) : null}
+
+          {step === "done" && kind === "lab" ? (
             <div className="text-center">
               <div className="join-anim mx-auto grid size-20 place-items-center rounded-full bg-teal-600 text-white shadow-lg shadow-teal-600/30" style={{ animation: "join-pop .55s ease-out both" }}>
                 <Check className="size-10" strokeWidth={3} />

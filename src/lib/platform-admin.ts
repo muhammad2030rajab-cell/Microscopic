@@ -1,3 +1,4 @@
+import { assertLicensed } from "@/lib/license";
 import { createServerFn } from "@tanstack/react-start";
 import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth/server";
@@ -17,7 +18,7 @@ import { passwordPolicyError } from "@/lib/password-policy";
  * orphaned auth user is a cleanup nit, never a reason to mask the original
  * error.
  */
-async function deleteAuthUser(sql: Sql, authUserId: string): Promise<void> {
+export async function deleteAuthUser(sql: Sql, authUserId: string): Promise<void> {
   try {
     await sql.query(`delete from "user" where id = $1`, [authUserId]);
   } catch (err) {
@@ -95,7 +96,7 @@ export const getCurrentPlatformPermissions = createServerFn({ method: "GET" })
     return { isSuper, permissions };
   });
 
-async function requirePlatformPermission(userId: string, permission: PlatformPermission) {
+export async function requirePlatformPermission(userId: string, permission: PlatformPermission) {
   const context = await getPlatformAdminContext(userId);
   if (!context.isSuper && context.permissions[permission] !== true) throw new Error("PERMISSION_DENIED");
   return context.sql;
@@ -162,6 +163,8 @@ export const claimFirstPlatformAdmin = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
+    // Local program: the first admin can only be created after the activation code was accepted.
+    await assertLicensed(sql);
     const rows = await sql<{ auth_user_id: string }>`
       insert into platform_admins (auth_user_id, is_super)
       select ${context.userId}, true

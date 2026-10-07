@@ -57,8 +57,6 @@ export function idbLocalStore() {
     getLastSync(labId: string): Promise<number>;
     /** Every result row (the archive list needs counts for all reports in one read). */
     listAllResults(): Promise<Record<string, unknown>[]>;
-    /** Every table on this device, outbox included (for the backup file). */
-    exportAll(): Promise<Record<string, Record<string, unknown>[]>>;
     /** Sign-out: drop the copy of the lab's data and cursors, KEEP the outbox (work not yet sent must not be lost). */
     clearMirror(): Promise<void>;
     /** Full reset, outbox included. */
@@ -151,14 +149,6 @@ export function idbLocalStore() {
     async listAllResults() {
       const d = await db();
       return wrap(d.transaction(S_RESULTS).objectStore(S_RESULTS).getAll());
-    },
-    async exportAll() {
-      const d = await db();
-      const names = [...ENTITY_STORES, S_RESULTS, S_OUTBOX];
-      const tx = d.transaction(names);
-      const out: Record<string, Record<string, unknown>[]> = {};
-      for (const n of names) out[n] = await wrap(tx.objectStore(n).getAll());
-      return out;
     },
     async clearMirror() {
       const d = await db();

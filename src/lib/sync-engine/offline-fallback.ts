@@ -14,8 +14,7 @@ import { diffReportEdit, type DiffRow } from "./conflict-review";
 import { outboxStateFor } from "./edit-item";
 import type { OutboxItem } from "./engine";
 import { applyPendingEdit, toReportDetail, toReportSummaries, type LocalReportDetail, type LocalReportSummary } from "./local-reads";
-import { toCatalogRows, toDashboardStats, toLabAnalytics, toPatientReports, toPatientSummaries, toRecentReports } from "./local-screens";
-import type { LabAnalytics } from "../analytics";
+import { toCatalogRows, toDashboardStats, toPatientReports, toPatientSummaries, toRecentReports } from "./local-screens";
 import type { LabDashboardStats } from "../lab-access";
 import type { LabCatalogRow } from "../lab-catalog";
 import type { RecentReport } from "../lab-reports";
@@ -160,19 +159,6 @@ export async function loadLocalPatientReports(err: unknown, patientId: string): 
   try {
     const reports = await m.store.listRows("reports");
     return toPatientReports(reports.filter(ofLab(m.labId)), patientId);
-  } catch {
-    return null;
-  }
-}
-
-/** Statistics page from the device copy (lab header + numbers). null = no usable copy. */
-export async function loadLocalAnalytics<L>(err: unknown): Promise<{ lab: L; analytics: LabAnalytics } | null> {
-  const m = await openMirror(err);
-  const lab = loadLabProfile<L>();
-  if (!m || !lab) return null;
-  try {
-    const [reports, patients, results] = await Promise.all([m.store.listRows("reports"), m.store.listRows("patients"), m.store.listAllResults()]);
-    return { lab, analytics: toLabAnalytics(patients.filter(ofLab(m.labId)), reports.filter(ofLab(m.labId)), results, Date.now()) };
   } catch {
     return null;
   }

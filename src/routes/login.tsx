@@ -186,11 +186,6 @@ function Login() {
           }
           return;
         }
-        if (result.error.message === "LICENSE_REQUIRED") {
-          // Local program not activated on this computer: send the user to the activation screen.
-          await navigate({ to: "/admin/setup" });
-          return;
-        }
         setError(result.error.message ?? "بيانات الدخول غير صحيحة");
         return;
       }

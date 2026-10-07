@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth/server";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { getSql } from "@/lib/db";
+import { getSql, type Sql } from "@/lib/db";
 import { deleteAuthUser } from "@/lib/platform-admin.server";
 import { logAudit } from "@/lib/audit";
 import { logEvent } from "@/lib/logger.server";

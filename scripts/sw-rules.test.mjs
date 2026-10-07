@@ -24,7 +24,7 @@ test("hashed build assets are cache-first", () => {
 });
 
 test("the main screens' HTML is kept offline; report and patient-record pages are not", () => {
-  for (const page of ["/new", "/lab", "/patients", "/catalog", "/analytics"]) {
+  for (const page of ["/new", "/lab", "/patients", "/catalog"]) {
     assert.equal(d(page, { mode: "navigate" }), "page", page);
     assert.ok(SwRules.OFFLINE_PAGES.includes(page), page);
   }

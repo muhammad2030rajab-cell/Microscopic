@@ -2,10 +2,14 @@
  * Seller-side tool for offline activation codes. Run on YOUR computer, never ship it with the key.
  *
  *   npm run license -- keygen                 one time: makes your private key + puts the public key in the program
- *   npm run license -- issue --device "A1B2-C3D4-E5F6-7890" --note "معمل النور"
- *                                             makes a code that works ONLY on that customer's computer
- *   npm run license -- list                   the codes you made (id, device, note, date)
- *   npm run license -- verify <code> --device "A1B2-…"   checks a code against the program's public key
+ *   npm run license -- issue --machine ABCD-EF01-2345-6789 --note "معمل النور"
+ *                                             makes a code that works ONLY on that computer (the customer reads the
+ *                                             machine id from the activation page) and notes it in your own list
+ *   npm run license -- list                   the codes you made (id, machine, note, date)
+ *   npm run license -- verify <code>          checks a code's signature and shows which machine it is for
+ *   npm run license -- machine-id             this computer's id (to test on your own PC)
+ *   npm run license -- server https://my-labs.vercel.app   writes your cloud site address into the program
+ *   npm run license -- show-private           prints the private key as ONE line, to paste into your cloud site's settings (LICENSE_PRIVATE_KEY)
  *
  * The private key lives in ~/.rajab-license/ (outside the project, so it is never zipped or deployed).
  * Override with LICENSE_KEY_DIR. Back it up: lose it and you cannot make new codes; leak it and anyone can.
@@ -14,7 +18,8 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "n
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createLicenseKeyPair, formatDeviceId, issueLicense, parseDeviceId, verifyLicense } from "../src/lib/license-code.ts";
+import { createLicenseKeyPair, formatMachineId, inspectLicense, issueLicense, machineBytesFromRaw, parseMachineId } from "../src/lib/license-code.ts";
+import { readRawMachineId } from "../src/lib/machine-id.server.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const keyDir = process.env.LICENSE_KEY_DIR ? resolve(process.env.LICENSE_KEY_DIR) : join(homedir(), ".rajab-license");
@@ -22,7 +27,7 @@ const privatePath = join(keyDir, "license-private.pem");
 const ledgerPath = join(keyDir, "licenses-issued.json");
 const publicKeyFile = resolve(here, "../src/lib/license-public-key.ts");
 
-type Ledger = { id: string; device?: string; note: string; issuedAt: string }[];
+type Ledger = { id: string; machine?: string; note: string; issuedAt: string }[];
 const readLedger = (): Ledger => (existsSync(ledgerPath) ? (JSON.parse(readFileSync(ledgerPath, "utf8")) as Ledger) : []);
 const currentPublicKey = () => /LICENSE_PUBLIC_KEY = "([^"]*)"/.exec(readFileSync(publicKeyFile, "utf8"))?.[1] ?? "";
 
@@ -47,25 +52,37 @@ if (command === "keygen") {
   console.log(`Private key: ${privatePath}  (BACK IT UP, never share it)\nPublic key written into src/lib/license-public-key.ts\nNext: npm run hub:build, then issue codes with: npm run license -- issue --note "customer"`);
 } else if (command === "issue") {
   if (!existsSync(privatePath)) { console.error("No private key. Run: npm run license -- keygen"); process.exit(1); }
-  const device = parseDeviceId(arg("device"));
-  if (!device) { console.error('Missing or malformed --device. Ask the customer for the device id shown on the activation screen (like A1B2-C3D4-E5F6-7890).'); process.exit(1); }
-  const { code, id } = issueLicense(readFileSync(privatePath, "utf8"), device);
+  const machine = parseMachineId(arg("machine"));
+  if (!machine) { console.error("Give the customer's machine id: --machine ABCD-EF01-2345-6789 (shown on the activation page)"); process.exit(1); }
+  const { code, id } = issueLicense(readFileSync(privatePath, "utf8"), machine);
   const publicKey = currentPublicKey();
-  if (!publicKey || !verifyLicense(code, publicKey, device).ok) { console.error("This program build carries a different public key than your private key. Run keygen --force or rebuild."); process.exit(1); }
+  if (!publicKey || !inspectLicense(code, publicKey).ok) { console.error("This program build carries a different public key than your private key. Run keygen --force or rebuild."); process.exit(1); }
   const ledger = readLedger();
-  ledger.push({ id, device: formatDeviceId(device), note: arg("note") ?? "", issuedAt: new Date().toISOString() });
+  ledger.push({ id, machine: formatMachineId(machine), note: arg("note") ?? "", issuedAt: new Date().toISOString() });
   mkdirSync(keyDir, { recursive: true });
   writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2));
-  console.log(`\n${code}\n\n(id ${id}, device ${formatDeviceId(device)}${arg("note") ? `, ${arg("note")}` : ""})`);
+  console.log(`\n${code}\n\n(id ${id}, machine ${formatMachineId(machine)}${arg("note") ? `, ${arg("note")}` : ""})`);
 } else if (command === "list") {
   const ledger = readLedger();
   if (!ledger.length) console.log("No codes made yet.");
-  for (const e of ledger) console.log(`${e.issuedAt.slice(0, 10)}  ${e.id}  ${e.device ?? "-"}  ${e.note}`);
+  for (const e of ledger) console.log(`${e.issuedAt.slice(0, 10)}  ${e.id}  ${e.machine ?? "-"}  ${e.note}`);
 } else if (command === "verify") {
-  const r = verifyLicense(process.argv[3], currentPublicKey(), parseDeviceId(arg("device")));
-  console.log(r.ok ? `OK (id ${r.id})` : `NOT valid: ${r.reason}`);
+  const r = inspectLicense(process.argv[3], currentPublicKey());
+  console.log(r.ok ? `OK (id ${r.id}, for machine ${formatMachineId(r.machine)})` : `NOT valid: ${r.reason}`);
   process.exit(r.ok ? 0 : 1);
+} else if (command === "server") {
+  const url = (process.argv[3] ?? "").trim().replace(/\/+$/, "");
+  if (!/^https:\/\/[^\s"]+$/.test(url)) { console.error("Give your cloud site address, like: npm run license -- server https://my-labs.vercel.app"); process.exit(1); }
+  const file = readFileSync(publicKeyFile, "utf8");
+  if (!/LICENSE_SERVER_URL = "[^"]*"/.test(file)) { console.error("license-public-key.ts has no LICENSE_SERVER_URL line"); process.exit(1); }
+  writeFileSync(publicKeyFile, file.replace(/LICENSE_SERVER_URL = "[^"]*"/, `LICENSE_SERVER_URL = "${url}"`));
+  console.log(`Program will activate against ${url}. Rebuild the program (3-build-exe.bat).`);
+} else if (command === "show-private") {
+  if (!existsSync(privatePath)) { console.error("No private key. Run: npm run license -- keygen"); process.exit(1); }
+  console.log(readFileSync(privatePath, "utf8").trim().replace(/\r?\n/g, "\\n"));
+} else if (command === "machine-id") {
+  console.log(formatMachineId(machineBytesFromRaw(readRawMachineId())));
 } else {
-  console.log('Usage: npm run license -- keygen | issue --device "A1B2-…" [--note "..."] | list | verify <code> --device "A1B2-…"');
+  console.log("Usage: npm run license -- keygen | server <https-address> | show-private | issue --machine <id> [--note \"...\"] | list | verify <code> | machine-id");
   process.exit(command ? 1 : 0);
 }

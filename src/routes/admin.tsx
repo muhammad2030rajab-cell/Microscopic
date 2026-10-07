@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute, Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
-import { Building2, ChevronLeft, FileText, Plus, Settings2, ShieldCheck, Users } from "lucide-react";
+import { Building2, ChevronLeft, FileText, KeyRound, Plus, Settings2, ShieldCheck, Users } from "lucide-react";
 import { UserButton } from "@/lib/auth/gates";
 import { isPlatformAdmin, getCurrentPlatformPermissions, getAdminOverview, type AdminOverview } from "@/lib/platform-admin";
 
@@ -118,6 +118,7 @@ function AdminDashboard() {
           <NavCard to="/admin/users" icon={<Users />} title="المستخدمون" description="الحسابات والصلاحيات" />
           <NavCard to="/admin/reports" icon={<FileText />} title="التقارير" description="إحصائيات الشبكة" />
           {canManageAdmins ? <NavCard to="/admin/team" icon={<ShieldCheck />} title="فريق الإدارة" description="مديرو المنصة" /> : null}
+          {canManageAdmins ? <NavCard to="/admin/licenses" icon={<KeyRound />} title="أرقام التسجيل" description="تفعيل برنامج المعامل" /> : null}
           <NavCard to="/admin/settings" icon={<Settings2 />} title="الإعدادات" description="إعدادات النظام" />
         </section>
 

@@ -15,7 +15,7 @@ export const Route = createFileRoute("/admin/setup")({
   // reach a real account-creation form indefinitely. A public existence
   // check is safe here: it reveals nothing beyond "has this ever been set up".
   loader: async () => {
-    const license = await getLicenseStatus().catch(() => ({ required: false, activated: true, deviceId: "" }));
+    const license = await getLicenseStatus().catch(() => ({ required: false, activated: true, machineId: "" }));
     try {
       return { adminExists: await platformAdminExists(), license };
     } catch {
@@ -84,8 +84,7 @@ function AdminSetup() {
     await navigate({ to: "/admin" });
   }
 
-  // An already set-up installation still needs activation on a computer it was not activated on.
-  if (adminExists && (!license.required || activated)) return <Navigate to="/login" replace />;
+  if (adminExists) return <Navigate to="/login" replace />;
 
   async function activate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -108,31 +107,25 @@ function AdminSetup() {
           <div className="mb-7">
             <div className="mb-4 grid size-12 place-items-center rounded-xl bg-teal/10 text-teal"><KeyRound className="size-6" /></div>
             <h1 className="font-display text-2xl font-semibold">تفعيل البرنامج</h1>
-            <p className="mt-2 text-sm leading-6 text-muted">اكتب كود التفعيل اللي استلمته. الكود خاص بجهازك بس، والبرنامج بيتأكد منه من غير إنترنت، وكل بياناتك بتفضل عندك.</p>
+            <p className="mt-2 text-sm leading-6 text-muted">اكتب رقم التسجيل اللي استلمته من البائع. محتاج إنترنت مرة واحدة بس للتفعيل، وبعدها البرنامج بيشتغل من غير نت وكل بياناتك بتفضل عندك. لو مفيش نت، ابعت «رقم الجهاز» اللي تحت للبائع واكتب الكود اللي يبعتهولك.</p>
           </div>
-          {license.deviceId ? (
-            <div className="mb-5 space-y-1.5">
-              <Label>رقم جهازك</Label>
-              <div className="flex items-center gap-2">
-                <code dir="ltr" className="flex-1 rounded-sm border border-line bg-paper px-3 py-2 text-center font-mono text-base tracking-widest">{license.deviceId}</code>
-                <Button type="button" variant="outline" onClick={() => void navigator.clipboard?.writeText(license.deviceId)}>نسخ</Button>
-              </div>
-              <p className="text-xs text-muted">ابعت الرقم ده للبائع، وهو هيديك كود تفعيل خاص بجهازك بس.</p>
-            </div>
-          ) : null}
+          <div className="mb-5 rounded-lg border border-line bg-paper p-3">
+            <p className="text-xs text-muted">رقم هذا الجهاز</p>
+            <p dir="ltr" className="mt-1 select-all font-mono text-lg tracking-wider">{license.machineId || "غير متاح، اتواصل مع البائع"}</p>
+          </div>
           <form onSubmit={activate} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="license-code">كود التفعيل</Label>
+              <Label htmlFor="license-code">رقم التسجيل (أو كود التفعيل)</Label>
               <textarea
                 id="license-code"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 required
-                rows={4}
+                rows={3}
                 dir="ltr"
                 spellCheck={false}
                 autoCapitalize="characters"
-                placeholder="RJB-XXXXXX-XXXXXX-…"
+                placeholder="RJB-XXXX-XXXX-XXXX-XXXX"
                 className="w-full resize-none rounded-sm border border-line bg-elevated px-3 py-2 font-mono text-sm tracking-wide"
               />
               <p className="text-xs text-muted">الأفضل تلزقه (Paste) كامل بدل ما تكتبه.</p>

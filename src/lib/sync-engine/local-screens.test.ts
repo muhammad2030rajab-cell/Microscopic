@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { labDayKey, toCatalogRows, toLabAnalytics, toDashboardStats, toPatientReports, toPatientSummaries, toRecentReports } from "./local-screens.ts";
+import { labDayKey, toCatalogRows, toDashboardStats, toPatientReports, toPatientSummaries, toRecentReports } from "./local-screens.ts";
 
 const patients = [
   { id: "p1", full_name: "منى أحمد", patient_code: "P-1", age: 25, age_unit: "years", gender: "أنثى", phone: "01012345678", national_id: "29001010101010" },
@@ -85,45 +85,4 @@ test("catalog rows: ordered by category then name, nulls kept, inactive kept ina
   assert.deepEqual(out.map((r) => r.test_name), ["HB", "RBC", "WBC", "ALT"]);
   assert.deepEqual([out[0].is_active, out[0].method_info, out[1].is_active, out[0].age_ranges], [false, "طريقة", true, null]);
   assert.equal("lab_id" in out[0], false);
-});
-
-test("analytics: 14 days ending today, counts per day, status and totals", () => {
-  const now = Date.parse("2026-10-07T10:00:00Z");
-  const reports = [
-    report("a", "p1", "2026-10-07T08:00:00Z", { status: "approved" }),
-    report("b", "p1", "2026-10-07T09:00:00Z", { status: "cancelled" }),
-    report("c", "p2", "2026-10-01T09:00:00Z", { status: "approved" }),
-    report("old", "p2", "2026-09-01T09:00:00Z", { status: "draft" }),
-  ];
-  const out = toLabAnalytics(patients, reports, [], now);
-  assert.equal(out.daily.length, 14);
-  assert.equal(out.daily[13].day, "2026-10-07");
-  assert.equal(out.daily[0].day, "2026-09-24");
-  assert.equal(out.daily[13].count, 2); // cancelled counts too, as on the server
-  assert.equal(out.daily.find((d) => d.day === "2026-10-01")?.count, 1);
-  assert.equal(out.daily.reduce((n, d) => n + d.count, 0), 3); // the September report is outside the window
-  assert.equal(out.totalReports, 4);
-  assert.equal(out.totalPatients, 3);
-  assert.deepEqual(out.statusBreakdown.find((s) => s.status === "approved"), { status: "approved", count: 2 });
-});
-
-test("analytics: top tests ranked, critical counted, results of unknown reports ignored", () => {
-  const now = Date.parse("2026-10-07T10:00:00Z");
-  const reports = [report("a", "p1", "2026-10-07T08:00:00Z")];
-  const results = [
-    { report_id: "a", test_name: "Hb", flag: "normal" },
-    { report_id: "a", test_name: "WBC", flag: "critical" },
-    { report_id: "a", test_name: "Hb", flag: "high" },
-    { report_id: "gone", test_name: "Hb", flag: "critical" },
-  ];
-  const out = toLabAnalytics(patients, reports, results, now);
-  assert.deepEqual(out.topTests, [{ name: "Hb", count: 2 }, { name: "WBC", count: 1 }]);
-  assert.equal(out.criticalCount, 1);
-});
-
-test("analytics: a month change in the 14-day window does not skip or repeat a day", () => {
-  const out = toLabAnalytics([], [], [], Date.parse("2026-03-05T10:00:00Z"));
-  const days = out.daily.map((d) => d.day);
-  assert.equal(new Set(days).size, 14);
-  assert.deepEqual([days[0], days[13]], ["2026-02-20", "2026-03-05"]);
 });

@@ -160,9 +160,6 @@ export const auth = betterAuth({
   // (incl. the client's `/get-session`) skip the DB — this shrinks the
   // "loading" window and reduces auth flicker. Gate on `isPending`; SSR the session.
   session: {
-    // Sign in once: the login lasts 90 days and is renewed (at most once a day) every time the app is used online.
-    expiresIn: 60 * 60 * 24 * 90,
-    updateAge: 60 * 60 * 24,
     cookieCache: {
       enabled: true,
       maxAge: 300,
@@ -174,19 +171,7 @@ export const auth = betterAuth({
   // (auth.api.signUpEmail has no HTTP request, so it is not affected).
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
-      if (!ctx.request) return;
-      // Local program with a built-in public key: nobody signs in or up unless this computer is activated.
-      // Dynamic import: this file must not import *.server modules statically.
-      if (ctx.path === "/sign-in/email" || ctx.path === "/sign-up/email") {
-        try {
-          const { assertLicensedNow } = await import("../license-check.server");
-          await assertLicensedNow();
-        } catch (err) {
-          console.error("auth.license_check_failed", String(err));
-          throw new APIError("FORBIDDEN", { message: "LICENSE_REQUIRED" });
-        }
-      }
-      if (ctx.path !== "/sign-up/email") return;
+      if (ctx.path !== "/sign-up/email" || !ctx.request) return;
       let adminExists = true; // fail closed
       try {
         const sql = await getSql();

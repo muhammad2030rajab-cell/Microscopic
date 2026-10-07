@@ -6,3 +6,10 @@
  * and fills this line in. Then build the local program (`npm run hub:build`) and give customers that build.
  */
 export const LICENSE_PUBLIC_KEY = "";
+
+/**
+ * Where the program asks, once, to activate a registration number: your cloud site's address
+ * (like "https://my-labs.vercel.app", no trailing slash). Filled in by `npm run license -- server <address>`.
+ * Empty = only manual activation codes work.
+ */
+export const LICENSE_SERVER_URL = "";

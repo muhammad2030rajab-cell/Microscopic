@@ -66,24 +66,6 @@ export const Route = createRootRoute({
         href: appCss,
       },
 
-      {
-        rel: "preconnect",
-        href: "https://fonts.googleapis.com",
-      },
-
-      {
-        rel: "preconnect",
-        href: "https://fonts.gstatic.com",
-        crossOrigin: "anonymous",
-      },
-
-    ],
-
-    scripts: [
-      {
-        children:
-          '(function(){var l=document.createElement("link");l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap";document.head.appendChild(l);})();',
-      },
     ],
   }),
 

@@ -1,4 +1,4 @@
-import { assertLicensed } from "@/lib/license-check.server";
+import { assertLicensed } from "@/lib/license";
 import { createServerFn } from "@tanstack/react-start";
 import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth/server";

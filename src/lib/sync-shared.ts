@@ -89,7 +89,7 @@ export function parsePushBatch(raw: unknown): PushChangeInput[] {
 }
 
 /** A device copy not refreshed for this long stops being shown offline (keep in step with public/offline-archive.js). */
-export const MAX_OFFLINE_DAYS = 90;
+export const MAX_OFFLINE_DAYS = 14;
 
 export function isMirrorFresh(lastSyncMs: unknown, nowMs: number, maxDays: number = MAX_OFFLINE_DAYS): boolean {
   if (typeof lastSyncMs !== "number" || !Number.isFinite(lastSyncMs) || lastSyncMs <= 0) return false;

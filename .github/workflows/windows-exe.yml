@@ -1,0 +1,58 @@
+name: Build Windows EXE
+
+# Builds the lab's local program (Hub) into a Windows installer + portable .exe.
+# Runs by hand: GitHub > Actions > "Build Windows EXE" > Run workflow.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/windows-exe.yml"
+
+permissions:
+  contents: write # lets the job publish the .exe to the "windows-latest" release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install app dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build the app as a plain Node server (hub mode)
+        run: npm run hub:build
+
+      - name: Install the QR-code library for the mobile-link panel
+        shell: bash
+        run: |
+          mkdir -p desktop/hub-modules
+          npm install --prefix desktop/hub-modules --no-audit --no-fund qrcode@1.5.4
+
+      - name: Install desktop packaging tools
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
+
+      - name: Build the Windows installer
+        working-directory: desktop
+        run: npm run dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Microscopic-windows
+          path: |
+            desktop/dist/*.exe
+
+      - name: Publish to the windows-latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-latest
+          name: Microscopic Windows (latest)
+          prerelease: true
+          body: "Latest Windows build. Download Microscopic-*-nsis.exe (installer) or Microscopic-*-portable.exe (no install)."
+          files: desktop/dist/*.exe

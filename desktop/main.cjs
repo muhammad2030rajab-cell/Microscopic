@@ -37,9 +37,18 @@ function startHub() {
     app.exit(1);
     return false;
   }
+  // Keep the program's output in <data folder>\hub.log so problems can be diagnosed.
+  fs.mkdirSync(dataDir, { recursive: true });
+  const logFile = path.join(dataDir, "hub.log");
+  try {
+    if (fs.existsSync(logFile) && fs.statSync(logFile).size > 5 * 1024 * 1024) fs.renameSync(logFile, logFile + ".old");
+  } catch {
+    /* ignore */
+  }
+  const logFd = fs.openSync(logFile, "a");
   child = spawn(process.execPath, [script], {
     cwd: hubDir,
-    stdio: "ignore",
+    stdio: ["ignore", logFd, logFd],
     windowsHide: true,
     // ELECTRON_RUN_AS_NODE: run electron.exe as plain Node. hub-start passes its env on to the app process.
     env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", HUB_NO_OPEN: "1" },
@@ -127,7 +136,9 @@ function buildMenu() {
         submenu: [
           { label: "البرنامج", click: () => win && win.loadURL(BASE) },
           { label: "ربط الموبايل (Mobile link)", click: () => win && win.loadURL(`${BASE}/_hub`) },
+          { label: "إعداد أول مرة: إنشاء أدمن المنصة", click: () => win && win.loadURL(`${BASE}/admin/setup`) },
           { label: "فتح مجلد البيانات", click: () => shell.openPath(dataDir) },
+          { label: "فتح ملف السجل (hub.log)", click: () => shell.openPath(path.join(dataDir, "hub.log")) },
           { type: "separator" },
           { label: "إعادة تحميل", role: "reload" },
           { label: "خروج", role: "quit" },

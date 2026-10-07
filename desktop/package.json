@@ -16,25 +16,49 @@
   "build": {
     "appId": "com.microscopic.lab",
     "productName": "Microscopic",
-    "directories": { "output": "dist" },
+    "directories": {
+      "output": "dist"
+    },
     "asar": true,
-    "files": ["main.cjs", "package.json"],
+    "files": [
+      "main.cjs",
+      "package.json"
+    ],
     "extraResources": [
-      { "from": "../.output", "to": "hub/.output" },
-      { "from": "../scripts", "to": "hub/scripts", "filter": ["hub-*.mjs", "!*.test.mjs"] },
-      { "from": "hub-modules/node_modules", "to": "hub/node_modules" }
+      {
+        "from": "../.output",
+        "to": "hub/.output"
+      },
+      {
+        "from": "../scripts",
+        "to": "hub/scripts",
+        "filter": [
+          "hub-*.mjs",
+          "!*.test.mjs"
+        ]
+      },
+      {
+        "from": "hub-modules/node_modules",
+        "to": "hub/node_modules"
+      }
     ],
     "win": {
       "icon": "build/icon.png",
-      "target": ["nsis", "portable"],
-      "artifactName": "Microscopic-${version}-${target}.${ext}"
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "artifactName": "Microscopic-${version}-nsis.${ext}"
+    },
+    "portable": {
+      "artifactName": "Microscopic-${version}-portable.${ext}"
     }
   }
 }

@@ -135,7 +135,7 @@ export function registerServiceWorker(onReady: () => void): void {
 }
 
 /** Pages the worker keeps for offline use. Must match OFFLINE_PAGES in public/sw-rules.js. */
-export const OFFLINE_PAGE_URLS = ["/new", "/lab", "/patients", "/catalog"] as const;
+export const OFFLINE_PAGE_URLS = ["/new", "/lab", "/patients", "/catalog", "/analytics"] as const;
 
 /**
  * Once per browser session, signed in: ask the worker to keep every offline-capable screen (and the build

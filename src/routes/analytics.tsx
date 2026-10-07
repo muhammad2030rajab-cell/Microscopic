@@ -4,6 +4,7 @@ import { ArrowRight, Users, FileText, AlertTriangle, FlaskConical } from "lucide
 import { AppShell } from "@/components/layout/app-shell";
 import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
 import { getLabAnalytics, type LabAnalytics } from "@/lib/analytics";
+import { loadLocalAnalytics } from "@/lib/sync-engine/offline-fallback";
 import { FEATURE_DISABLED_MESSAGE } from "@/lib/lab-features";
 import { reportStatusLabels } from "@/lib/report-workflow";
 import { SimpleBarChart, SimpleLineChart, SimplePieChart } from "@/components/charts/simple-charts";
@@ -23,7 +24,10 @@ export const Route = createFileRoute("/analytics")({
         }
         throw err;
       }
-    } catch {
+    } catch (err) {
+      // No connection: show the numbers from the copy on this device (a server "not signed in" still goes to login).
+      const local = await loadLocalAnalytics<LabProfileData>(err);
+      if (local) return { lab: local.lab as LabProfileData | null, analytics: local.analytics, disabled: false };
       return { lab: null as LabProfileData | null, analytics: EMPTY, disabled: false };
     }
   },

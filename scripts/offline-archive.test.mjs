@@ -9,8 +9,8 @@ const DAY = 86400000;
 test("freshness: recent copy shows, old / missing / future timestamps do not", () => {
   const now = 1_000_000_000_000;
   assert.equal(A.isFresh(now - 1 * DAY, now), true);
-  assert.equal(A.isFresh(now - 14 * DAY, now), true);
-  assert.equal(A.isFresh(now - 14 * DAY - 1, now), false);
+  assert.equal(A.isFresh(now - 90 * DAY, now), true);
+  assert.equal(A.isFresh(now - 90 * DAY - 1, now), false);
   assert.equal(A.isFresh(undefined, now), false);
   assert.equal(A.isFresh(0, now), false);
   assert.equal(A.isFresh(NaN, now), false);

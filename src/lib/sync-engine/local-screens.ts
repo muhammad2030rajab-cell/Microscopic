@@ -7,6 +7,7 @@
  */
 import { parseAgeUnit } from "../age.ts";
 import { matchesSearch } from "../search-text.ts";
+import type { LabAnalytics } from "../analytics.ts";
 import type { LabDashboardStats } from "../lab-access.ts";
 import type { LabCatalogRow } from "../lab-catalog.ts";
 import type { RecentReport } from "../lab-reports.ts";
@@ -91,6 +92,46 @@ export function toDashboardStats(patients: Row[], reports: Row[], results: Row[]
     pendingReview: reports.filter((r) => str(r.status) === "pending_review").length,
     approved: reports.filter((r) => str(r.status) === "approved").length,
     critical: criticalToday.size,
+  };
+}
+
+/**
+ * The statistics page, computed like `getLabAnalytics`: reports per day for the last 14 days (today included,
+ * cancelled ones counted too), reports per status, the 8 most requested tests, critical results, totals.
+ */
+export function toLabAnalytics(patients: Row[], reports: Row[], results: Row[], nowMs: number, timeZone: string = LAB_TIME_ZONE): LabAnalytics {
+  const today = labDayKey(nowMs, timeZone);
+  const [y, m, d] = today.split("-").map(Number);
+  // Calendar arithmetic on the date itself (not "minus 24 h"), so a daylight-saving change cannot skip or repeat a day.
+  const days = Array.from({ length: 14 }, (_, i) => new Date(Date.UTC(y, m - 1, d - (13 - i))).toISOString().slice(0, 10));
+  const perDay = new Map(days.map((day) => [day, 0]));
+  const perStatus = new Map<string, number>();
+  const reportIds = new Set<string>();
+  for (const r of reports) {
+    reportIds.add(str(r.id));
+    const key = labDayKey(r.created_at, timeZone);
+    if (perDay.has(key)) perDay.set(key, (perDay.get(key) ?? 0) + 1);
+    const status = str(r.status);
+    perStatus.set(status, (perStatus.get(status) ?? 0) + 1);
+  }
+  const perTest = new Map<string, number>();
+  let critical = 0;
+  for (const x of results) {
+    if (!reportIds.has(str(x.report_id))) continue;
+    const name = str(x.test_name);
+    perTest.set(name, (perTest.get(name) ?? 0) + 1);
+    if (str(x.flag) === "critical") critical += 1;
+  }
+  return {
+    daily: days.map((day) => ({ day, count: perDay.get(day) ?? 0 })),
+    statusBreakdown: [...perStatus].map(([status, count]) => ({ status, count })),
+    topTests: [...perTest]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+      .slice(0, 8),
+    criticalCount: critical,
+    totalPatients: patients.length,
+    totalReports: reports.length,
   };
 }
 

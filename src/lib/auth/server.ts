@@ -160,6 +160,9 @@ export const auth = betterAuth({
   // (incl. the client's `/get-session`) skip the DB — this shrinks the
   // "loading" window and reduces auth flicker. Gate on `isPending`; SSR the session.
   session: {
+    // Sign in once: the login lasts 90 days and is renewed (at most once a day) every time the app is used online.
+    expiresIn: 60 * 60 * 24 * 90,
+    updateAge: 60 * 60 * 24,
     cookieCache: {
       enabled: true,
       maxAge: 300,

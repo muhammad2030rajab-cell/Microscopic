@@ -50,6 +50,7 @@ test("buildHubEnv: hub mode, database on disk, the app listens on THIS PC only, 
   const env = buildHubEnv({ home: "/data/hub", port: 8080, ips: ["192.168.1.20"], secret: "s3cret" });
   assert.equal(env.HUB_MODE, "1");
   assert.match(env.HUB_DATA_DIR.replaceAll("\\", "/"), /^\/data\/hub\/db$/);
+  assert.match(env.HUB_FILES_DIR.replaceAll("\\", "/"), /^\/data\/hub\/files$/);
   assert.equal(env.BETTER_AUTH_URL, "http://192.168.1.20:8080");
   assert.ok(env.HUB_TRUSTED_ORIGINS.split(",").includes("http://localhost:8080"));
   assert.equal(env.BETTER_AUTH_SECRET, "s3cret");

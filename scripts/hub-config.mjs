@@ -41,6 +41,7 @@ export function buildHubEnv({ home, port, ips, secret, appPort = internalPort(po
   return {
     HUB_MODE: "1",
     HUB_DATA_DIR: join(home, "db"),
+    HUB_FILES_DIR: join(home, "files"), // report attachments (photos / PDFs) live here, next to the database
     HUB_TRUSTED_ORIGINS: origins.join(","),
     BETTER_AUTH_URL: origins[0],
     BETTER_AUTH_SECRET: secret,

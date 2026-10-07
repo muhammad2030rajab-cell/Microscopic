@@ -34,6 +34,9 @@ export const authMiddleware = createMiddleware({ type: "function" }).server(
     // Reject scripted cross-site requests before touching per-user data.
     assertSameSiteRequest();
     const userId = await requireUserId();
+    // Local program: a copied data folder on an unactivated computer stops working here (cached, cheap).
+    const { assertLicensedNow } = await import("../license-check.server");
+    await assertLicensedNow();
     return next({ context: { userId } });
   },
 );

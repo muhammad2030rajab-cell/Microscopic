@@ -15,7 +15,7 @@ export const Route = createFileRoute("/admin/setup")({
   // reach a real account-creation form indefinitely. A public existence
   // check is safe here: it reveals nothing beyond "has this ever been set up".
   loader: async () => {
-    const license = await getLicenseStatus().catch(() => ({ required: false, activated: true }));
+    const license = await getLicenseStatus().catch(() => ({ required: false, activated: true, deviceId: "" }));
     try {
       return { adminExists: await platformAdminExists(), license };
     } catch {
@@ -84,7 +84,8 @@ function AdminSetup() {
     await navigate({ to: "/admin" });
   }
 
-  if (adminExists) return <Navigate to="/login" replace />;
+  // An already set-up installation still needs activation on a computer it was not activated on.
+  if (adminExists && (!license.required || activated)) return <Navigate to="/login" replace />;
 
   async function activate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -107,8 +108,18 @@ function AdminSetup() {
           <div className="mb-7">
             <div className="mb-4 grid size-12 place-items-center rounded-xl bg-teal/10 text-teal"><KeyRound className="size-6" /></div>
             <h1 className="font-display text-2xl font-semibold">تفعيل البرنامج</h1>
-            <p className="mt-2 text-sm leading-6 text-muted">اكتب كود التفعيل اللي استلمته. البرنامج بيتأكد منه على جهازك من غير إنترنت، وكل بياناتك بتفضل عندك. بعد التفعيل هتنشئ اسم المستخدم وكلمة المرور بتوعك، ومش هتحتاج الكود تاني.</p>
+            <p className="mt-2 text-sm leading-6 text-muted">اكتب كود التفعيل اللي استلمته. الكود خاص بجهازك بس، والبرنامج بيتأكد منه من غير إنترنت، وكل بياناتك بتفضل عندك.</p>
           </div>
+          {license.deviceId ? (
+            <div className="mb-5 space-y-1.5">
+              <Label>رقم جهازك</Label>
+              <div className="flex items-center gap-2">
+                <code dir="ltr" className="flex-1 rounded-sm border border-line bg-paper px-3 py-2 text-center font-mono text-base tracking-widest">{license.deviceId}</code>
+                <Button type="button" variant="outline" onClick={() => void navigator.clipboard?.writeText(license.deviceId)}>نسخ</Button>
+              </div>
+              <p className="text-xs text-muted">ابعت الرقم ده للبائع، وهو هيديك كود تفعيل خاص بجهازك بس.</p>
+            </div>
+          ) : null}
           <form onSubmit={activate} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="license-code">كود التفعيل</Label>

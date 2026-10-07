@@ -317,15 +317,42 @@ export const deleteLab = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }: { context: { userId: string }; data: { labId: string } }) => {
     const sql = await requirePlatformPermission(context.userId, "labs.delete");
-    // لاب مستخدمي المعمل مرتبطين بحسابات دخول حقيقية في جدول "user" — احذفهم
-    // الأول عشان "on delete cascade" في labs يشيل صف lab_users بس مش حساب الدخول نفسه.
-    const staff = await sql<{ auth_user_id: string }>`select auth_user_id from lab_users where lab_id = ${data.labId}`;
-    for (const member of staff) {
-      await deleteAuthUser(sql, member.auth_user_id);
-    }
-    const rows = await sql<{ id: string }>`delete from labs where id = ${data.labId} returning id`;
-    if (!rows.length) throw new Error("LAB_NOT_FOUND");
+
+    // Deleting a lab touches several tables and real Better Auth accounts.
+    // Keep the whole database mutation atomic so a failure cannot leave a
+    // half-deleted lab (for example, some auth users removed while the lab
+    // itself remains). The FK cascades then clean sessions/accounts,
+    // lab_users, patients, reports, results, attachments, etc. consistently.
+    await sql.transaction(async (tx) => {
+      const lab = await tx<{ id: string }>`
+        select id from labs where id = ${data.labId} for update
+      `;
+      if (!lab.length) throw new Error("LAB_NOT_FOUND");
+
+      const staff = await tx<{ auth_user_id: string | null }>`
+        select auth_user_id
+        from lab_users
+        where lab_id = ${data.labId} and auth_user_id is not null
+      `;
+      const authUserIds = staff
+        .map((member) => member.auth_user_id)
+        .filter((id): id is string => Boolean(id));
+
+      if (authUserIds.length) {
+        await tx.query(
+          `delete from "user" where id = any($1::text[])`,
+          [authUserIds],
+        );
+      }
+
+      const deleted = await tx<{ id: string }>`
+        delete from labs where id = ${data.labId} returning id
+      `;
+      if (!deleted.length) throw new Error("LAB_NOT_FOUND");
+    });
+
     await logAudit(sql, { actorAuthUserId: context.userId, action: "lab.deleted", entityType: "lab", entityId: data.labId });
+    logEvent("info", "lab.deleted", { labId: data.labId, actorAuthUserId: context.userId });
     return { ok: true };
   });
 

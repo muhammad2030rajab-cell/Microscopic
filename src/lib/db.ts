@@ -35,6 +35,7 @@ export interface Sql {
     text: string,
     params?: unknown[],
   ): Promise<T[]>;
+  transaction<T>(fn: (tx: Sql) => Promise<T>): Promise<T>;
 }
 
 /**
@@ -70,7 +71,9 @@ const identity = (v: string) => v;
 type Run = <T>(text: string, params: unknown[]) => Promise<T[]>;
 
 /** Wrap a query runner in the tagged-template + `.query()` `Sql` surface. */
-function toSql(run: Run): Sql {
+type TransactionRunner = <T>(fn: (tx: Sql) => Promise<T>) => Promise<T>;
+
+function toSql(run: Run, transaction: TransactionRunner): Sql {
   const sql = (async <T = Record<string, unknown>>(
     strings: TemplateStringsArray,
     ...values: unknown[]
@@ -82,6 +85,7 @@ function toSql(run: Run): Sql {
   }) as unknown as Sql;
   sql.query = <T = Record<string, unknown>>(text: string, params: unknown[] = []) =>
     run<T>(text, params);
+  sql.transaction = transaction;
   return sql;
 }
 
@@ -106,10 +110,39 @@ function createNeonSql(): Promise<Sql> {
     pool.on("error", (err) => {
       console.error("[db] idle client error:", err.message);
     });
-    return toSql(async <T>(text: string, params: unknown[]) => {
-      const res = await pool.query(text, params);
-      return res.rows as T[];
-    });
+    return toSql(
+      async <T>(text: string, params: unknown[]) => {
+        const res = await pool.query(text, params);
+        return res.rows as T[];
+      },
+      async <T>(fn: (tx: Sql) => Promise<T>) => {
+        const client = await pool.connect();
+        try {
+          await client.query("BEGIN");
+          const tx = toSql(
+            async <R>(text: string, params: unknown[]) => {
+              const res = await client.query(text, params);
+              return res.rows as R[];
+            },
+            async () => {
+              throw new Error("Nested transactions are not supported");
+            },
+          );
+          const result = await fn(tx);
+          await client.query("COMMIT");
+          return result;
+        } catch (error) {
+          try {
+            await client.query("ROLLBACK");
+          } catch (rollbackError) {
+            console.error("[db] transaction rollback failed:", rollbackError);
+          }
+          throw error;
+        } finally {
+          client.release();
+        }
+      },
+    );
   })().catch((err) => {
     globalRef.__pgSqlPromise__ = undefined;
     throw err;
@@ -177,10 +210,25 @@ async function createPgliteSql(): Promise<Sql> {
   globalRef.__pgliteMigrateChain__ = pass;
   await pass;
 
-  return toSql(async <T>(text: string, params: unknown[]) => {
-    const result = await pg.query<T>(text, params);
-    return result.rows;
-  });
+  return toSql(
+    async <T>(text: string, params: unknown[]) => {
+      const result = await pg.query<T>(text, params);
+      return result.rows;
+    },
+    async <T>(fn: (tx: Sql) => Promise<T>) =>
+      pg.transaction(async (client) => {
+        const tx = toSql(
+          async <R>(text: string, params: unknown[]) => {
+            const result = await client.query<R>(text, params);
+            return result.rows;
+          },
+          async () => {
+            throw new Error("Nested transactions are not supported");
+          },
+        );
+        return fn(tx);
+      }),
+  );
 }
 
 let sqlPromise: Promise<Sql> | null = null;

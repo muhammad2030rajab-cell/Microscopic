@@ -15,6 +15,10 @@ import {
   CircleHelp,
   ClipboardCheck,
   ClipboardList,
+  Clock3,
+  Plus,
+  Search,
+  ShieldCheck,
   FilePlus2,
   FileText,
   Files,
@@ -24,6 +28,7 @@ import {
   TriangleAlert,
   UserRoundSearch,
   Users,
+  WifiOff,
 } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
@@ -279,6 +284,91 @@ function LabDashboard() {
         />
       </section>
 
+      {/* Lab operations center: turn the dashboard into an actionable workflow instead of a counter-only home page. */}
+      <section className="mt-5 rounded-2xl border border-line bg-elevated p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-teal">Lab Operations Center</p>
+            <h2 className="mt-1 font-display text-xl font-semibold">شغّل المعمل من شاشة واحدة</h2>
+            <p className="mt-1 text-sm text-muted">المهام الأهم بتظهر هنا حسب حالة المعمل الحالية.</p>
+          </div>
+          {offline ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-800">
+              <WifiOff className="size-4" />
+              وضع عدم الاتصال
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-teal/10 px-3 py-1.5 text-xs font-medium text-teal">
+              <ShieldCheck className="size-4" />
+              النظام متصل
+            </span>
+          )}
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+          <WorkflowStep
+            number="01"
+            title="استقبال المريض"
+            description="ابدأ تقرير جديد أو ابحث عن مريض سابق"
+            icon={<Plus />}
+            to={permissions["reports.create"] ? "/new" : "/patients"}
+            complete={stats.reportsToday > 0}
+          />
+          <WorkflowStep
+            number="02"
+            title="إدخال النتائج"
+            description={`${stats.reportsToday} تقرير اليوم${stats.reportsToday === 1 ? "" : ""}`}
+            icon={<ClipboardList />}
+            to="/reports"
+            complete={stats.reportsToday > 0}
+          />
+          <WorkflowStep
+            number="03"
+            title="المراجعة"
+            description={stats.pendingReview > 0 ? `${stats.pendingReview} تقرير منتظر المراجعة` : "لا توجد تقارير معلقة"}
+            icon={<ClipboardCheck />}
+            to="/reports"
+            preset={{ status: "pending_review" }}
+            complete={stats.pendingReview === 0}
+            tone={stats.pendingReview > 0 ? "warn" : undefined}
+          />
+          <WorkflowStep
+            number="04"
+            title="اعتماد النتيجة"
+            description={stats.approved > 0 ? `${stats.approved} تقرير معتمد` : "جاهز لاعتماد النتائج"}
+            icon={<CheckCircle2 />}
+            to="/reports"
+            preset={{ status: "approved" }}
+            complete={stats.approved > 0}
+          />
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <ActionCard
+            to="/patients"
+            icon={<Search />}
+            title="ابحث عن مريض"
+            description="افتح التاريخ السابق بسرعة"
+          />
+          <ActionCard
+            to="/reports"
+            icon={<Clock3 />}
+            title="تابع المعلّق"
+            description={stats.pendingReview ? `${stats.pendingReview} محتاج${stats.pendingReview === 1 ? "" : "ين"} مراجعة` : "كل التقارير محدثة"}
+            preset={{ status: "pending_review" }}
+            emphasis={stats.pendingReview > 0}
+          />
+          <ActionCard
+            to="/reports"
+            icon={<TriangleAlert />}
+            title="النتائج الحرجة"
+            description={stats.critical > 0 ? `${stats.critical} نتيجة حرجة اليوم` : "لا توجد نتائج حرجة اليوم"}
+            preset={{ period: "today", onlyCritical: true }}
+            emphasis={stats.critical > 0}
+          />
+        </div>
+      </section>
+
       {/* Latest reports */}
       {canView ? (
         <section className="mt-5">
@@ -351,6 +441,88 @@ function LabDashboard() {
         <Shortcut to="/help" icon={<CircleHelp />} label="مساعدة" />
       </section>
     </AppShell>
+  );
+}
+
+function WorkflowStep({
+  number,
+  title,
+  description,
+  icon,
+  to,
+  preset,
+  complete,
+  tone,
+}: {
+  number: string;
+  title: string;
+  description: string;
+  icon: ReactNode;
+  to: string;
+  preset?: Partial<ReportFilters>;
+  complete: boolean;
+  tone?: "warn";
+}) {
+  return (
+    <Link
+      to={to}
+      onClick={preset ? () => presetReportFilters(preset) : undefined}
+      className={cn(
+        "group rounded-xl border p-3 transition hover:-translate-y-0.5 hover:shadow-sm",
+        tone === "warn" ? "border-amber-300 bg-amber-50/60" : "border-line bg-paper",
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-semibold tracking-[0.15em] text-muted">{number}</span>
+        <span className={cn(
+          "grid size-8 place-items-center rounded-lg [&_svg]:size-4",
+          complete ? "bg-teal/10 text-teal" : "bg-paper-2 text-muted",
+        )}>
+          {icon}
+        </span>
+      </div>
+      <p className="mt-3 text-sm font-semibold">{title}</p>
+      <p className="mt-1 min-h-10 text-xs leading-5 text-muted">{description}</p>
+    </Link>
+  );
+}
+
+function ActionCard({
+  to,
+  icon,
+  title,
+  description,
+  preset,
+  emphasis = false,
+}: {
+  to: string;
+  icon: ReactNode;
+  title: string;
+  description: string;
+  preset?: Partial<ReportFilters>;
+  emphasis?: boolean;
+}) {
+  return (
+    <Link
+      to={to}
+      onClick={preset ? () => presetReportFilters(preset) : undefined}
+      className={cn(
+        "group flex items-center gap-3 rounded-xl border p-3 transition hover:shadow-sm",
+        emphasis ? "border-amber-300 bg-amber-50/60" : "border-line bg-paper",
+      )}
+    >
+      <span className={cn(
+        "grid size-10 shrink-0 place-items-center rounded-xl [&_svg]:size-5",
+        emphasis ? "bg-amber-100 text-amber-800" : "bg-teal/10 text-teal",
+      )}>
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold">{title}</span>
+        <span className="mt-0.5 block truncate text-xs text-muted">{description}</span>
+      </span>
+      <ChevronLeft className="ms-auto size-4 shrink-0 text-muted transition group-hover:text-teal" />
+    </Link>
   );
 }
 

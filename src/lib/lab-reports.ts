@@ -138,47 +138,49 @@ export async function createLabReportForUser(userId: string, data: CreateLabRepo
   const patientCode = data.patientCode?.trim() || `P-${dateKey}-${randomUUID().slice(0, 4).toUpperCase()}`;
   const sampleId = `S-${dateKey}-${randomUUID().slice(0, 6).toUpperCase()}`;
 
-  await sql.query(
-    `insert into patients (id, lab_id, patient_code, full_name, age, age_unit, gender, phone, national_id, notes)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-    [patientId, lab_id, patientCode, patientName, age, ageUnit, data.gender, phoneDigits(data.phone), data.nationalId?.trim() || null, data.notes?.trim() || null],
-  );
-
-  await sql.query(
-    `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by, created_at, client_request_id, branch_id, intake)
-     values ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10,$11,$12::jsonb)`,
-    [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id, now.toISOString(), clientRequestId, reportBranchId, intakeJson(data.intake)],
-  );
-
-  for (let i = 0; i < tests.length; i += 1) {
-    const test = tests[i];
-    const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, ageYears, test.categoryId);
-    const critical = isCritical(test.name, test.value);
-    const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
-    await sql.query(
-      `insert into report_results
-        (id, report_id, test_id, test_name, category_id, category_ar, category_en,
-         result_value, unit, reference_range, flag, interpretation, sort_order)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-      [
-        randomUUID(), reportId, `${test.categoryId}:${test.name}`, test.name,
-        test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null,
-        test.customRange?.trim() || getNormalRange(test.name, data.gender, ageYears, test.categoryId), flag,
-        interpretation.note, i,
-      ],
+  await sql.transaction(async (tx) => {
+    // Registration, report, results, and audit entry are one atomic unit.
+    // A failure in any result insert must never leave a patient/report half-created.
+    await tx.query(
+      `insert into patients (id, lab_id, patient_code, full_name, age, age_unit, gender, phone, national_id, notes)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [patientId, lab_id, patientCode, patientName, age, ageUnit, data.gender, phoneDigits(data.phone), data.nationalId?.trim() || null, data.notes?.trim() || null],
     );
-  }
 
-  // Results are separate rows: touch the report once they exist so its last
-  // sync-log entry comes after its results (a device that pulls in between
-  // would otherwise keep a report with no results).
-  await sql.query(`update reports set updated_at=current_timestamp where id=$1 and lab_id=$2`, [reportId, lab_id]);
+    await tx.query(
+      `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by, created_at, client_request_id, branch_id, intake)
+       values ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10,$11,$12::jsonb)`,
+      [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id, now.toISOString(), clientRequestId, reportBranchId, intakeJson(data.intake)],
+    );
 
-  await sql.query(
-    `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id)
-     values ($1,$2,$3,$4,$5,$6,$7)`,
-    [randomUUID(), lab_id, lab_user_id, userId, "report.created", "report", reportId],
-  );
+    for (let i = 0; i < tests.length; i += 1) {
+      const test = tests[i];
+      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, ageYears, test.categoryId);
+      const critical = isCritical(test.name, test.value);
+      const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
+      await tx.query(
+        `insert into report_results
+          (id, report_id, test_id, test_name, category_id, category_ar, category_en,
+           result_value, unit, reference_range, flag, interpretation, sort_order)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [
+          randomUUID(), reportId, `${test.categoryId}:${test.name}`, test.name,
+          test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null,
+          test.customRange?.trim() || getNormalRange(test.name, data.gender, ageYears, test.categoryId), flag,
+          interpretation.note, i,
+        ],
+      );
+    }
+
+    // Keep the report's final sync timestamp after all result rows exist.
+    await tx.query(`update reports set updated_at=current_timestamp where id=$1 and lab_id=$2`, [reportId, lab_id]);
+
+    await tx.query(
+      `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id)
+       values ($1,$2,$3,$4,$5,$6,$7)`,
+      [randomUUID(), lab_id, lab_user_id, userId, "report.created", "report", reportId],
+    );
+  });
 
   return { id: reportId, patientName, status: "draft" as const };
 }
@@ -216,6 +218,11 @@ export type LabReport = {
   status: "draft" | "pending_review" | "approved" | "cancelled";
   reviewedBy?: string;
   approvedAt?: string;
+  sampleStatus: "registered" | "collected" | "received" | "processing" | "ready";
+  sampleSection?: string;
+  receivedAt?: string;
+  processingAt?: string;
+  readyAt?: string;
 };
 
 
@@ -253,31 +260,34 @@ export async function updateLabReportForUser(userId: string, data: CreateLabRepo
   });
   const tests = addCalculatedTests(catalogTests, data.gender, ageYears);
 
-  await sql.query(
-    `update patients set patient_code=$1, full_name=$2, age=$3, age_unit=$4, gender=$5, phone=$6, national_id=coalesce($7, national_id), notes=$8, updated_at=current_timestamp where id=$9 and lab_id=$10`,
-    [data.patientCode?.trim() || null, patientName, age, ageUnit, data.gender, phoneDigits(data.phone), data.nationalId?.trim() || null, data.notes?.trim() || null, current[0].patient_id, lab_id],
-  );
-  await sql.query(
-    `update reports set referring_doctor=$1, notes=$2, collected_at=$3, intake=$4::jsonb, updated_at=current_timestamp where id=$5 and lab_id=$6 and status='draft'`,
-    [data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, intakeJson(data.intake), data.id, lab_id],
-  );
-  await sql.query(`delete from report_results where report_id=$1`, [data.id]);
-  for (let i = 0; i < tests.length; i += 1) {
-    const test = tests[i];
-    const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, ageYears, test.categoryId);
-    const critical = isCritical(test.name, test.value);
-    const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
-    await sql.query(
-      `insert into report_results (id, report_id, test_id, test_name, category_id, category_ar, category_en, result_value, unit, reference_range, flag, interpretation, sort_order) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-      [randomUUID(), data.id, `${test.categoryId}:${test.name}`, test.name, test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null, test.customRange?.trim() || getNormalRange(test.name, data.gender, ageYears, test.categoryId), flag, interpretation.note, i],
+  await sql.transaction(async (tx) => {
+    // Replacing patient/report/results together prevents a failed edit from
+    // leaving the draft with new patient data but old or missing results.
+    await tx.query(
+      `update patients set patient_code=$1, full_name=$2, age=$3, age_unit=$4, gender=$5, phone=$6, national_id=coalesce($7, national_id), notes=$8, updated_at=current_timestamp where id=$9 and lab_id=$10`,
+      [data.patientCode?.trim() || null, patientName, age, ageUnit, data.gender, phoneDigits(data.phone), data.nationalId?.trim() || null, data.notes?.trim() || null, current[0].patient_id, lab_id],
     );
-  }
-  // Same reason as in createLabReport: results were replaced after the first update.
-  await sql.query(`update reports set updated_at=current_timestamp where id=$1 and lab_id=$2`, [data.id, lab_id]);
-  await sql.query(
-    `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
-    [randomUUID(), lab_id, lab_user_id, userId, "report.updated", "report", data.id],
-  );
+    await tx.query(
+      `update reports set referring_doctor=$1, notes=$2, collected_at=$3, intake=$4::jsonb, updated_at=current_timestamp where id=$5 and lab_id=$6 and status='draft'`,
+      [data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, intakeJson(data.intake), data.id, lab_id],
+    );
+    await tx.query(`delete from report_results where report_id=$1`, [data.id]);
+    for (let i = 0; i < tests.length; i += 1) {
+      const test = tests[i];
+      const interpretation = interpretResult(test.name, test.value, data.gender, test.customRange, ageYears, test.categoryId);
+      const critical = isCritical(test.name, test.value);
+      const flag = critical ? "critical" : interpretation.flag === "unknown" ? "abnormal" : interpretation.flag;
+      await tx.query(
+        `insert into report_results (id, report_id, test_id, test_name, category_id, category_ar, category_en, result_value, unit, reference_range, flag, interpretation, sort_order) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [randomUUID(), data.id, `${test.categoryId}:${test.name}`, test.name, test.categoryId, test.categoryAr, test.categoryEn, test.value, test.unit || null, test.customRange?.trim() || getNormalRange(test.name, data.gender, ageYears, test.categoryId), flag, interpretation.note, i],
+      );
+    }
+    await tx.query(`update reports set updated_at=current_timestamp where id=$1 and lab_id=$2`, [data.id, lab_id]);
+    await tx.query(
+      `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
+      [randomUUID(), lab_id, lab_user_id, userId, "report.updated", "report", data.id],
+    );
+  });
   return { id: data.id, patientName, status: "draft" as const };
 }
 
@@ -292,11 +302,11 @@ export const listLabReports = createServerFn({ method: "GET" })
     const rows = await sql<{
       branch_id: string | null; branch_name: string | null;
       id: string; patient_code: string | null; full_name: string; age: number; age_unit: string | null; gender: "ذكر" | "أنثى"; phone: string | null; national_id: string | null;
-      sample_id: string | null; referring_doctor: string | null; created_at: string | Date; notes: string | null; collected_at: string | Date | null;
+      sample_id: string | null; sample_status: LabReport["sampleStatus"]; sample_section: string | null; received_at: string | Date | null; processing_at: string | Date | null; ready_at: string | Date | null; referring_doctor: string | null; created_at: string | Date; notes: string | null; collected_at: string | Date | null;
       status: "draft" | "pending_review" | "approved" | "cancelled"; reviewed_by: string | null; approved_at: string | Date | null;
     }>`
       select r.id, p.patient_code, p.full_name, p.age, p.age_unit, p.gender, p.phone, p.national_id,
-             r.sample_id, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at,
+             r.sample_id, r.sample_status, r.sample_section, r.received_at, r.processing_at, r.ready_at, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at,
              r.branch_id, b.name as branch_name
       from reports r
       inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
@@ -321,7 +331,7 @@ export const listLabReports = createServerFn({ method: "GET" })
       const c = byReport.get(r.id);
       return {
         id: r.id, branchId: r.branch_id, branchName: r.branch_name, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), ageUnit: parseAgeUnit(r.age_unit), gender: r.gender,
-        phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "",
+        phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "", sampleStatus: r.sample_status, sampleSection: r.sample_section || undefined, receivedAt: r.received_at ? String(r.received_at) : undefined, processingAt: r.processing_at ? String(r.processing_at) : undefined, readyAt: r.ready_at ? String(r.ready_at) : undefined,
         doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), collectedAt: r.collected_at ? String(r.collected_at).slice(0, 10) : undefined,
         tests: [], notes: r.notes || undefined,
         status: r.status, reviewedBy: r.reviewed_by || undefined, approvedAt: r.approved_at ? String(r.approved_at) : undefined,
@@ -373,11 +383,11 @@ export const getLabReport = createServerFn({ method: "GET" })
     const { sql, lab_id, branch_id } = await getLabContext(context.userId, "reports.view");
     const rows = await sql<{
       id: string; patient_code: string | null; full_name: string; age: number; age_unit: string | null; gender: "ذكر" | "أنثى"; phone: string | null; national_id: string | null;
-      sample_id: string | null; referring_doctor: string | null; created_at: string | Date; notes: string | null; collected_at: string | Date | null;
+      sample_id: string | null; sample_status: LabReport["sampleStatus"]; sample_section: string | null; received_at: string | Date | null; processing_at: string | Date | null; ready_at: string | Date | null; referring_doctor: string | null; created_at: string | Date; notes: string | null; collected_at: string | Date | null;
       status: "draft" | "pending_review" | "approved" | "cancelled"; reviewed_by: string | null; approved_at: string | Date | null; intake: unknown;
     }>`
       select r.id, p.patient_code, p.full_name, p.age, p.age_unit, p.gender, p.phone, p.national_id,
-             r.sample_id, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at, r.intake
+             r.sample_id, r.sample_status, r.sample_section, r.received_at, r.processing_at, r.ready_at, r.referring_doctor, r.created_at, r.notes, r.collected_at, r.status, r.reviewed_by, r.approved_at, r.intake
       from reports r
       inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
       where r.id = ${data.id} and r.lab_id = ${lab_id} and (${branch_id}::text is null or r.branch_id = ${branch_id})
@@ -396,7 +406,7 @@ export const getLabReport = createServerFn({ method: "GET" })
     const r = rows[0];
     return {
       id: r.id, patientName: r.full_name, patientCode: r.patient_code || "", age: Number(r.age), ageUnit: parseAgeUnit(r.age_unit), gender: r.gender,
-      phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "",
+      phone: r.phone || undefined, nationalId: r.national_id || undefined, sampleId: r.sample_id || "", sampleStatus: r.sample_status, sampleSection: r.sample_section || undefined, receivedAt: r.received_at ? String(r.received_at) : undefined, processingAt: r.processing_at ? String(r.processing_at) : undefined, readyAt: r.ready_at ? String(r.ready_at) : undefined,
       doctor: r.referring_doctor || "Himself", createdAt: String(r.created_at), collectedAt: r.collected_at ? String(r.collected_at).slice(0, 10) : undefined,
       notes: r.notes || undefined,
       intake: normalizeIntake(typeof r.intake === "string" ? safeJson(r.intake) : r.intake),
@@ -424,11 +434,13 @@ export const submitLabReportForReview = createServerFn({ method: "POST" })
   .handler(async ({ context, data }: { context: { userId: string }; data: { id: string } }) => {
     const { sql, lab_user_id, lab_id, report } = await getReportForAction(context.userId, data.id, "reports.edit");
     if (report.status !== "draft") throw new Error("REPORT_NOT_DRAFT");
-    await sql.query(`update reports set status='pending_review', updated_at=current_timestamp where id=$1 and lab_id=$2`, [data.id, lab_id]);
-    await sql.query(
-      `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
-      [randomUUID(), lab_id, lab_user_id, context.userId, "report.submitted_for_review", "report", data.id],
-    );
+    await sql.transaction(async (tx) => {
+      await tx.query(`update reports set status='pending_review', updated_at=current_timestamp where id=$1 and lab_id=$2`, [data.id, lab_id]);
+      await tx.query(
+        `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
+        [randomUUID(), lab_id, lab_user_id, context.userId, "report.submitted_for_review", "report", data.id],
+      );
+    });
     return { ok: true, status: "pending_review" as const };
   });
 
@@ -437,14 +449,16 @@ export const approveLabReport = createServerFn({ method: "POST" })
   .handler(async ({ context, data }: { context: { userId: string }; data: { id: string } }) => {
     const { sql, lab_user_id, lab_id, report } = await getReportForAction(context.userId, data.id, "reports.approve");
     if (!["pending_review", "draft"].includes(report.status)) throw new Error("REPORT_NOT_REVIEWABLE");
-    await sql.query(
-      `update reports set status='approved', reviewed_by=$1, approved_at=current_timestamp, updated_at=current_timestamp where id=$2 and lab_id=$3`,
-      [lab_user_id, data.id, lab_id],
-    );
-    await sql.query(
-      `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
-      [randomUUID(), lab_id, lab_user_id, context.userId, "report.approved", "report", data.id],
-    );
+    await sql.transaction(async (tx) => {
+      await tx.query(
+        `update reports set status='approved', reviewed_by=$1, approved_at=current_timestamp, updated_at=current_timestamp where id=$2 and lab_id=$3`,
+        [lab_user_id, data.id, lab_id],
+      );
+      await tx.query(
+        `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
+        [randomUUID(), lab_id, lab_user_id, context.userId, "report.approved", "report", data.id],
+      );
+    });
     return { ok: true, status: "approved" as const };
   });
 
@@ -496,6 +510,38 @@ export type PreviousResults = {
  * order: the same patient row, the same national id, or the same phone + name
  * (Arabic-folded, so "احمد" = "أحمد").
  */
+export type SampleStatus = LabReport["sampleStatus"];
+
+const SAMPLE_FLOW: SampleStatus[] = ["registered", "collected", "received", "processing", "ready"];
+
+export const updateSampleWorkflow = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }: { context: { userId: string }; data: { id: string; status: SampleStatus; section?: string } }) => {
+    const { sql, lab_user_id, lab_id, report } = await getReportForAction(context.userId, data.id, "reports.edit");
+    const currentRows = await sql<{ sample_status: SampleStatus; sample_id: string | null }>`
+      select sample_status, sample_id from reports where id=${data.id} and lab_id=${lab_id} limit 1
+    `;
+    if (!currentRows.length) throw new Error("REPORT_NOT_FOUND");
+    if (!currentRows[0].sample_id) throw new Error("SAMPLE_ID_REQUIRED");
+    const current = currentRows[0].sample_status;
+    const from = SAMPLE_FLOW.indexOf(current);
+    const to = SAMPLE_FLOW.indexOf(data.status);
+    if (to < 0 || to > from + 1) throw new Error("INVALID_SAMPLE_TRANSITION");
+    if (data.status === "registered" && current !== "registered") throw new Error("INVALID_SAMPLE_TRANSITION");
+    const section = data.section?.trim().slice(0, 80) || null;
+    await sql.transaction(async (tx) => {
+      const sets: string[] = ["sample_status=$1", "sample_section=coalesce($2, sample_section)", "updated_at=current_timestamp"];
+      const params: unknown[] = [data.status, section, data.id, lab_id];
+      if (data.status === "collected") { sets.push("collected_at=coalesce(collected_at,current_timestamp)", "collected_by=$5"); params.push(lab_user_id); }
+      if (data.status === "received") sets.push("received_at=coalesce(received_at,current_timestamp)");
+      if (data.status === "processing") sets.push("processing_at=coalesce(processing_at,current_timestamp)");
+      if (data.status === "ready") sets.push("ready_at=coalesce(ready_at,current_timestamp)");
+      await tx.query(`update reports set ${sets.join(", ")} where id=$3 and lab_id=$4`, params);
+      await tx.query(`insert into audit_logs (id,lab_id,actor_user_id,actor_auth_user_id,action,entity_type,entity_id,metadata_json) values ($1,$2,$3,$4,$5,$6,$7,$8)`, [randomUUID(), lab_id, lab_user_id, context.userId, `sample.${data.status}`, "sample", data.id, JSON.stringify({ from: current, to: data.status, section: section ?? undefined })]);
+    });
+    return { ok: true, status: data.status, section: section ?? currentRows[0].sample_id };
+  });
+
 export const getPreviousResults = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }: { context: { userId: string }; data: { reportId: string } }): Promise<PreviousResults | null> => {

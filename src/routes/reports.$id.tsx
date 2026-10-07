@@ -22,6 +22,7 @@ import { toWhatsAppNumber } from "@/lib/phone";
 import { ageToYears, formatAge } from "@/lib/age";
 import { REPORT_LANGS, type ReportLang } from "@/lib/report-strings";
 import { CLINICAL_FLAGS, SAMPLE_TYPES, normalizeIntake } from "@/lib/report-intake";
+import { SampleWorkflow } from "@/components/report/sample-workflow";
 
 export const Route = createFileRoute("/reports/$id")({
   loader: async ({ params }) => {
@@ -221,6 +222,8 @@ function ReportDetail() {
               {canDelete ? <Button variant="danger" onClick={remove} disabled={loading !== null}><Trash2 className="size-4" />{loading === "delete" ? "جارٍ الحذف…" : "حذف التقرير"}</Button> : null}
             </div>
           </section>
+
+          {report.sampleId ? <SampleWorkflow reportId={report.id} sampleId={report.sampleId} initialStatus={report.sampleStatus} initialSection={report.sampleSection} canEdit={permissions["reports.edit"] === true && !offline && report.status !== "approved"} /> : null}
 
           {critical.length > 0 ? <div role="alert" className="mb-4 flex items-start gap-2 rounded-lg border border-high/30 bg-high-bg p-4 text-sm text-high"><TriangleAlert className="mt-0.5 size-4 shrink-0" /><p><span className="font-semibold">قيم حرجة: </span>{critical.map((t) => `${t.name} (${t.value})`).join("، ")}</p></div> : null}
 

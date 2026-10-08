@@ -20,6 +20,7 @@ import {
   Files,
   FlaskConical,
   Settings2,
+  Stethoscope,
   UsersRound,
   ScrollText,
   Wallet,
@@ -30,7 +31,8 @@ import {
 
 import { AppShell } from "@/components/layout/app-shell";
 import { UserButton, useCurrentUserState } from "@/lib/auth/gates";
-import { getCurrentAccess, getCurrentLab, getLabDashboardStats, type LabProfileData } from "@/lib/lab-access";
+import { getCurrentAccess, getCurrentLab, getLabDashboardStats, getLabDashboardCharts, type LabDashboardCharts, type LabProfileData } from "@/lib/lab-access";
+import { CategoryDonut, WeeklyBars } from "@/components/charts/dashboard-charts";
 import { loadLocalDashboard } from "@/lib/sync-engine/offline-fallback";
 import { requestAllOfflinePages } from "@/lib/offline/sync";
 import { getRecentLabReports, type RecentReport } from "@/lib/lab-reports";
@@ -46,21 +48,22 @@ export const Route = createFileRoute("/lab")({
   ssr: false,
   loader: async () => {
     try {
-      const [lab, stats, access, recent] = await Promise.all([
+      const [lab, stats, access, recent, charts] = await Promise.all([
         getCurrentLab(),
         getLabDashboardStats(),
         getCurrentLabPermissions(),
         // Not everyone may view reports; the home screen must still load for them.
         getRecentLabReports().catch(() => [] as RecentReport[]),
+        getLabDashboardCharts().catch(() => null as LabDashboardCharts | null),
       ]);
 
-      return { lab, stats, permissions: access.permissions, recent, loadFailed: false, offline: false };
+      return { lab, stats, permissions: access.permissions, recent, charts, loadFailed: false, offline: false };
     } catch (error) {
       // No connection: the home screen from the device copy (counters, latest reports, lab header).
       if (typeof window !== "undefined") {
         const local = await loadLocalDashboard<LabProfileData>(error);
         if (local) {
-          return { lab: local.lab, stats: local.stats, permissions: local.permissions as LabPermissions, recent: local.recent, loadFailed: false, offline: true };
+          return { lab: local.lab, stats: local.stats, permissions: local.permissions as LabPermissions, recent: local.recent, charts: null as LabDashboardCharts | null, loadFailed: false, offline: true };
         }
       }
       // لو الحساب اتوقف وهو داخل، نحوّله لصفحة الدخول (فيها رسالة التواصل مع المدير)
@@ -83,6 +86,7 @@ export const Route = createFileRoute("/lab")({
         },
         permissions: {} as LabPermissions,
         recent: [] as RecentReport[],
+        charts: null as LabDashboardCharts | null,
       };
     }
   },
@@ -97,7 +101,7 @@ function LabDashboard() {
 
   const { user, isPending } = useCurrentUserState();
 
-  const { lab, stats, permissions, recent, loadFailed, offline } = Route.useLoaderData();
+  const { lab, stats, permissions, recent, charts, loadFailed, offline } = Route.useLoaderData();
   const router = useRouter();
 
   // For managers: how many people asked to join with the join code and wait for an answer.
@@ -188,7 +192,7 @@ function LabDashboard() {
       </header>
 
       {/* Greeting + the one thing people open the app to do */}
-      <section className="relative overflow-hidden rounded-2xl bg-ink p-5 text-paper sm:p-7">
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-ink via-ink to-teal-deep p-5 text-paper sm:p-7">
         <div className="relative z-10">
           <p className="text-sm text-paper/60">مرحبًا 👋</p>
 
@@ -233,14 +237,23 @@ function LabDashboard() {
         </Link>
       ) : null}
 
-      <section aria-label="ملخص اليوم" className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <section aria-label="ملخص اليوم" className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatLink
+          to="/patients"
+          label="إجمالي المرضى"
+          value={stats.patients}
+          icon={<Users className="size-5" />}
+          iconClass="bg-teal/10 text-teal"
+        />
+
         <StatLink
           to="/reports"
           preset={{ period: "today" }}
           disabled={!canView}
           label="تقارير اليوم"
           value={stats.reportsToday}
-          icon={<FileText className="size-4" />}
+          icon={<FileText className="size-5" />}
+          iconClass="bg-ok/10 text-ok"
         />
 
         <StatLink
@@ -249,43 +262,57 @@ function LabDashboard() {
           disabled={!canView}
           label="تحت المراجعة"
           value={stats.pendingReview}
-          icon={<ClipboardCheck className="size-4" />}
+          icon={<ClipboardCheck className="size-5" />}
+          iconClass="bg-amber-100 text-amber-600"
           tone={stats.pendingReview > 0 ? "warn" : undefined}
-        />
-
-        <StatLink
-          to="/reports"
-          preset={{ period: "today", onlyCritical: true }}
-          disabled={!canView}
-          label="حرجة اليوم"
-          value={stats.critical}
-          icon={<TriangleAlert className="size-4" />}
-          tone={stats.critical > 0 ? "danger" : undefined}
         />
 
         <StatLink
           to="/reports"
           preset={{ status: "approved" }}
           disabled={!canView}
-          label="معتمدة"
+          label="تقارير جاهزة"
           value={stats.approved}
-          icon={<CheckCircle2 className="size-4" />}
-        />
-
-        <StatLink
-          to="/patients"
-          label="المرضى"
-          value={stats.patients}
-          icon={<Users className="size-4" />}
-          className="col-span-2 sm:col-span-1"
+          icon={<CheckCircle2 className="size-5" />}
+          iconClass="bg-sky-100 text-sky-600"
         />
       </section>
+
+      {stats.critical > 0 && canView ? (
+        <Link
+          to="/reports"
+          onClick={() => presetReportFilters({ period: "today", onlyCritical: true })}
+          className="mt-3 flex items-center gap-2 rounded-xl border border-high/40 bg-high-bg/50 px-4 py-3 text-sm font-medium text-high"
+        >
+          <TriangleAlert className="size-4" />
+          {stats.critical} تقرير حرج اليوم، اضغط للمراجعة
+        </Link>
+      ) : null}
+
+      {charts && canView ? (
+        <section aria-label="إحصائيات" className="mt-4 grid gap-3 lg:grid-cols-5">
+          <div className="rounded-2xl border border-line bg-elevated p-4 lg:col-span-3">
+            <h2 className="mb-3 text-sm font-semibold">إحصائيات التحاليل</h2>
+            <p className="-mt-2 mb-3 text-[11px] text-muted">عدد التقارير في آخر 7 أيام</p>
+            <WeeklyBars data={charts.daily} />
+          </div>
+
+          <div className="rounded-2xl border border-line bg-elevated p-4 lg:col-span-2">
+            <h2 className="mb-3 text-sm font-semibold">أنواع التحاليل</h2>
+            {charts.categories.length === 0 ? (
+              <p className="py-8 text-center text-xs text-muted">لا توجد بيانات كافية بعد.</p>
+            ) : (
+              <CategoryDonut data={charts.categories} />
+            )}
+          </div>
+        </section>
+      ) : null}
 
       {/* Latest reports */}
       {canView ? (
         <section className="mt-5">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">آخر التقارير</h2>
+            <h2 className="text-sm font-semibold">أحدث الحالات</h2>
             <Link
               to="/reports"
               onClick={() => presetReportFilters({})}
@@ -346,6 +373,7 @@ function LabDashboard() {
         <Shortcut to="/reports" icon={<Files />} label="الأرشيف" onClick={() => presetReportFilters({})} />
         <Shortcut to="/patients" icon={<UserRoundSearch />} label="المرضى" />
         <Shortcut to="/catalog" icon={<ClipboardList />} label="دليل التحاليل" />
+        <Shortcut to="/contacts" icon={<Stethoscope />} label="الأطباء والعملاء" />
         <Shortcut to="/methods" icon={<FlaskConical />} label="كيف يتم التحليل" />
         <Shortcut to="/analytics" icon={<BarChart3 />} label="الإحصائيات" />
         {lab.role === "owner" || permissions["users.manage"] === true ? <Shortcut to="/audit" icon={<ScrollText />} label="سجل العمليات" /> : null}
@@ -364,6 +392,7 @@ function StatLink({
   label,
   value,
   icon,
+  iconClass,
   tone,
   disabled = false,
   className,
@@ -373,27 +402,25 @@ function StatLink({
   label: string;
   value: number;
   icon: ReactNode;
+  iconClass?: string;
   tone?: "warn" | "danger";
   disabled?: boolean;
   className?: string;
 }) {
   const body = (
-    <>
-      <span
-        className={cn(
-          "inline-flex items-center gap-1.5 text-xs",
-          tone === "danger" ? "text-high" : tone === "warn" ? "text-amber-700" : "text-muted",
-        )}
-      >
+    <div className="flex items-center gap-3">
+      <span className={cn("grid size-11 shrink-0 place-items-center rounded-xl", iconClass ?? "bg-teal/10 text-teal")}>
         {icon}
-        {label}
       </span>
-      <span className="mt-1 block font-display text-3xl font-semibold leading-none">{value}</span>
-    </>
+      <span className="min-w-0">
+        <span className="block font-display text-2xl font-bold leading-none tabular-nums">{value}</span>
+        <span className="mt-1 block truncate text-xs text-muted">{label}</span>
+      </span>
+    </div>
   );
 
   const box = cn(
-    "block rounded-xl border bg-elevated p-3.5",
+    "block rounded-2xl border bg-elevated p-3.5 shadow-[0_6px_20px_-14px_rgb(15_41_66/0.35)]",
     tone === "danger" ? "border-high/40 bg-high-bg/40" : tone === "warn" ? "border-amber-300" : "border-line",
     className,
   );
@@ -404,7 +431,7 @@ function StatLink({
     <Link
       to={to}
       onClick={preset ? () => presetReportFilters(preset) : undefined}
-      className={cn(box, "transition active:scale-[0.99] hover:shadow-sm")}
+      className={cn(box, "transition active:scale-[0.99] hover:shadow-md")}
     >
       {body}
     </Link>

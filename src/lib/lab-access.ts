@@ -225,3 +225,57 @@ export const getLabDashboardStats = createServerFn({ method: "GET" })
     `;
     return rows[0] ?? { patients: 0, reportsToday: 0, pendingReview: 0, approved: 0, critical: 0 };
   });
+
+export type LabDashboardCharts = {
+  /** Reports per day for the last 7 days (oldest first). `day` is YYYY-MM-DD in the lab's time zone. */
+  daily: { day: string; count: number }[];
+  /** Most requested test categories over the last 30 days. */
+  categories: { name: string; count: number }[];
+};
+
+export const getLabDashboardCharts = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<LabDashboardCharts> => {
+    const sql = await getSql();
+    const lab = await sql<{ lab_id: string }>`
+      select lu.lab_id
+      from lab_users lu
+      inner join labs l on l.id = lu.lab_id
+      where lu.auth_user_id = ${context.userId}
+        and lu.is_active = true
+        and l.is_active = true
+      limit 1
+    `;
+    if (!lab.length) throw new Error("LAB_ACCESS_REQUIRED");
+    const labId = lab[0].lab_id;
+
+    const daily = await sql<{ day: string; count: number }>`
+      select to_char(g.d, 'YYYY-MM-DD') as day, coalesce(c.n, 0)::int as count
+      from generate_series(
+        (now() at time zone ${LAB_TIME_ZONE})::date - 6,
+        (now() at time zone ${LAB_TIME_ZONE})::date,
+        interval '1 day'
+      ) as g(d)
+      left join (
+        select (created_at at time zone ${LAB_TIME_ZONE})::date as d, count(*) as n
+        from reports
+        where lab_id = ${labId} and status <> 'cancelled'
+        group by 1
+      ) c on c.d = g.d::date
+      order by g.d
+    `;
+
+    const categories = await sql<{ name: string; count: number }>`
+      select coalesce(nullif(rr.category_ar, ''), nullif(rr.category_en, ''), 'أخرى') as name, count(*)::int as count
+      from report_results rr
+      inner join reports r on r.id = rr.report_id
+      where r.lab_id = ${labId}
+        and r.status <> 'cancelled'
+        and r.created_at >= now() - interval '30 days'
+      group by 1
+      order by count desc
+      limit 5
+    `;
+
+    return { daily, categories };
+  });

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   CircleAlert,
@@ -17,6 +17,7 @@ import { authClient } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/gates";
 import { accountExists } from "@/lib/account-check";
 import { getCurrentAccess } from "@/lib/lab-access";
+import { getLocalSetupState } from "@/lib/local-setup";
 import { getPublicPlatformSettings, DEFAULT_SUPPORT_WHATSAPP } from "@/lib/platform-settings";
 import { postLoginPath } from "@/lib/post-login-path";
 import { Button } from "@/components/ui/button";
@@ -25,11 +26,15 @@ import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/login")({
   loader: async () => {
+    // The lab's own program (.exe): no admin account type, and first run goes to the setup page.
+    const local = await getLocalSetupState().catch(() => null);
+    if (local?.hub && local.needsSetup) throw redirect({ to: "/start" });
+    const hub = local?.hub === true;
     try {
       const s = await getPublicPlatformSettings();
-      return { supportWhatsapp: s.supportWhatsapp, supportEmail: s.supportEmail, websiteUrl: s.websiteUrl, supportText: s.supportText };
+      return { hub, supportWhatsapp: s.supportWhatsapp, supportEmail: s.supportEmail, websiteUrl: s.websiteUrl, supportText: s.supportText };
     } catch {
-      return { supportWhatsapp: DEFAULT_SUPPORT_WHATSAPP, supportEmail: "", websiteUrl: "", supportText: "" };
+      return { hub, supportWhatsapp: DEFAULT_SUPPORT_WHATSAPP, supportEmail: "", websiteUrl: "", supportText: "" };
     }
   },
   component: Login,
@@ -66,11 +71,11 @@ const ACCOUNT_TYPES: Array<{
 ];
 
 const FIELD_CLASS =
-  "h-12 rounded-xl border-slate-200 bg-white focus-visible:border-teal-500 focus-visible:ring-teal-500/40";
+  "h-12 rounded-xl border-slate-200 bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/40";
 
 function Login() {
   const navigate = useNavigate();
-  const { supportWhatsapp, supportEmail, websiteUrl, supportText } = Route.useLoaderData();
+  const { hub, supportWhatsapp, supportEmail, websiteUrl, supportText } = Route.useLoaderData();
   // رابط واتساب مباشر بدون أي رسالة جاهزة (الرقم من إعدادات المنصة)
   const CONTACT_URL = `https://wa.me/${supportWhatsapp}`;
 
@@ -85,7 +90,7 @@ function Login() {
   // Asked to join with a join code and no manager has answered yet
   const [awaitingApproval, setAwaitingApproval] = useState(false);
 
-  const isAdmin = accountType === "admin";
+  const isAdmin = !hub && accountType === "admin";
 
   // لو المستخدم مسجّل دخول بالفعل (مثلاً رجع بزر الرجوع) ما نعرضلوش الفورم تاني
   const { user, isPending } = useCurrentUserState();
@@ -227,18 +232,18 @@ function Login() {
     >
       {/* خلفية ناعمة بنفس روح صفحة الترحيب */}
       <div className="absolute inset-0 bg-gradient-to-br from-cyan-100/70 via-white to-sky-100/70" />
-      <div className="pointer-events-none absolute -left-32 -top-32 size-96 rounded-full bg-teal-200/40 blur-3xl" />
+      <div className="pointer-events-none absolute -left-32 -top-32 size-96 rounded-full bg-blue-200/40 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -right-32 size-[28rem] rounded-full bg-sky-200/40 blur-3xl" />
 
       <div className="relative z-10 w-full max-w-md">
         {/* الهوية */}
         <div className="text-center">
-          <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-white shadow-lg shadow-teal-900/10 ring-1 ring-slate-200/70">
-            <Microscope className="size-8 text-teal-600" strokeWidth={1.75} />
+          <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-white shadow-lg shadow-blue-900/10 ring-1 ring-slate-200/70">
+            <Microscope className="size-8 text-blue-600" strokeWidth={1.75} />
           </div>
 
           <h1 className="mt-5 font-display text-4xl font-bold tracking-tight text-slate-800">
-            Microscopic <span className="text-teal-600">System</span>
+            Microscopic <span className="text-blue-600">System</span>
           </h1>
 
           <p className="mt-2 text-sm text-slate-500">
@@ -247,7 +252,7 @@ function Login() {
         </div>
 
         {/* بطاقة الدخول */}
-        <section className="mt-8 rounded-3xl bg-white/80 p-6 shadow-xl shadow-teal-900/5 ring-1 ring-slate-200/70 backdrop-blur duration-500 animate-in fade-in slide-in-from-bottom-2 sm:p-8">
+        <section className="mt-8 rounded-3xl bg-white/80 p-6 shadow-xl shadow-blue-900/5 ring-1 ring-slate-200/70 backdrop-blur duration-500 animate-in fade-in slide-in-from-bottom-2 sm:p-8">
           <h2 className="font-display text-2xl font-bold text-slate-800">
             تسجيل الدخول
           </h2>
@@ -255,6 +260,8 @@ function Login() {
             اختر نوع حسابك ثم أدخل بياناتك.
           </p>
 
+          {!hub ? (
+            <>
           {/* اختيار نوع الحساب */}
           <div
             role="radiogroup"
@@ -270,9 +277,9 @@ function Login() {
                   role="radio"
                   aria-checked={active}
                   onClick={() => chooseType(value)}
-                  className={`flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-[background-color,color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
+                  className={`flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-[background-color,color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                     active
-                      ? "bg-white text-teal-700 shadow-sm"
+                      ? "bg-white text-blue-700 shadow-sm"
                       : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
@@ -282,6 +289,8 @@ function Login() {
               );
             })}
           </div>
+            </>
+          ) : null}
 
           <form onSubmit={submit} className="mt-6 space-y-4">
             <div className="space-y-1.5">
@@ -336,7 +345,7 @@ function Login() {
                     showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"
                   }
                   aria-pressed={showPassword}
-                  className="absolute right-1.5 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-slate-400 transition-colors hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  className="absolute right-1.5 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-slate-400 transition-colors hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   {showPassword ? (
                     <EyeOff className="size-4" />
@@ -357,10 +366,10 @@ function Login() {
               {awaitingApproval ? (
                 <div
                   role="status"
-                  className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-3 text-sm leading-7 text-teal-900"
+                  className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-3 text-sm leading-7 text-blue-900"
                 >
                   <p className="font-semibold">طلبك وصل وبينتظر موافقة مدير المعمل.</p>
-                  <p className="mt-1 text-teal-800">أول ما يوافق تقدر تدخل بنفس اسم المستخدم وكلمة المرور اللي كتبتهم.</p>
+                  <p className="mt-1 text-blue-800">أول ما يوافق تقدر تدخل بنفس اسم المستخدم وكلمة المرور اللي كتبتهم.</p>
                 </div>
               ) : null}
               {suspended ? (
@@ -376,7 +385,7 @@ function Login() {
                     href={CONTACT_URL}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/10 px-4 text-sm font-semibold text-[#128C7E] transition-colors hover:bg-[#25D366]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                    className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/10 px-4 text-sm font-semibold text-[#128C7E] transition-colors hover:bg-[#25D366]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                   >
                     <MessageCircle className="size-4" />
                     تواصل معي عبر WhatsApp
@@ -398,7 +407,7 @@ function Login() {
               type="submit"
               size="lg"
               disabled={loading}
-              className="h-14 w-full rounded-2xl bg-teal-600 text-base font-bold text-white shadow-lg shadow-teal-600/25 hover:bg-teal-700 focus-visible:ring-teal-500"
+              className="h-14 w-full rounded-2xl bg-blue-600 text-base font-bold text-white shadow-lg shadow-blue-600/25 hover:bg-blue-700 focus-visible:ring-blue-500"
             >
               {loading ? (
                 <>
@@ -427,7 +436,7 @@ function Login() {
                 href={CONTACT_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/10 px-4 text-sm font-semibold text-[#128C7E] transition-colors hover:bg-[#25D366]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/10 px-4 text-sm font-semibold text-[#128C7E] transition-colors hover:bg-[#25D366]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 <MessageCircle className="size-4" />
                 اطلب حساب عبر WhatsApp
@@ -435,7 +444,7 @@ function Login() {
 
               <Link
                 to="/join"
-                className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-teal-600/30 bg-teal-50 px-4 text-sm font-semibold text-teal-800 transition-colors hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-blue-600/30 bg-blue-50 px-4 text-sm font-semibold text-blue-800 transition-colors hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 عندي كود انضمام من مدير المعمل
               </Link>
@@ -453,7 +462,7 @@ function Login() {
 
         {/* خصوصية */}
         <p className="mt-5 flex items-center justify-center gap-2 text-center text-xs text-slate-500">
-          <ShieldCheck className="size-4 shrink-0 text-teal-600" />
+          <ShieldCheck className="size-4 shrink-0 text-blue-600" />
           بيانات كل معمل منفصلة ولا تُفتح إلا بحساب خاص
         </p>
 
@@ -463,7 +472,7 @@ function Login() {
           <p className="mt-0.5 font-display text-base font-bold text-slate-800">
             Dr. Muhammad Ragab
           </p>
-          <p className="text-xs font-medium text-teal-700">
+          <p className="text-xs font-medium text-blue-700">
             Medical Laboratory Specialist
           </p>
         </div>

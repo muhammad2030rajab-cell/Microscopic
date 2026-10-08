@@ -24,6 +24,9 @@ const LABELS: Record<string, string> = {
   "lab.report_language_set": "تغيير لغة التقرير",
   "join.request": "طلب انضمام",
   "test_group.delete": "حذف مجموعة تحاليل",
+  "contact.created": "إضافة طبيب/عميل",
+  "contact.updated": "تعديل طبيب/عميل",
+  "contact.deleted": "حذف طبيب/عميل",
 };
 
 export function auditActionLabel(action: string): string {

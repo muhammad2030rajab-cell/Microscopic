@@ -131,13 +131,13 @@ function JoinPage() {
         @media (prefers-reduced-motion: reduce) { .join-anim { animation: none !important } }
       `}</style>
       <div className="absolute inset-0 bg-gradient-to-br from-cyan-100/70 via-white to-sky-100/70" />
-      <div className="pointer-events-none absolute -left-32 -top-32 size-96 rounded-full bg-teal-200/40 blur-3xl" />
+      <div className="pointer-events-none absolute -left-32 -top-32 size-96 rounded-full bg-blue-200/40 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -right-32 size-[28rem] rounded-full bg-sky-200/40 blur-3xl" />
 
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center">
-          <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-white shadow-lg shadow-teal-900/10 ring-1 ring-slate-200/70">
-            <Microscope className="size-8 text-teal-600" strokeWidth={1.75} />
+          <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-white shadow-lg shadow-blue-900/10 ring-1 ring-slate-200/70">
+            <Microscope className="size-8 text-blue-600" strokeWidth={1.75} />
           </div>
           <h1 className="mt-5 font-display text-3xl font-bold tracking-tight text-slate-800">{kind === "invite" && step !== "code" ? "أنشئ معملك" : "انضم لفريق المعمل"}</h1>
           <p className="mt-2 text-sm text-slate-500">{kind === "invite" && step !== "code" ? "خطوتين ومعملك وحسابك يبقوا جاهزين" : "خطوتين وطلبك يوصل لمدير المعمل"}</p>
@@ -149,7 +149,7 @@ function JoinPage() {
             <li key={label} className="flex items-center gap-2">
               <span
                 className={`grid size-7 place-items-center rounded-full text-xs font-bold transition-colors ${
-                  i < stepIndex ? "bg-teal-600 text-white" : i === stepIndex ? "bg-teal-100 text-teal-800 ring-2 ring-teal-500" : "bg-slate-200 text-slate-500"
+                  i < stepIndex ? "bg-blue-600 text-white" : i === stepIndex ? "bg-blue-100 text-blue-800 ring-2 ring-blue-500" : "bg-slate-200 text-slate-500"
                 }`}
               >
                 {i < stepIndex ? <Check className="size-4" /> : i + 1}
@@ -160,11 +160,11 @@ function JoinPage() {
           ))}
         </ol>
 
-        <section className="mt-6 rounded-3xl bg-white/80 p-6 shadow-xl shadow-teal-900/5 ring-1 ring-slate-200/70 backdrop-blur">
+        <section className="mt-6 rounded-3xl bg-white/80 p-6 shadow-xl shadow-blue-900/5 ring-1 ring-slate-200/70 backdrop-blur">
           {step === "code" ? (
             <div>
               <h2 className="flex items-center gap-2 font-display text-xl font-bold text-slate-800">
-                <KeyRound className="size-5 text-teal-600" /> اكتب كود الانضمام
+                <KeyRound className="size-5 text-blue-600" /> اكتب كود الانضمام
               </h2>
               <p className="mt-1 text-sm text-slate-500">الكود اللي وصلك من مدير المعمل أو من إدارة المنصة (10 حروف وأرقام).</p>
 
@@ -175,7 +175,7 @@ function JoinPage() {
                       {i === 5 ? <span className="mx-1 text-slate-400">-</span> : null}
                       <span
                         className={`grid h-12 w-8 place-items-center rounded-lg border-2 font-mono text-lg font-bold transition-colors sm:w-9 ${
-                          code[i] ? "border-teal-500 bg-teal-50 text-teal-800" : i === code.length ? "border-teal-400 bg-white" : "border-slate-200 bg-white"
+                          code[i] ? "border-blue-500 bg-blue-50 text-blue-800" : i === code.length ? "border-blue-400 bg-white" : "border-slate-200 bg-white"
                         }`}
                       >
                         {code[i] ?? ""}
@@ -217,8 +217,8 @@ function JoinPage() {
 
           {step === "details" ? (
             <form onSubmit={send} className="space-y-4">
-              <div className="flex items-center gap-2 rounded-xl bg-teal-50 px-3 py-2.5 text-sm text-teal-900 ring-1 ring-teal-200">
-                <ShieldCheck className="size-5 shrink-0 text-teal-600" />
+              <div className="flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2.5 text-sm text-blue-900 ring-1 ring-blue-200">
+                <ShieldCheck className="size-5 shrink-0 text-blue-600" />
                 <span>
                   {kind === "invite" ? <>كود الدعوة تمام. اكتب بيانات معملك وحسابك.</> : <>هتنضم إلى: <strong>{labName}</strong></>}
                 </span>
@@ -257,7 +257,7 @@ function JoinPage() {
                 <Input id="join-password" type="password" dir="ltr" className="text-left" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
                 <div className="flex items-center gap-2" aria-hidden>
                   {[0, 1, 2, 3].map((i) => (
-                    <span key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${i < strength ? (strength >= 4 ? "bg-emerald-500" : strength >= 3 ? "bg-teal-500" : "bg-amber-400") : "bg-slate-200"}`} />
+                    <span key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${i < strength ? (strength >= 4 ? "bg-emerald-500" : strength >= 3 ? "bg-blue-500" : "bg-amber-400") : "bg-slate-200"}`} />
                   ))}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -288,7 +288,7 @@ function JoinPage() {
                 type="submit"
                 size="lg"
                 disabled={!canSend}
-                className="h-14 w-full rounded-2xl bg-teal-600 text-base font-bold text-white shadow-lg shadow-teal-600/25 hover:bg-teal-700 focus-visible:ring-teal-500"
+                className="h-14 w-full rounded-2xl bg-blue-600 text-base font-bold text-white shadow-lg shadow-blue-600/25 hover:bg-blue-700 focus-visible:ring-blue-500"
               >
                 {busy ? (
                   <>
@@ -306,7 +306,7 @@ function JoinPage() {
 
           {step === "done" && kind === "invite" ? (
             <div className="text-center">
-              <div className="join-anim mx-auto grid size-20 place-items-center rounded-full bg-teal-600 text-white shadow-lg shadow-teal-600/30" style={{ animation: "join-pop .55s ease-out both" }}>
+              <div className="join-anim mx-auto grid size-20 place-items-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/30" style={{ animation: "join-pop .55s ease-out both" }}>
                 <Check className="size-10" strokeWidth={3} />
               </div>
               <h2 className="mt-5 font-display text-2xl font-bold text-slate-800">معملك جاهز</h2>
@@ -314,7 +314,7 @@ function JoinPage() {
               <p className="mt-6 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600" dir="rtl">
                 اسم المستخدم بتاعك: <strong dir="ltr">{username}</strong>
               </p>
-              <Link to="/login" className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-xl bg-teal-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-teal-700">
+              <Link to="/login" className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
                 تسجيل الدخول
               </Link>
             </div>
@@ -322,7 +322,7 @@ function JoinPage() {
 
           {step === "done" && kind === "lab" ? (
             <div className="text-center">
-              <div className="join-anim mx-auto grid size-20 place-items-center rounded-full bg-teal-600 text-white shadow-lg shadow-teal-600/30" style={{ animation: "join-pop .55s ease-out both" }}>
+              <div className="join-anim mx-auto grid size-20 place-items-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/30" style={{ animation: "join-pop .55s ease-out both" }}>
                 <Check className="size-10" strokeWidth={3} />
               </div>
               <h2 className="mt-5 font-display text-2xl font-bold text-slate-800">طلبك وصل</h2>
@@ -331,10 +331,10 @@ function JoinPage() {
               </p>
               <ul className="mx-auto mt-6 max-w-xs space-y-3 text-right text-sm">
                 <li className="flex items-center gap-3 text-slate-800">
-                  <span className="grid size-6 place-items-center rounded-full bg-teal-600 text-white"><Check className="size-4" /></span> اتبعت الطلب
+                  <span className="grid size-6 place-items-center rounded-full bg-blue-600 text-white"><Check className="size-4" /></span> اتبعت الطلب
                 </li>
                 <li className="flex items-center gap-3 font-semibold text-slate-800">
-                  <span className="join-anim grid size-6 place-items-center rounded-full bg-teal-100 text-teal-700" style={{ animation: "join-pulse 1.8s infinite" }}><Clock className="size-4" /></span> مستني موافقة المدير
+                  <span className="join-anim grid size-6 place-items-center rounded-full bg-blue-100 text-blue-700" style={{ animation: "join-pulse 1.8s infinite" }}><Clock className="size-4" /></span> مستني موافقة المدير
                 </li>
                 <li className="flex items-center gap-3 text-slate-400">
                   <span className="grid size-6 place-items-center rounded-full bg-slate-200"><span className="size-1.5 rounded-full bg-slate-400" /></span> تدخل بحسابك
@@ -353,7 +353,7 @@ function JoinPage() {
         {step !== "done" ? (
           <p className="mt-5 text-center text-sm text-slate-500">
             عندك حساب؟{" "}
-            <Link to="/login" className="font-semibold text-teal-700 hover:underline">
+            <Link to="/login" className="font-semibold text-blue-700 hover:underline">
               سجّل دخول
             </Link>
           </p>

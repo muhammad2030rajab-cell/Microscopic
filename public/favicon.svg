@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#F3EEE4"/>
-  <g fill="none" stroke="#1B6B66" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M25 11h13"/>
-    <path d="M31 11v10l-9 9"/>
-    <path d="M22 30h18"/>
-    <path d="M40 30c8 4 10 12 6 19-3 5-8 7-14 7H17"/>
-    <path d="M16 56h30"/>
-    <path d="M17 44h16"/>
-    <path d="M31 30v14"/>
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6fed"/><stop offset="1" stop-color="#0f2942"/></linearGradient></defs>
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
+  <g fill="#fff">
+    <path d="M26 7l10 4-8 22-10-4z"/>
+    <path d="M22 3l10 4-1.5 3.5-10-4z"/>
+    <path d="M19 33l6 2.2-1.6 4-6-2.2z"/>
+    <rect x="13" y="38" width="20" height="3.5" rx="1.5"/>
+    <rect x="10" y="52" width="46" height="6" rx="3"/>
+    <rect x="30" y="43" width="5" height="9"/>
   </g>
-  <circle cx="47" cy="25" r="6" fill="#1B6B66"/>
+  <path d="M26 17c14 -2 26 8 22 24c-2 6 -8 9 -14 9" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
 </svg>

@@ -172,6 +172,9 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path !== "/sign-up/email" || !ctx.request) return;
+      // The lab's own program (.exe) has no platform admin and no public sign-up: accounts are only created
+      // server-side (first-run setup, team screen).
+      if (isHubMode) throw new APIError("FORBIDDEN", { message: "Sign-up is disabled" });
       let adminExists = true; // fail closed
       try {
         const sql = await getSql();

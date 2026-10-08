@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { randomUUID } from "node:crypto";
-import { auth } from "@/lib/auth/server";
+import { auth, isHubMode } from "@/lib/auth/server";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
@@ -93,6 +93,8 @@ export const isPlatformAdmin = createServerFn({ method: "GET" })
 export const claimFirstPlatformAdmin = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
+    // The lab's own program (.exe) never has a platform admin.
+    if (isHubMode) return false;
     const sql = await getSql();
     const rows = await sql<{ auth_user_id: string }>`
       insert into platform_admins (auth_user_id, is_super)

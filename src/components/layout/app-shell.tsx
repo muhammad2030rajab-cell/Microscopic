@@ -9,7 +9,10 @@ import {
   LayoutDashboard,
   Microscope,
   Settings,
+  Stethoscope,
   Users,
+  UsersRound,
+  Wallet,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -17,36 +20,16 @@ import { cn } from "@/lib/utils";
 import { useLabStore } from "@/lib/store";
 
 const DESKTOP_NAV = [
-  {
-    to: "/lab",
-    label: "الرئيسية",
-    icon: LayoutDashboard,
-  },
-  {
-    to: "/new",
-    label: "تقرير جديد",
-    icon: FilePlus2,
-  },
-  {
-    to: "/reports",
-    label: "التقارير",
-    icon: Files,
-  },
-  {
-    to: "/catalog",
-    label: "دليل التحاليل",
-    icon: BookOpen,
-  },
-  {
-    to: "/methods",
-    label: "كيف يتم التحليل؟",
-    icon: Microscope,
-  },
-  {
-    to: "/settings",
-    label: "المختبر",
-    icon: Settings,
-  },
+  { to: "/lab", label: "الرئيسية", icon: LayoutDashboard },
+  { to: "/patients", label: "المرضى", icon: Users },
+  { to: "/catalog", label: "دليل التحاليل", icon: BookOpen },
+  { to: "/new", label: "إدخال النتائج", icon: FilePlus2 },
+  { to: "/reports", label: "التقارير", icon: Files },
+  { to: "/contacts", label: "الأطباء والعملاء", icon: Stethoscope },
+  { to: "/billing", label: "الحسابات", icon: Wallet },
+  { to: "/team", label: "المستخدمين", icon: UsersRound },
+  { to: "/methods", label: "كيف يتم التحليل؟", icon: Microscope },
+  { to: "/settings", label: "الإعدادات", icon: Settings },
 ] as const;
 
 const MOBILE_NAV = [
@@ -88,7 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh bg-paper text-ink">
       <div className="mx-auto flex min-h-dvh max-w-[1400px]">
         {/* Desktop Sidebar */}
-        <aside className="no-print sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-e border-line bg-surface/70 px-4 py-6 lg:flex">
+        <aside className="no-print sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-e border-white/10 bg-ink px-4 py-6 text-white lg:flex">
           <Brand
             name={lab.name}
             nameEn={lab.nameEn}
@@ -104,7 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
-          <p className="mt-auto pt-6 text-[11px] leading-relaxed text-muted">
+          <p className="mt-auto pt-6 text-[11px] leading-relaxed text-white/50">
             بيانات المعمل وتقاريره محفوظة على النظام بشكل مستقل.
             ليست بديلاً عن الرأي الطبي.
           </p>
@@ -204,20 +187,29 @@ function Brand({
       to="/"
       className="flex items-center gap-2.5"
     >
-      <span className="flex size-9 items-center justify-center rounded-sm bg-teal text-teal-fg">
-        <FlaskConical className="size-4" />
+      <span className="flex size-10 items-center justify-center rounded-xl bg-teal text-teal-fg shadow-sm">
+        <Microscope className="size-5" />
       </span>
 
       <span className="min-w-0">
-        <span className="block truncate font-display text-sm font-semibold leading-tight tracking-tight">
-          {compact ? nameEn : name}
+        <span
+          dir="ltr"
+          className={cn(
+            "block truncate font-sans text-lg font-bold leading-tight tracking-tight",
+            compact ? "text-ink" : "text-white",
+          )}
+        >
+          Microscopic
         </span>
 
-        {!compact ? (
-          <span className="block text-[10px] uppercase tracking-[0.18em] text-muted">
-            {nameEn}
-          </span>
-        ) : null}
+        <span
+          className={cn(
+            "block truncate text-[10px] leading-tight",
+            compact ? "text-muted" : "text-white/60",
+          )}
+        >
+          {compact ? nameEn : name}
+        </span>
       </span>
     </Link>
   );
@@ -240,8 +232,8 @@ function NavLink({
       className={cn(
         "flex h-11 items-center gap-3 rounded-sm px-3 text-sm transition-colors duration-150",
         active
-          ? "bg-ink text-paper"
-          : "text-ink-soft hover:bg-paper-2 hover:text-ink",
+          ? "bg-teal font-medium text-white shadow-sm"
+          : "text-white/70 hover:bg-white/10 hover:text-white",
       )}
     >
       <Icon className="size-4" />

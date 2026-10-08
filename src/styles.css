@@ -2,9 +2,9 @@
 @import "tw-animate-css";
 
 @theme {
-  --font-sans: "IBM Plex Sans Arabic", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Source Serif 4", "Noto Naskh Arabic", ui-serif, Georgia, "Times New Roman", serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: "Segoe UI", "Segoe UI Variable", Tahoma, "Noto Sans Arabic", "Noto Naskh Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Segoe UI", "Segoe UI Variable", Tahoma, "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, Consolas, monospace;
 
   --color-paper: #f4f6fb;
   --color-paper-2: #e8edf5;

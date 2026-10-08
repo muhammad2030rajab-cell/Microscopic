@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   BarChart3,
@@ -15,10 +15,16 @@ import { FieldOfView } from "@/components/brand/field-of-view";
 import { CellField, Graticule, LensLogo } from "@/components/welcome-art";
 import { useCurrentUserState } from "@/lib/auth/gates";
 import { getCurrentAccess } from "@/lib/lab-access";
+import { getLocalSetupState } from "@/lib/local-setup";
 import { useOnline } from "@/lib/offline/use-offline";
 import { postLoginPath } from "@/lib/post-login-path";
 
 export const Route = createFileRoute("/")({
+  // The lab's own program (.exe) skips the sales welcome page: first run -> setup, otherwise -> the lab.
+  beforeLoad: async () => {
+    const state = await getLocalSetupState().catch(() => null);
+    if (state?.hub) throw redirect({ to: state.needsSetup ? "/start" : "/lab" });
+  },
   component: WelcomePage,
 });
 
@@ -76,7 +82,7 @@ function WelcomePage() {
         <div dir="ltr" className="wlc-rise mt-2" style={at(0.1)}>
           <p className="text-xs font-medium tracking-wide text-slate-500">Powered by</p>
           <p className="mt-1 font-display text-xl font-bold text-slate-800 sm:text-2xl">Dr. Muhammad Ragab</p>
-          <p className="mt-0.5 text-sm font-medium text-teal-700">Medical Laboratory Specialist</p>
+          <p className="mt-0.5 text-sm font-medium text-blue-700">Medical Laboratory Specialist</p>
         </div>
 
         <div className="mt-8">
@@ -84,7 +90,7 @@ function WelcomePage() {
             ومرحبا بكم في
           </p>
           <h1 className="wlc-focus mt-1 font-display text-4xl font-bold tracking-tight text-slate-800 sm:text-6xl">
-            Microscopic <span className="text-teal-600">System</span>
+            Microscopic <span className="text-blue-600">System</span>
           </h1>
           <Graticule />
         </div>
@@ -101,7 +107,7 @@ function WelcomePage() {
         </ul>
 
         <p className="wlc-rise mt-4 flex items-center gap-1.5 text-xs text-slate-600" style={at(1.15)}>
-          <ShieldCheck className="size-4 text-teal-600" aria-hidden="true" />
+          <ShieldCheck className="size-4 text-blue-600" aria-hidden="true" />
           بيانات كل معمل منفصلة ولا تُفتح إلا بحساب خاص
         </p>
 
@@ -130,7 +136,7 @@ function WelcomePage() {
 
         <Link
           to="/login"
-          className="wlc-cta wlc-rise group mt-7 flex h-14 w-full max-w-sm items-center justify-center gap-3 rounded-2xl bg-teal-600 px-7 text-lg font-bold text-white shadow-lg shadow-teal-600/20 transition-colors duration-200 hover:bg-teal-700 active:scale-[0.99]"
+          className="wlc-cta wlc-rise group mt-7 flex h-14 w-full max-w-sm items-center justify-center gap-3 rounded-2xl bg-blue-600 px-7 text-lg font-bold text-white shadow-lg shadow-blue-600/20 transition-colors duration-200 hover:bg-blue-700 active:scale-[0.99]"
           style={at(1.25)}
         >
           <span>ابدأ الآن</span>
@@ -156,7 +162,7 @@ function Splash() {
           </LensLogo>
         </div>
         <p className="mt-5 font-display text-2xl font-bold text-slate-800">
-          Microscopic <span className="text-teal-600">System</span>
+          Microscopic <span className="text-blue-600">System</span>
         </p>
         <p className="mt-3 flex items-center justify-center gap-2 text-sm text-slate-600">
           <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -170,8 +176,8 @@ function Splash() {
 function Shell({ children, centered = false }: { children: ReactNode; centered?: boolean }) {
   return (
     <main dir="rtl" lang="ar" className="relative min-h-dvh overflow-hidden bg-slate-50">
-      <div className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-white to-teal-50" />
-      <div className="pointer-events-none absolute -left-32 -top-32 size-96 rounded-full bg-teal-200/30 blur-3xl" />
+      <div className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-white to-blue-50" />
+      <div className="pointer-events-none absolute -left-32 -top-32 size-96 rounded-full bg-blue-200/30 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -right-32 size-[28rem] rounded-full bg-sky-200/30 blur-3xl" />
       <CellField />
 
@@ -193,7 +199,7 @@ function Feature({ icon, label, delay = 0 }: { icon: ReactNode; label: string; d
       className="wlc-rise flex items-center gap-2.5 rounded-2xl bg-white/70 px-3 py-2.5 text-start ring-1 ring-slate-200/70 backdrop-blur-[2px]"
       style={at(delay)}
     >
-      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700 [&_svg]:size-5">
+      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700 [&_svg]:size-5">
         {icon}
       </span>
       <span className="text-[13px] font-semibold text-slate-700">{label}</span>

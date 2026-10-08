@@ -1,10 +1,16 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { createFileRoute, Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { Building2, ChevronLeft, FileText, Plus, Settings2, ShieldCheck, Users } from "lucide-react";
 import { UserButton } from "@/lib/auth/gates";
+import { getLocalSetupState } from "@/lib/local-setup";
 import { isPlatformAdmin, getCurrentPlatformPermissions, getAdminOverview, type AdminOverview } from "@/lib/platform-admin";
 
 export const Route = createFileRoute("/admin")({
+  // The lab's own program (.exe) has no admin screens: the customer is only a lab user.
+  beforeLoad: async () => {
+    const state = await getLocalSetupState().catch(() => null);
+    if (state?.hub) throw redirect({ to: state.needsSetup ? "/start" : "/lab" });
+  },
   loader: async ({ location }) => {
     // Keep first-admin bootstrap accessible before any platform admin exists.
     if (location.pathname === "/admin/setup") return { isAdmin: false, canManageAdmins: false };

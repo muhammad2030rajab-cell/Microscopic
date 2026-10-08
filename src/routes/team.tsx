@@ -1,3 +1,4 @@
+import { ROLE_PRESETS } from "@/lib/role-presets";
 import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { ArrowRight, Building2, Check, CheckCircle2, ChevronDown, ChevronUp, ShieldCheck, UserPlus, UserX, Users } from "lucide-react";
@@ -46,6 +47,7 @@ const permissionLabels: Record<LabPermission, string> = {
   "reports.delete": "حذف التقرير",
   "reports.print": "طباعة التقارير",
   "reports.export": "تصدير التقارير",
+  "billing.manage": "الحسابات والأسعار والمدفوعات",
   "users.manage": "إدارة مستخدمي المعمل",
 };
 
@@ -241,6 +243,7 @@ function TeamPage() {
                               permissions={editingPermissions}
                               onToggle={(permission) => togglePermission(permission, editingPermissions, setEditingPermissions)}
                               onGroupChange={(group, enabled) => setPermissionGroup(group, enabled, editingPermissions, setEditingPermissions)}
+                              onPreset={(preset) => setEditingPermissions({ ...preset })}
                             />
 
                             <div className="flex flex-wrap gap-2">
@@ -274,6 +277,7 @@ function TeamPage() {
                 permissions={permissions}
                 onToggle={(permission) => togglePermission(permission, permissions, setPermissions)}
                 onGroupChange={(group, enabled) => setPermissionGroup(group, enabled, permissions, setPermissions)}
+                onPreset={(preset) => setPermissions({ ...preset })}
               />
 
               <Button type="submit" size="lg" disabled={loading} className="w-full"><UserPlus />{loading ? "جارٍ إنشاء الحساب…" : "إنشاء حساب المستخدم"}</Button>
@@ -285,16 +289,28 @@ function TeamPage() {
   );
 }
 
-function PermissionEditor({ permissions, onToggle, onGroupChange }: {
+function PermissionEditor({ permissions, onToggle, onGroupChange, onPreset }: {
   permissions: LabPermissions;
   onToggle: (permission: LabPermission) => void;
   onGroupChange: (group: LabPermission[], enabled: boolean) => void;
+  onPreset: (permissions: LabPermissions) => void;
 }) {
   return (
     <div className="space-y-4 rounded-xl border border-line bg-paper p-4">
-      <div><h4 className="font-medium">صلاحيات المستخدم 🔐</h4><p className="mt-1 text-xs text-muted">حدد العمليات التي يسمح له بتنفيذها.</p></div>
+      <div><h4 className="font-medium">صلاحيات المستخدم 🔐</h4><p className="mt-1 text-xs text-muted">حدد العمليات التي يسمح له بتنفيذها، أو ابدأ من وظيفة جاهزة وعدّل عليها.</p></div>
+      <div className="flex flex-wrap gap-2" role="group" aria-label="وظائف جاهزة">
+        {ROLE_PRESETS.map((preset) => (
+          <button key={preset.key} type="button" title={preset.hint} onClick={() => onPreset(preset.permissions)} className="min-h-10 rounded-full border border-line bg-elevated px-3.5 text-sm text-ink-soft hover:border-teal hover:text-teal">{preset.label}</button>
+        ))}
+      </div>
       <PermissionGroup title="المرضى 👥" permissions={patientPermissions} values={permissions} onToggle={onToggle} onGroupChange={onGroupChange} />
       <PermissionGroup title="التقارير 🧾" permissions={reportPermissions} values={permissions} onToggle={onToggle} onGroupChange={onGroupChange} />
+      <div className="rounded-lg border border-line bg-elevated p-3">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input type="checkbox" className="mt-0.5 size-4 accent-teal" checked={permissions["billing.manage"] === true} onChange={() => onToggle("billing.manage")} />
+          <span><span className="block text-sm font-medium">الحسابات 💰</span><span className="mt-0.5 block text-xs text-muted">أسعار التحاليل، الفواتير، تسجيل المدفوعات، وملخص اليوم.</span></span>
+        </label>
+      </div>
       <div className="rounded-lg border border-line bg-elevated p-3">
         <label className="flex cursor-pointer items-start gap-3">
           <input type="checkbox" className="mt-0.5 size-4 accent-teal" checked={permissions["users.manage"] === true} onChange={() => onToggle("users.manage")} />

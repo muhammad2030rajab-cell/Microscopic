@@ -3,12 +3,20 @@ import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth/server";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
-import { deleteAuthUser } from "@/lib/platform-admin.server";
 import { logAudit } from "@/lib/audit";
 import { logEvent } from "@/lib/logger.server";
 import { passwordPolicyError } from "@/lib/password-policy";
 import { assertCanAddUser } from "@/lib/lab-plans";
 import { formatJoinCode, generateJoinCode, hashJoinCode, isJoinRole, JOIN_DEFAULT_ROLE, presetPermissions } from "@/lib/join-requests";
+
+/** See the identical helper + docstring in `platform-admin.ts`. */
+async function deleteAuthUser(sql: Sql, authUserId: string): Promise<void> {
+  try {
+    await sql.query(`delete from "user" where id = $1`, [authUserId]);
+  } catch (err) {
+    logEvent("error", "auth_user.rollback_failed", { authUserId, error: String(err) });
+  }
+}
 
 export type LabRole = "owner" | "supervisor" | "technician" | "reviewer" | "viewer";
 
@@ -25,6 +33,7 @@ export type LabPermission =
   | "reports.delete"
   | "reports.print"
   | "reports.export"
+  | "billing.manage"
   | "users.manage";
 
 export type LabPermissions = Partial<Record<LabPermission, boolean>>;
@@ -44,6 +53,7 @@ export type LabStaff = {
 export const ALL_LAB_PERMISSIONS: LabPermission[] = [
   "patients.view", "patients.create", "patients.edit", "patients.delete",
   "reports.view", "reports.create", "reports.edit", "reports.approve", "reports.delete", "reports.print", "reports.export",
+  "billing.manage",
   "users.manage",
 ];
 

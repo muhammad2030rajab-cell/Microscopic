@@ -3,7 +3,8 @@ import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-ro
 import { KeyRound, UserPlus } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { claimFirstPlatformAdmin, deleteSelfIfOrphaned, platformAdminExists } from "@/lib/platform-admin";
-import { activateLicense, getLicenseStatus, licenseErrorMessage } from "@/lib/license";
+import { activateLicense, getLicenseStatus } from "@/lib/license";
+import { licenseErrorMessage } from "@/lib/license-messages";
 import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, passwordPolicyError } from "@/lib/password-policy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,7 @@ export const Route = createFileRoute("/admin/setup")({
   // reach a real account-creation form indefinitely. A public existence
   // check is safe here: it reveals nothing beyond "has this ever been set up".
   loader: async () => {
-    const license = await getLicenseStatus().catch(() => ({ required: false, activated: true, machineId: "" }));
+    const license = await getLicenseStatus().catch(() => ({ required: false, activated: true }));
     try {
       return { adminExists: await platformAdminExists(), license };
     } catch {
@@ -107,31 +108,27 @@ function AdminSetup() {
           <div className="mb-7">
             <div className="mb-4 grid size-12 place-items-center rounded-xl bg-teal/10 text-teal"><KeyRound className="size-6" /></div>
             <h1 className="font-display text-2xl font-semibold">تفعيل البرنامج</h1>
-            <p className="mt-2 text-sm leading-6 text-muted">اكتب رقم التسجيل اللي استلمته من البائع. محتاج إنترنت مرة واحدة بس للتفعيل، وبعدها البرنامج بيشتغل من غير نت وكل بياناتك بتفضل عندك. لو مفيش نت، ابعت «رقم الجهاز» اللي تحت للبائع واكتب الكود اللي يبعتهولك.</p>
-          </div>
-          <div className="mb-5 rounded-lg border border-line bg-paper p-3">
-            <p className="text-xs text-muted">رقم هذا الجهاز</p>
-            <p dir="ltr" className="mt-1 select-all font-mono text-lg tracking-wider">{license.machineId || "غير متاح، اتواصل مع البائع"}</p>
+            <p className="mt-2 text-sm leading-6 text-muted">اكتب كود التفعيل اللي استلمته. أول تفعيل بس محتاج اتصال بالإنترنت (مرة واحدة)، وبعدها البرنامج بيشتغل من غير إنترنت. كل بياناتك بتفضل على جهازك. بعد التفعيل هتنشئ اسم المستخدم وكلمة المرور بتوعك، ومش هتحتاج الكود تاني.</p>
           </div>
           <form onSubmit={activate} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="license-code">رقم التسجيل (أو كود التفعيل)</Label>
+              <Label htmlFor="license-code">كود التفعيل</Label>
               <textarea
                 id="license-code"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 required
-                rows={3}
+                rows={2}
                 dir="ltr"
                 spellCheck={false}
                 autoCapitalize="characters"
-                placeholder="RJB-XXXX-XXXX-XXXX-XXXX"
+                placeholder="XXXXX-XXXXX"
                 className="w-full resize-none rounded-sm border border-line bg-elevated px-3 py-2 font-mono text-sm tracking-wide"
               />
-              <p className="text-xs text-muted">الأفضل تلزقه (Paste) كامل بدل ما تكتبه.</p>
+              <p className="text-xs text-muted">مكوّن من 10 حروف وأرقام. ممكن تكتبه بشرطات أو من غيرها.</p>
             </div>
             {error ? <p className="rounded-lg border border-high/20 bg-high/5 px-3 py-2 text-sm text-high">{error}</p> : null}
-            <Button type="submit" size="lg" className="w-full" disabled={loading || code.trim().length < 20}>{loading ? "جارٍ التحقق…" : "تفعيل"}</Button>
+            <Button type="submit" size="lg" className="w-full" disabled={loading || code.trim().length < 8}>{loading ? "جارٍ التحقق…" : "تفعيل"}</Button>
           </form>
         </section>
       </main>

@@ -177,9 +177,7 @@ export const auth = betterAuth({
         const sql = await getSql();
         const rows = await sql<{ exists: boolean }>`select exists(select 1 from platform_admins) as exists`;
         adminExists = Boolean(rows[0]?.exists);
-      } catch (err) {
-        // Fail closed, but say why (console only: this file must not import *.server modules).
-        console.error("auth.signup_gate_check_failed", String(err));
+      } catch {
         adminExists = true;
       }
       if (adminExists) {

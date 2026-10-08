@@ -13,7 +13,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { reportStatusClasses, reportStatusLabels } from "@/lib/report-workflow";
 import { buildReportPdf, downloadReportPdf } from "@/lib/generate-report-pdf";
 import { formatSlashDate, visitIdFrom } from "@/lib/utils";
-import type { ReportAttachment } from "@/lib/attachments";
+import { listReportAttachments, type ReportAttachment } from "@/lib/attachments";
+import { AttachmentsPanel } from "@/components/report/attachments-panel";
 import { getReportDesignAssets } from "@/lib/report-design-settings";
 import { normalizeDesign, normalizeAsset, isReportTemplate, REPORT_TEMPLATES, type ReportDesignAssets, type ReportTemplate } from "@/lib/report-design";
 import { ShareDialog, type ShareChannel } from "@/components/report/share-dialog";
@@ -22,13 +23,13 @@ import { toWhatsAppNumber } from "@/lib/phone";
 import { ageToYears, formatAge } from "@/lib/age";
 import { REPORT_LANGS, type ReportLang } from "@/lib/report-strings";
 import { CLINICAL_FLAGS, SAMPLE_TYPES, normalizeIntake } from "@/lib/report-intake";
-import { SampleWorkflow } from "@/components/report/sample-workflow";
+import { InvoiceCard } from "@/components/report/invoice-card";
 
 export const Route = createFileRoute("/reports/$id")({
   loader: async ({ params }) => {
     try {
       const [report, lab, access] = await Promise.all([getLabReport({ data: { id: params.id } }), getCurrentLab(), getCurrentLabPermissions()]);
-      const attachments: ReportAttachment[] = []; // attachments are disabled in the offline program
+      const attachments = await listReportAttachments({ data: { reportId: params.id } }).catch(() => [] as ReportAttachment[]);
       const previous = await getPreviousResults({ data: { reportId: params.id } }).catch(() => null as PreviousResults | null);
       return { report, lab, permissions: access.permissions, role: access.role as string, attachments, previous, offline: false, pendingEdit: false };
     } catch (err) {
@@ -54,7 +55,7 @@ export const Route = createFileRoute("/reports/$id")({
 
 function ReportDetail() {
   const data = Route.useLoaderData();
-  const { lab, permissions, role, previous, offline, pendingEdit } = data;
+  const { lab, permissions, role, attachments, previous, offline, pendingEdit } = data;
   const navigate = useNavigate();
   const [report, setReport] = useState(data.report);
   const [loading, setLoading] = useState<"submit" | "approve" | "delete" | null>(null);
@@ -223,8 +224,6 @@ function ReportDetail() {
             </div>
           </section>
 
-          {report.sampleId ? <SampleWorkflow reportId={report.id} sampleId={report.sampleId} initialStatus={report.sampleStatus} initialSection={report.sampleSection} canEdit={permissions["reports.edit"] === true && !offline && report.status !== "approved"} /> : null}
-
           {critical.length > 0 ? <div role="alert" className="mb-4 flex items-start gap-2 rounded-lg border border-high/30 bg-high-bg p-4 text-sm text-high"><TriangleAlert className="mt-0.5 size-4 shrink-0" /><p><span className="font-semibold">قيم حرجة: </span>{critical.map((t) => `${t.name} (${t.value})`).join("، ")}</p></div> : null}
 
           {error ? <div role="alert" className="mb-4 rounded-lg border border-high/20 bg-high/5 p-4 text-sm text-high">{error}</div> : null}
@@ -269,6 +268,8 @@ function ReportDetail() {
             <p className="mt-2.5 px-1 text-xs leading-5 text-muted">واتساب بيفتح محادثة المريض على رقمه المسجّل، ومعاه رابط تحقق (أو ملخص نصي بعد تأكيدك). لإرسال التقرير بشكله الكامل كملف استخدم "مشاركة PDF" واختار واتساب من القائمة.</p>
           </section>
 
+          <AttachmentsPanel reportId={report.id} canEdit={permissions["reports.edit"] === true} initial={attachments} />
+
           {previous ? <section className="mb-4 rounded-lg border border-line bg-elevated p-4 print:hidden">
             <p className="text-sm font-medium">مقارنة بالزيارة السابقة</p>
             <p className="mt-0.5 text-xs text-muted">آخر تقرير معتمد بتاريخ {formatSlashDate(previous.reportDate)}</p>
@@ -300,6 +301,8 @@ function ReportDetail() {
             </summary>
             <ul className="space-y-1.5 border-t border-line px-4 py-3 text-sm text-ink-soft">{notes.map(({ f, t }) => <li key={`${t.categoryId}-${t.name}`}><span className="font-medium text-ink">{t.name}:</span> {f.note}</li>)}</ul>
           </details> : null}
+
+          <InvoiceCard reportId={report.id} />
 
           {intakeInfo ? <section className="mb-5 rounded-lg border border-line bg-elevated p-4 text-sm">
             <p className="mb-2 text-xs font-medium text-ink-soft">بيانات الحالة <span className="text-muted">(للموظفين، مش بتتطبع)</span></p>

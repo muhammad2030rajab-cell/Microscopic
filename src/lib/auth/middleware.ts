@@ -33,10 +33,11 @@ export const authMiddleware = createMiddleware({ type: "function" }).server(
     const { requireUserId } = await import("./verify.server");
     // Reject scripted cross-site requests before touching per-user data.
     assertSameSiteRequest();
-    // Local program: only runs on the computer its activation code was issued for (no-op when no key is built in).
-    const { assertLicensedHere } = await import("../license-guard.server");
-    await assertLicensedHere();
     const userId = await requireUserId();
+    // Local program only (a build carrying the license public key): refuse when not activated / revoked.
+    // A no-op everywhere else, and cached, so it costs nothing per call.
+    const { assertLicensedRuntime } = await import("../license-runtime.server");
+    await assertLicensedRuntime();
     return next({ context: { userId } });
   },
 );

@@ -10,6 +10,7 @@ import {
 } from "@/lib/platform-admin";
 import { updateLabPlan } from "@/lib/platform-settings";
 import { LabInvitesPanel } from "@/components/admin/lab-invites-panel";
+import { LicensesPanel } from "@/components/admin/licenses-panel";
 import { PLAN_PRESETS, daysLeft, subscriptionState } from "@/lib/lab-plans";
 
 export const Route = createFileRoute("/admin/labs")({
@@ -135,6 +136,7 @@ function AdminLabs() {
         {success ? <div className="mt-5 flex items-start gap-3 rounded-xl border border-ok/20 bg-ok/5 p-4 text-sm"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-ok" /><div><p className="font-medium">تم إنشاء المعمل بنجاح ✅</p><p className="mt-1 text-muted">{success}</p></div></div> : null}
         {error ? <p className="mt-5 rounded-lg border border-high/20 bg-high/5 px-4 py-3 text-sm text-high">{error}</p> : null}
 
+        {canCreate ? <LicensesPanel onError={setError} /> : null}
         {canCreate ? <LabInvitesPanel onError={setError} /> : null}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.2fr]">

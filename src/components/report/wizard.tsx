@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Check, ChevronLeft, ChevronRight, Loader2, Search, Trash2, TriangleAlert } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Loader2, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -1005,33 +1005,11 @@ function ResultsStep({
 function ReviewStep({ draft, gender, rangeFor }: { draft: Draft; gender: Gender; rangeFor: (t: { name: string; categoryId: string }) => string | undefined }) {
   const ageNumberOrUndefined = ageToYears(Number(draft.age) || undefined, parseAgeUnit(draft.ageUnit));
   const filled = draft.tests.filter((t) => t.value.trim());
-  const flags = filled.map((t) => ({
-    test: t,
-    result: interpretResult(t.name, t.value, gender, t.customRange || rangeFor(t), ageNumberOrUndefined, t.categoryId),
-  }));
-  const abnormal = flags.filter(({ result }) => result.flag === "high" || result.flag === "low" || result.flag === "abnormal").length;
-  const critical = flags.filter(({ result }) => result.flag === "critical");
+  const flags = filled.map((t) => interpretResult(t.name, t.value, gender, t.customRange || rangeFor(t), ageNumberOrUndefined, t.categoryId));
+  const abnormal = flags.filter((f) => f.flag === "high" || f.flag === "low" || f.flag === "abnormal").length;
 
   return (
     <div className="space-y-4">
-      {critical.length > 0 ? (
-        <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-950">
-          <div className="flex items-start gap-3">
-            <TriangleAlert className="mt-0.5 size-5 shrink-0" />
-            <div className="min-w-0">
-              <p className="font-semibold">تنبيه: توجد نتائج حرجة</p>
-              <p className="mt-1 text-sm leading-6">راجع النتائج الحرجة والقيم المرجعية قبل إصدار التقرير أو إرساله للمراجعة.</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {critical.map(({ test }) => (
-                  <span key={`${test.categoryId}-${test.name}`} className="rounded-full border border-red-200 bg-white px-3 py-1 text-xs font-medium">
-                    {test.name}: {test.value} {test.unit}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="المريض" value={draft.patientName || "—"} />
         <Stat label="كود المريض" value={draft.patientCode || "سيتم إنشاؤه تلقائيًا"} />
@@ -1050,7 +1028,8 @@ function ReviewStep({ draft, gender, rangeFor }: { draft: Draft; gender: Gender;
             </tr>
           </thead>
           <tbody>
-            {flags.map(({ test: t, result: interp }) => {
+            {filled.map((t) => {
+              const interp = interpretResult(t.name, t.value, gender, t.customRange || rangeFor(t), ageNumberOrUndefined, t.categoryId);
               return (
                 <tr key={`${t.categoryId}-${t.name}`} className="border-t border-line">
                   <td className="px-3 py-2.5 sm:px-4">{t.name}</td>

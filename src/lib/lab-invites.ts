@@ -8,7 +8,7 @@ import { logEvent } from "@/lib/logger.server";
 import { passwordPolicyError } from "@/lib/password-policy";
 import { createAttemptLimiter, formatJoinCode, generateJoinCode, hashJoinCode, normalizeJoinCode } from "@/lib/join-requests";
 import { inviteStatus, validateNewInvite, validateNewLab, type InviteStatus } from "@/lib/lab-invite-input";
-import { deleteAuthUser, requirePlatformPermission } from "@/lib/platform-admin.server";
+import { deleteAuthUser, requirePlatformPermission } from "@/lib/platform-admin";
 
 /**
  * Platform invitation codes. The platform admin makes a code; whoever types it on /join creates their own lab and

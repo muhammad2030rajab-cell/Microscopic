@@ -56,6 +56,11 @@ function startHub() {
   child.on("exit", (code) => {
     child = null;
     if (quitting) return;
+    // 75 = the program asked to be started again (after a backup was restored from Settings).
+    if (code === 75) {
+      restartHub();
+      return;
+    }
     dialog.showErrorBox(
       "Microscopic",
       `البرنامج وقف (code ${code}).\nلو المنفذ ${PORT} مستخدم، اقفل النسخة التانية أو غيّر HUB_PORT.`,
@@ -63,6 +68,16 @@ function startHub() {
     app.exit(1);
   });
   return true;
+}
+
+async function restartHub() {
+  if (!startHub()) return;
+  try {
+    await waitForServer();
+  } catch {
+    dialog.showErrorBox("Microscopic", "البرنامج اتأخر في إعادة التشغيل. افتحه تاني.");
+    app.exit(1);
+  }
 }
 
 function stopHub() {

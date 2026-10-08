@@ -12,6 +12,7 @@ import { homedir, networkInterfaces } from "node:os";
 import { join, resolve } from "node:path";
 import { createGateway } from "./hub-gateway.mjs";
 import { buildHubEnv, hubOrigins, internalPort, lanAddresses, parsePort } from "./hub-config.mjs";
+import { applyPendingRestore } from "./hub-restore.mjs";
 
 const home = resolve(process.env.HUB_HOME || join(homedir(), "MicroscopicHub"));
 const port = parsePort(process.env.HUB_PORT);
@@ -24,6 +25,10 @@ if (!existsSync(entry)) {
 }
 
 mkdirSync(home, { recursive: true });
+// A backup uploaded from Settings > Backup is applied here, before the database is opened.
+const restored = applyPendingRestore(home);
+if (restored.applied) console.log("Backup restored. The previous data was kept in:", restored.safetyCopy ?? "(none)");
+else if (restored.error) console.error("The uploaded backup was NOT applied (your current data is untouched):", restored.error);
 const secretFile = join(home, "secret.txt");
 if (!existsSync(secretFile)) writeFileSync(secretFile, randomBytes(32).toString("hex"), { mode: 0o600 });
 const secret = readFileSync(secretFile, "utf8").trim();

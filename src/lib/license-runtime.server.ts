@@ -1,5 +1,5 @@
 import { getSql, type Sql } from "@/lib/db";
-import { LICENSE_PUBLIC_KEY, LICENSE_SERVER_URL } from "@/lib/license-config";
+import { LICENSE_ENFORCED, LICENSE_PUBLIC_KEY, LICENSE_SERVER_URL } from "@/lib/license-config";
 import { verifyLicenseToken } from "@/lib/license-token";
 import { getDeviceName, getMachineFingerprint } from "@/lib/machine-fingerprint.server";
 import { logEvent } from "@/lib/logger.server";
@@ -12,7 +12,7 @@ import { logEvent } from "@/lib/logger.server";
  * explicit "revoked" or "released" answer locks the program. No internet never locks anything.
  */
 
-export const licenseRequired = () => LICENSE_PUBLIC_KEY.length > 0 && !process.env.LICENSE_PRIVATE_KEY;
+export const licenseRequired = () => LICENSE_ENFORCED && LICENSE_PUBLIC_KEY.length > 0 && !process.env.LICENSE_PRIVATE_KEY;
 
 const MESSAGES = {
   NOT_ACTIVATED: "البرنامج غير مفعّل. اكتب كود التفعيل أولًا",

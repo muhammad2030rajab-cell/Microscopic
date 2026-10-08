@@ -8,3 +8,10 @@
  */
 export const LICENSE_PUBLIC_KEY: string = "tHZKsK+53XYcoZ9BEjFULKvUWPMUY8Gbf+khyX9A028=";
 export const LICENSE_SERVER_URL: string = "https://microscopic.vercel.app";
+
+/**
+ * Master switch for activation. false = the program runs open, with no activation code asked for anywhere.
+ * The public key and server URL above are kept as they are, so turning enforcement back on later is just
+ * changing this to true (no new keys, and codes already issued keep working).
+ */
+export const LICENSE_ENFORCED: boolean = false;

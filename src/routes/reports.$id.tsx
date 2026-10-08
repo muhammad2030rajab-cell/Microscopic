@@ -5,6 +5,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ReportSheet } from "@/components/report/report-sheet";
 import { Button } from "@/components/ui/button";
 import { interpretResult, isCritical, parseValue } from "@/lib/medical";
+import { analyzeDelta, daysBetween } from "@/lib/delta-check";
+import { InsightsPanel } from "@/components/report/insights-panel";
 import { approveLabReport, deleteLabReport, getLabReport, getPreviousResults, submitLabReportForReview, type PreviousResults } from "@/lib/lab-reports";
 import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
 import { getCurrentLabPermissions } from "@/lib/lab-users";
@@ -112,6 +114,7 @@ function ReportDetail() {
   if (!lab) return <Navigate to="/login" replace />;
   if (!report) return <AppShell><div className="mx-auto max-w-lg py-16 text-center"><h1 className="font-display text-2xl font-semibold">التقرير غير موجود</h1><Link to="/reports" className="mt-6 inline-flex text-sm text-teal hover:underline">العودة للأرشيف</Link></div></AppShell>;
 
+  const insightAge = ageToYears(report.age, report.ageUnit);
   const notes = report.tests.map((t) => ({ t, f: interpretResult(t.name, t.value, report.gender, t.customRange, ageToYears(report.age, report.ageUnit), t.categoryId) })).filter(({ f }) => f.flag !== "normal" && f.flag !== "unknown");
   const critical = report.tests.filter((t) => isCritical(t.name, t.value));
   const labProfile = {
@@ -270,16 +273,23 @@ function ReportDetail() {
 
           <AttachmentsPanel reportId={report.id} canEdit={permissions["reports.edit"] === true} initial={attachments} />
 
-          {previous ? <section className="mb-4 rounded-lg border border-line bg-elevated p-4 print:hidden">
-            <p className="text-sm font-medium">مقارنة بالزيارة السابقة</p>
-            <p className="mt-0.5 text-xs text-muted">آخر تقرير معتمد بتاريخ {formatSlashDate(previous.reportDate)}</p>
-            <ul className="mt-3 divide-y divide-line/60">
-              {report.tests.filter((t) => t.value && previous.values[`${t.categoryId}:${t.name}`]).map((t) => {
+          {previous ? (() => {
+            const gap = daysBetween(previous.reportDate, report.createdAt);
+            const rows = report.tests
+              .filter((t) => t.value && previous.values[`${t.categoryId}:${t.name}`])
+              .map((t) => {
                 const before = previous.values[`${t.categoryId}:${t.name}`];
                 const curNum = parseValue(t.value);
                 const prevNum = parseValue(before);
-                let trend: "up" | "down" | "same" | null = null;
-                if (curNum != null && prevNum != null) trend = curNum > prevNum ? "up" : curNum < prevNum ? "down" : "same";
+                const delta = curNum != null && prevNum != null ? analyzeDelta({ testName: t.name, previous: prevNum, current: curNum, daysBetween: gap }) : null;
+                return { t, before, delta };
+              });
+            return <section className="mb-4 rounded-lg border border-line bg-elevated p-4 print:hidden">
+            <p className="text-sm font-medium">مقارنة بالزيارة السابقة</p>
+            <p className="mt-0.5 text-xs text-muted">آخر تقرير معتمد بتاريخ {formatSlashDate(previous.reportDate)}{gap != null && gap >= 0 ? ` (قبل ${gap} يوم)` : ""}</p>
+            <ul className="mt-3 divide-y divide-line/60">
+              {rows.map(({ t, before, delta }) => {
+                const trend = delta?.direction ?? null;
                 return (
                   <li key={`${t.categoryId}-${t.name}`} className="flex items-center justify-between gap-3 py-2 text-sm">
                     <span className="text-ink-soft">{t.name}</span>
@@ -287,12 +297,16 @@ function ReportDetail() {
                       <span className="text-xs text-muted">{before}</span>
                       {trend === "up" ? <ArrowUp className="size-3.5 text-high" aria-label="ارتفع" /> : trend === "down" ? <ArrowDown className="size-3.5 text-teal" aria-label="انخفض" /> : trend === "same" ? <Minus className="size-3.5 text-muted" aria-label="بدون تغيير" /> : null}
                       <span className="font-medium">{t.value}</span>
+                      {delta && delta.pct != null && delta.direction !== "same" ? <span dir="ltr" className={delta.severity === "review" ? "rounded-full bg-high-bg px-2 py-0.5 text-xs font-medium text-high" : delta.severity === "notable" ? "rounded-full bg-paper-2 px-2 py-0.5 text-xs font-medium text-ink" : "text-xs text-muted"}>{delta.pct > 0 ? "+" : ""}{delta.pct}%</span> : null}
                     </span>
                   </li>
                 );
               })}
             </ul>
-          </section> : null}
+          </section>;
+          })() : null}
+
+          <InsightsPanel tests={report.tests} gender={report.gender} age={insightAge} previous={previous} reportDate={report.createdAt} className="mb-4 rounded-lg border border-line bg-elevated p-4" />
 
           {notes.length > 0 ? <details className="group mb-5 rounded-lg border border-line bg-elevated">
             <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium">

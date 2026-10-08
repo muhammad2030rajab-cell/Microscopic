@@ -13,6 +13,7 @@ import { isValidPhone } from "@/lib/phone";
 import { AGE_UNITS, ageProblem, ageToYears, formatAge, parseAgeUnit } from "@/lib/age";
 import { FlagBadge } from "@/components/report/flag-badge";
 import { interpretResult } from "@/lib/medical";
+import { InsightsPanel } from "@/components/report/insights-panel";
 import { useLabStore, type Draft } from "@/lib/store";
 import { IntakeSection } from "@/components/report/intake-section";
 import { isEmptyIntake, normalizeIntake } from "@/lib/report-intake";
@@ -998,6 +999,7 @@ function ResultsStep({
           );
         })}
       </ul>
+      <InsightsPanel live tests={draft.tests} gender={gender} age={ageNumberOrUndefined} rangeFor={rangeFor} className="border-t border-line bg-paper p-4" />
     </div>
   );
 }
@@ -1018,6 +1020,7 @@ function ReviewStep({ draft, gender, rangeFor }: { draft: Draft; gender: Gender;
         <Stat label="تحاليل" value={String(filled.length)} />
         <Stat label="غير طبيعية" value={String(abnormal)} />
       </div>
+      <InsightsPanel tests={draft.tests} gender={gender} age={ageNumberOrUndefined} rangeFor={rangeFor} className="rounded-lg border border-line bg-elevated p-4" />
       <div className="overflow-hidden rounded-lg border border-line bg-elevated">
         <table className="w-full text-sm">
           <thead className="bg-paper-2/60 text-xs text-muted">

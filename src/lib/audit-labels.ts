@@ -27,6 +27,13 @@ const LABELS: Record<string, string> = {
   "contact.created": "إضافة طبيب/عميل",
   "contact.updated": "تعديل طبيب/عميل",
   "contact.deleted": "حذف طبيب/عميل",
+  "device.created": "إضافة جهاز",
+  "device.updated": "تعديل جهاز",
+  "device.deleted": "حذف جهاز",
+  "supply.created": "إضافة مستلزم",
+  "supply.updated": "تعديل مستلزم",
+  "supply.moved": "حركة مخزون (وارد/منصرف)",
+  "supply.deleted": "حذف مستلزم",
 };
 
 export function auditActionLabel(action: string): string {
@@ -38,6 +45,7 @@ export const AUDIT_GROUPS = [
   { key: "reports", label: "التقارير", prefixes: ["report."] },
   { key: "billing", label: "الحسابات", prefixes: ["billing."] },
   { key: "users", label: "المستخدمون", prefixes: ["team.", "user.", "branch.", "join."] },
+  { key: "inventory", label: "الأجهزة والمستلزمات", prefixes: ["device.", "supply."] },
   { key: "settings", label: "الإعدادات والكتالوج", prefixes: ["catalog.", "lab.", "test_group.", "attachment."] },
 ] as const;
 

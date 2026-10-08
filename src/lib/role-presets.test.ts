@@ -5,7 +5,7 @@ import { ROLE_PRESETS } from "./role-presets.ts";
 const KNOWN = new Set([
   "patients.view", "patients.create", "patients.edit", "patients.delete",
   "reports.view", "reports.create", "reports.edit", "reports.approve", "reports.delete", "reports.print", "reports.export",
-  "billing.manage", "users.manage",
+  "billing.manage", "inventory.manage", "users.manage",
 ]);
 
 test("presets only use real permissions and never hand out user management or deletes", () => {

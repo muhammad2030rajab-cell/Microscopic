@@ -48,6 +48,7 @@ const permissionLabels: Record<LabPermission, string> = {
   "reports.print": "طباعة التقارير",
   "reports.export": "تصدير التقارير",
   "billing.manage": "الحسابات والأسعار والمدفوعات",
+  "inventory.manage": "الأجهزة والمستلزمات",
   "users.manage": "إدارة مستخدمي المعمل",
 };
 
@@ -309,6 +310,12 @@ function PermissionEditor({ permissions, onToggle, onGroupChange, onPreset }: {
         <label className="flex cursor-pointer items-start gap-3">
           <input type="checkbox" className="mt-0.5 size-4 accent-teal" checked={permissions["billing.manage"] === true} onChange={() => onToggle("billing.manage")} />
           <span><span className="block text-sm font-medium">الحسابات 💰</span><span className="mt-0.5 block text-xs text-muted">أسعار التحاليل، الفواتير، تسجيل المدفوعات، وملخص اليوم.</span></span>
+        </label>
+      </div>
+      <div className="rounded-lg border border-line bg-elevated p-3">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input type="checkbox" className="mt-0.5 size-4 accent-teal" checked={permissions["inventory.manage"] === true} onChange={() => onToggle("inventory.manage")} />
+          <span><span className="block text-sm font-medium">الأجهزة والمستلزمات 🧪</span><span className="mt-0.5 block text-xs text-muted">إضافة الأجهزة ومواعيد صيانتها، وتسجيل وارد ومنصرف المستلزمات ومتابعة النواقص والصلاحية.</span></span>
         </label>
       </div>
       <div className="rounded-lg border border-line bg-elevated p-3">

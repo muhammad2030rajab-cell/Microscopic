@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { getBackupInfo } from "@/lib/backup";
+import { backupAge } from "@/lib/backup-age";
+import { cn } from "@/lib/utils";
 
 /** Settings > Backup. Shown only in the local program, to the lab owner (see backup.server.ts). Works offline. */
 export function BackupPanel() {
@@ -59,13 +61,20 @@ export function BackupPanel() {
   }
 
   const last = info.lastBackupAt ? new Date(info.lastBackupAt).toLocaleString("ar-EG") : null;
+  const age = backupAge(info.lastBackupAt);
   return (
     <section className="mx-auto mt-6 w-full max-w-5xl rounded-lg border border-line bg-elevated p-4 sm:p-5">
       <h2 className="font-display text-lg font-semibold">النسخ الاحتياطي</h2>
       <p className="mt-1 text-sm text-muted">
         نزّل نسخة من كل بيانات المعمل في ملف واحد، واحتفظ بيها على فلاشة أو جهاز تاني. من غير إنترنت.
       </p>
-      <p className="mt-1 text-sm text-muted">{last ? `آخر نسخة: ${last}` : "لسه ما اتعملتش نسخة احتياطية."}</p>
+      <p className={cn("mt-1 text-sm", age.state === "fresh" ? "text-muted" : "font-medium text-low")}>
+        {age.state === "never"
+          ? "لسه ما اتعملتش نسخة احتياطية. يفضّل تعمل واحدة دلوقتي."
+          : age.state === "stale"
+            ? `آخر نسخة: ${last} (من ${age.days} يوم). يفضّل نسخة كل أسبوع على الأقل.`
+            : `آخر نسخة: ${last}`}
+      </p>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button type="button" onClick={download} disabled={busy}>تنزيل نسخة احتياطية</Button>
         <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={busy}>

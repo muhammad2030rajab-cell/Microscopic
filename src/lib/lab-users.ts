@@ -26,6 +26,7 @@ export type LabPermission =
   | "reports.print"
   | "reports.export"
   | "billing.manage"
+  | "inventory.manage"
   | "users.manage";
 
 export type LabPermissions = Partial<Record<LabPermission, boolean>>;
@@ -46,6 +47,7 @@ export const ALL_LAB_PERMISSIONS: LabPermission[] = [
   "patients.view", "patients.create", "patients.edit", "patients.delete",
   "reports.view", "reports.create", "reports.edit", "reports.approve", "reports.delete", "reports.print", "reports.export",
   "billing.manage",
+  "inventory.manage",
   "users.manage",
 ];
 

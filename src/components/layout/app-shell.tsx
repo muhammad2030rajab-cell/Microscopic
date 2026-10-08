@@ -3,6 +3,7 @@ import { AnnouncementBanner } from "@/components/announcement-banner";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   BookOpen,
+  Boxes,
   FilePlus2,
   Files,
   FlaskConical,
@@ -27,6 +28,7 @@ const DESKTOP_NAV = [
   { to: "/reports", label: "التقارير", icon: Files },
   { to: "/contacts", label: "الأطباء والعملاء", icon: Stethoscope },
   { to: "/billing", label: "الحسابات", icon: Wallet },
+  { to: "/inventory", label: "الأجهزة والمستلزمات", icon: Boxes },
   { to: "/team", label: "المستخدمين", icon: UsersRound },
   { to: "/methods", label: "كيف يتم التحليل؟", icon: Microscope },
   { to: "/settings", label: "الإعدادات", icon: Settings },

@@ -10,6 +10,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import {
   BarChart3,
+  Boxes,
   CheckCircle2,
   ChevronLeft,
   CircleHelp,
@@ -33,6 +34,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { UserButton, useCurrentUserState } from "@/lib/auth/gates";
 import { getCurrentAccess, getCurrentLab, getLabDashboardStats, getLabDashboardCharts, type LabDashboardCharts, type LabProfileData } from "@/lib/lab-access";
 import { CategoryDonut, WeeklyBars } from "@/components/charts/dashboard-charts";
+import { InventoryAlerts } from "@/components/inventory-alerts";
 import { loadLocalDashboard } from "@/lib/sync-engine/offline-fallback";
 import { requestAllOfflinePages } from "@/lib/offline/sync";
 import { getRecentLabReports, type RecentReport } from "@/lib/lab-reports";
@@ -368,6 +370,8 @@ function LabDashboard() {
         </section>
       ) : null}
 
+      {lab.role === "owner" || permissions["inventory.manage"] === true ? <InventoryAlerts /> : null}
+
       {/* Everything else: small tiles, so they do not push the useful parts off-screen */}
       <section aria-label="اختصارات" className="mt-5 grid grid-cols-3 gap-2.5 sm:grid-cols-6">
         <Shortcut to="/reports" icon={<Files />} label="الأرشيف" onClick={() => presetReportFilters({})} />
@@ -376,6 +380,7 @@ function LabDashboard() {
         <Shortcut to="/contacts" icon={<Stethoscope />} label="الأطباء والعملاء" />
         <Shortcut to="/methods" icon={<FlaskConical />} label="كيف يتم التحليل" />
         <Shortcut to="/analytics" icon={<BarChart3 />} label="الإحصائيات" />
+        {lab.role === "owner" || permissions["inventory.manage"] === true ? <Shortcut to="/inventory" icon={<Boxes />} label="الأجهزة والمستلزمات" /> : null}
         {lab.role === "owner" || permissions["users.manage"] === true ? <Shortcut to="/audit" icon={<ScrollText />} label="سجل العمليات" /> : null}
         {lab.role === "owner" || permissions["billing.manage"] === true ? <Shortcut to="/billing" icon={<Wallet />} label="الحسابات" /> : null}
         {lab.role === "owner" || permissions["users.manage"] === true ? <Shortcut to="/team" icon={<UsersRound />} label="الفريق وكود الانضمام" /> : null}

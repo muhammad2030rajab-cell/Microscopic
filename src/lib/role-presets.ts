@@ -20,8 +20,8 @@ export const ROLE_PRESETS: { key: string; label: string; hint: string; permissio
   {
     key: "technician",
     label: "فني معمل",
-    hint: "يدخل النتائج ويعدّلها، من غير فلوس",
-    permissions: { "patients.view": true, "patients.create": true, "reports.view": true, "reports.create": true, "reports.edit": true, "reports.print": true },
+    hint: "يدخل النتائج ويعدّلها ويتابع الأجهزة والمستلزمات، من غير فلوس",
+    permissions: { "patients.view": true, "patients.create": true, "reports.view": true, "reports.create": true, "reports.edit": true, "reports.print": true, "inventory.manage": true },
   },
   {
     key: "doctor",

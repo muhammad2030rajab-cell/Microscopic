@@ -2,21 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth/server";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { getSql, type Sql } from "@/lib/db";
+import { getSql } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { logEvent } from "@/lib/logger.server";
+import { deleteAuthUser } from "@/lib/platform-admin.server";
 import { passwordPolicyError } from "@/lib/password-policy";
 import { assertCanAddUser } from "@/lib/lab-plans";
 import { formatJoinCode, generateJoinCode, hashJoinCode, isJoinRole, JOIN_DEFAULT_ROLE, presetPermissions } from "@/lib/join-requests";
-
-/** See the identical helper + docstring in `platform-admin.ts`. */
-async function deleteAuthUser(sql: Sql, authUserId: string): Promise<void> {
-  try {
-    await sql.query(`delete from "user" where id = $1`, [authUserId]);
-  } catch (err) {
-    logEvent("error", "auth_user.rollback_failed", { authUserId, error: String(err) });
-  }
-}
 
 export type LabRole = "owner" | "supervisor" | "technician" | "reviewer" | "viewer";
 

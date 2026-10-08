@@ -1,0 +1,64 @@
+{
+  "name": "microscopic-desktop",
+  "version": "1.0.0",
+  "description": "Microscopic - lab program for Windows",
+  "author": "Microscopic",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.microscopic.lab",
+    "productName": "Microscopic",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": true,
+    "files": [
+      "main.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../.output",
+        "to": "hub/.output"
+      },
+      {
+        "from": "../scripts",
+        "to": "hub/scripts",
+        "filter": [
+          "hub-*.mjs",
+          "!*.test.mjs"
+        ]
+      },
+      {
+        "from": "hub-modules/node_modules",
+        "to": "hub/node_modules"
+      }
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "Microscopic-${version}-nsis.${ext}"
+    },
+    "portable": {
+      "artifactName": "Microscopic-${version}-portable.${ext}"
+    }
+  }
+}

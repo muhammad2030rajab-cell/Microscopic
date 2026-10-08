@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getReportForAction } from "@/lib/lab-reports";
 import { logAudit } from "@/lib/audit";
-import { env } from "@/lib/env.server";
 import { assertLabFeature } from "@/lib/lab-features";
 
 export type ReportAttachment = {
@@ -18,7 +17,7 @@ export type ReportAttachment = {
 const MAX_FILE_BYTES = 4 * 1024 * 1024; // 4MB — كافٍ لصور سكانر عادية، وأمان لحجم الطلب على Vercel.
 
 function blobConfigured() {
-  return Boolean(env("BLOB_READ_WRITE_TOKEN"));
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
 }
 
 export const listReportAttachments = createServerFn({ method: "GET" })

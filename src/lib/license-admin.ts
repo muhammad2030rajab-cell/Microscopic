@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { logAudit } from "@/lib/audit";
 import { formatJoinCode, generateJoinCode, hashJoinCode } from "@/lib/join-requests";
-import { requirePlatformPermission } from "@/lib/platform-admin";
+import { requirePlatformPermission } from "@/lib/platform-admin.server";
 
 /** Admin side of licensing (on your cloud deployment): make codes, see who activated what, revoke, free a device. */
 

@@ -177,7 +177,8 @@ export const auth = betterAuth({
         const sql = await getSql();
         const rows = await sql<{ exists: boolean }>`select exists(select 1 from platform_admins) as exists`;
         adminExists = Boolean(rows[0]?.exists);
-      } catch {
+      } catch (err) {
+        console.error("auth.signup_gate_check_failed", String(err));
         adminExists = true;
       }
       if (adminExists) {

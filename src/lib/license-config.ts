@@ -6,5 +6,5 @@
  *
  * The deployment that holds LICENSE_PRIVATE_KEY is the license server itself and never asks for activation.
  */
-export const LICENSE_PUBLIC_KEY: string = "";
-export const LICENSE_SERVER_URL: string = "";
+export const LICENSE_PUBLIC_KEY: string = "tHZKsK+53XYcoZ9BEjFULKvUWPMUY8Gbf+khyX9A028=";
+export const LICENSE_SERVER_URL: string = "https://microscopic.vercel.app";

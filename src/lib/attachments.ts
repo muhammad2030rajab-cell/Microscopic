@@ -43,7 +43,9 @@ export const uploadReportAttachment = createServerFn({ method: "POST" })
     context: { userId: string };
     data: { reportId: string; fileName: string; contentType: string; base64: string };
   }): Promise<ReportAttachment> => {
-    if (!blobConfigured()) throw new Error("خدمة التخزين (Vercel Blob) غير مفعّلة على هذا المشروع بعد");
+    const { localAttachmentsEnabled } = await import("@/lib/attachment-local.server");
+    const local = localAttachmentsEnabled();
+    if (!local && !blobConfigured()) throw new Error("خدمة التخزين (Vercel Blob) غير مفعّلة على هذا المشروع بعد");
     const { sql, lab_id, lab_user_id } = await getReportForAction(context.userId, data.reportId, "reports.edit");
     await assertLabFeature(sql, lab_id, "attachments");
 
@@ -51,8 +53,31 @@ export const uploadReportAttachment = createServerFn({ method: "POST" })
     if (buffer.byteLength > MAX_FILE_BYTES) throw new Error("حجم الملف كبير جدًا (الحد الأقصى 4 ميجابايت)");
     if (!buffer.byteLength) throw new Error("الملف فارغ");
 
-    const { put } = await import("@vercel/blob");
     const safeName = data.fileName.replace(/[^\w.\-\u0600-\u06FF ]/g, "_").slice(0, 120) || "attachment";
+
+    if (local) {
+      // البرنامج المحلي: الملف بيتخزن في قاعدة بيانات البرنامج نفسه (فبيدخل في النسخة الاحتياطية) من غير أي خدمة خارجية.
+      const { attachmentPath, isAllowedLocalType } = await import("@/lib/attachment-rules");
+      if (!isAllowedLocalType(data.contentType)) throw new Error("مسموح برفع صور (PNG / JPG / WEBP / GIF) أو ملف PDF بس");
+      const localId = randomUUID();
+      const localUrl = attachmentPath(localId);
+      await sql.query(
+        `insert into report_attachments (id, report_id, lab_id, file_name, url, content_type, size_bytes, uploaded_by)
+         values ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [localId, data.reportId, lab_id, safeName, localUrl, data.contentType, buffer.byteLength, lab_user_id],
+      );
+      try {
+        await sql.query(`insert into report_attachment_files (attachment_id, data_base64) values ($1,$2)`, [localId, buffer.toString("base64")]);
+      } catch (error) {
+        // لو الملف ماتخزنش، منسيبش سجل مرفق فاضي.
+        await sql.query(`delete from report_attachments where id=$1`, [localId]);
+        throw error;
+      }
+      await logAudit(sql, { labId: lab_id, actorUserId: lab_user_id, actorAuthUserId: context.userId, action: "attachment.uploaded", entityType: "report", entityId: data.reportId });
+      return { id: localId, fileName: safeName, url: localUrl, contentType: data.contentType, sizeBytes: buffer.byteLength, createdAt: new Date().toISOString() };
+    }
+
+    const { put } = await import("@vercel/blob");
     const blob = await put(`reports/${data.reportId}/${randomUUID()}-${safeName}`, buffer, {
       access: "public",
       contentType: data.contentType || "application/octet-stream",
@@ -79,7 +104,7 @@ export const deleteReportAttachment = createServerFn({ method: "POST" })
     `;
     if (!rows.length) throw new Error("الملف غير موجود");
 
-    if (blobConfigured()) {
+    if (blobConfigured() && /^https?:\/\//i.test(rows[0].url)) {
       try {
         const { del } = await import("@vercel/blob");
         await del(rows[0].url);

@@ -17,7 +17,7 @@ const t = (name: string, value: string, extra: Record<string, unknown> = {}) => 
 
 test("reasons: known codes are in Arabic, unknown codes are shown not hidden, none has a default", () => {
   assert.match(describeReason("server_newer"), /عدّل/);
-  assert.match(describeReason("report_locked"), /مسودة/);
+  assert.match(describeReason("report_locked"), /اتلغى/);
   assert.match(describeReason("PERMISSION_DENIED"), /PERMISSION_DENIED/);
   assert.ok(describeReason(undefined).length > 0);
 });

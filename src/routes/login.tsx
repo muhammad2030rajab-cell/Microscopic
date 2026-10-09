@@ -20,6 +20,7 @@ import { getCurrentAccess } from "@/lib/lab-access";
 import { getLocalSetupState } from "@/lib/local-setup";
 import { getPublicPlatformSettings, DEFAULT_SUPPORT_WHATSAPP } from "@/lib/platform-settings";
 import { postLoginPath } from "@/lib/post-login-path";
+import { PoweredBy } from "@/components/powered-by";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +29,7 @@ export const Route = createFileRoute("/login")({
   loader: async () => {
     // The lab's own program (.exe): no admin account type, and first run goes to the setup page.
     const local = await getLocalSetupState().catch(() => null);
-    if (local?.hub && local.needsSetup) throw redirect({ to: "/start" });
+    if (local?.hub && (local.needsSetup || (local.license.required && !local.license.activated))) throw redirect({ to: "/start" });
     const hub = local?.hub === true;
     try {
       const s = await getPublicPlatformSettings();
@@ -466,16 +467,7 @@ function Login() {
           بيانات كل معمل منفصلة ولا تُفتح إلا بحساب خاص
         </p>
 
-        {/* التوقيع */}
-        <div className="mt-8 text-center">
-          <p className="text-xs text-slate-400">Powered by</p>
-          <p className="mt-0.5 font-display text-base font-bold text-slate-800">
-            Dr. Muhammad Ragab
-          </p>
-          <p className="text-xs font-medium text-blue-700">
-            Medical Laboratory Specialist
-          </p>
-        </div>
+        <PoweredBy className="mt-10" />
       </div>
     </main>
   );

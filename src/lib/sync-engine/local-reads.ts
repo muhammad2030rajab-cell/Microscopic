@@ -13,7 +13,7 @@ type Status = "draft" | "pending_review" | "approved" | "cancelled";
 const str = (v: unknown): string => (v === null || v === undefined ? "" : String(v));
 const orUndef = (v: unknown): string | undefined => (str(v) === "" ? undefined : str(v));
 const STATUSES: Status[] = ["draft", "pending_review", "approved", "cancelled"];
-const status = (v: unknown): Status => (STATUSES.includes(v as Status) ? (v as Status) : "draft");
+const status = (v: unknown): Status => (STATUSES.includes(v as Status) ? (v as Status) : "approved");
 const gender = (v: unknown): "ذكر" | "أنثى" => (v === "أنثى" ? "أنثى" : "ذكر");
 
 /** Same fields the archive list gets from the server (`listLabReports`). */

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { FieldOfView } from "@/components/brand/field-of-view";
+import { PoweredBy } from "@/components/powered-by";
 import { CellField, Graticule, LensLogo } from "@/components/welcome-art";
 import { useCurrentUserState } from "@/lib/auth/gates";
 import { getCurrentAccess } from "@/lib/lab-access";
@@ -23,7 +24,7 @@ export const Route = createFileRoute("/")({
   // The lab's own program (.exe) skips the sales welcome page: first run -> setup, otherwise -> the lab.
   beforeLoad: async () => {
     const state = await getLocalSetupState().catch(() => null);
-    if (state?.hub) throw redirect({ to: state.needsSetup ? "/start" : "/lab" });
+    if (state?.hub) throw redirect({ to: state.needsSetup || (state.license.required && !state.license.activated) ? "/start" : "/lab" });
   },
   component: WelcomePage,
 });
@@ -77,12 +78,6 @@ function WelcomePage() {
               <FieldOfView className="size-12" />
             </span>
           </LensLogo>
-        </div>
-
-        <div dir="ltr" className="wlc-rise mt-2" style={at(0.1)}>
-          <p className="text-xs font-medium tracking-wide text-slate-500">Powered by</p>
-          <p className="mt-1 font-display text-xl font-bold text-slate-800 sm:text-2xl">Dr. Muhammad Ragab</p>
-          <p className="mt-0.5 text-sm font-medium text-blue-700">Medical Laboratory Specialist</p>
         </div>
 
         <div className="mt-8">
@@ -145,6 +140,10 @@ function WelcomePage() {
           </span>
         </Link>
       </section>
+
+      <div className="wlc-rise mt-auto pt-6 pb-1" style={at(1.4)}>
+        <PoweredBy />
+      </div>
     </Shell>
   );
 }

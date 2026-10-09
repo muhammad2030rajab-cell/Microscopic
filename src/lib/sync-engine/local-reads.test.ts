@@ -30,13 +30,13 @@ test("summaries: a report without its patient is skipped, a report without resul
   assert.deepEqual(out.map((r) => [r.id, r.testCount]), [["a", 0]]);
 });
 
-test("summaries: odd values fall back safely (unknown status -> draft, unknown age unit -> years)", () => {
+test("summaries: odd values fall back safely (unknown status -> approved, unknown age unit -> years)", () => {
   const out = toReportSummaries(
     [report("a", "2026-10-01T00:00:00Z", { status: "weird" })],
     [{ ...patient, age_unit: "centuries", gender: "?" }],
     new Map(),
   );
-  assert.equal(out[0].status, "draft");
+  assert.equal(out[0].status, "approved");
   assert.equal(out[0].ageUnit, "years");
   assert.equal(out[0].gender, "ذكر");
 });

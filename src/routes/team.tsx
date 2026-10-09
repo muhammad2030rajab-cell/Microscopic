@@ -53,7 +53,7 @@ const permissionLabels: Record<LabPermission, string> = {
 };
 
 const patientPermissions: LabPermission[] = ["patients.view", "patients.create", "patients.edit", "patients.delete"];
-const reportPermissions: LabPermission[] = ["reports.view", "reports.create", "reports.edit", "reports.approve", "reports.delete", "reports.print", "reports.export"];
+const reportPermissions: LabPermission[] = ["reports.view", "reports.create", "reports.edit", "reports.delete", "reports.print", "reports.export"];
 
 const DEFAULT_NEW_PERMISSIONS: LabPermissions = {
   "patients.view": true, "patients.create": true, "reports.view": true, "reports.create": true, "reports.print": true,

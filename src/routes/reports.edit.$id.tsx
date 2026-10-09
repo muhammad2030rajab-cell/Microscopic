@@ -50,7 +50,7 @@ function EditReportPage() {
       </AppShell>
     );
   }
-  if (!canEdit || !report || report.status !== "draft") return <Navigate to={report ? "/reports/$id" : "/reports"} params={report ? { id: report.id } : undefined} />;
+  if (!canEdit || !report || report.status === "cancelled") return <Navigate to={report ? "/reports/$id" : "/reports"} params={report ? { id: report.id } : undefined} />;
   const draft: Draft = {
     patientName: report.patientName, patientCode: report.patientCode, age: String(report.age), ageUnit: report.ageUnit ?? "years", gender: report.gender,
     phone: report.phone || "", nationalId: report.nationalId || "", doctor: report.doctor,

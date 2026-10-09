@@ -53,14 +53,14 @@ export type ReapplyResult = "queued" | "no_local_copy" | "not_a_draft";
 /**
  * "Apply my edit on top of the new version": pull first so the base is the
  * server's current version, then put the same edit back in the queue against it.
- * Only a report that is still a draft can take it.
+ * Only a report that is not cancelled can take it.
  */
 export async function reapplyChange(item: OutboxItem): Promise<ReapplyResult> {
   await syncRunner.syncNow(); // no-op offline; the copy is then as fresh as it was
   const store = idbLocalStore();
   const row = await store.getRow("reports", item.entityId);
   if (!row) return "no_local_copy";
-  if (row.status !== "draft") return "not_a_draft";
+  if (row.status === "cancelled") return "not_a_draft"; // result code kept for the sync screen: the report was cancelled
   await store.putOutbox(reapplyItem(item, Number(row.version)));
   void syncRunner.syncNow();
   return "queued";

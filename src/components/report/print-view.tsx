@@ -175,10 +175,10 @@ export function PrintView({
   const brand = { ...defaultLab, ...lab };
   const design = normalizeDesign(brand.design);
   const letterhead = design.paper === "letterhead";
-  const approved = report.status === "approved";
-  // A signature / stamp on a draft would make it look authorised: approved reports only.
-  const signature = approved ? brand.assets?.signatureUrl : null;
-  const stamp = approved ? brand.assets?.stampUrl : null;
+  const isFinal = report.status !== "cancelled";
+  // A signature / stamp on a cancelled report would make it look valid: live reports only.
+  const signature = isFinal ? brand.assets?.signatureUrl : null;
+  const stamp = isFinal ? brand.assets?.stampUrl : null;
   const accentStyle: CSSProperties | undefined = design.accent
     ? ({ "--lab-accent": design.accent, "--lab-accent-fg": readableOn(design.accent) } as CSSProperties)
     : undefined;
@@ -273,23 +273,13 @@ export function PrintView({
           <span
             className={cn(
               "lab-status-dot",
-              report.status === "approved"
-                ? "lab-status-approved"
-                : "lab-status-pending",
+              isFinal ? "lab-status-approved" : "lab-status-pending",
             )}
           />
 
           <div>
             <p className="font-semibold">
-              {report.status === "approved"
-                ? text(lang, S.finalReport)
-                : text(lang, S.prelimReport)}
-            </p>
-
-            <p className="text-[0.62rem] text-muted">
-              {report.status === "approved"
-                ? text(lang, S.approved)
-                : text(lang, S.notApproved)}
+              {isFinal ? text(lang, S.finalReport) : text(lang, S.cancelledReport)}
             </p>
           </div>
         </div>
@@ -675,21 +665,10 @@ export function PrintView({
           </p>
 
           <p className="mt-1 font-semibold">
-            {report.status === "approved"
-              ? text(lang === "ar" ? "ar" : "en", S.finalApproved)
-              : text(lang === "ar" ? "ar" : "en", S.pendingApproval)}
+            {isFinal
+              ? text(lang === "ar" ? "ar" : "en", S.finalReport)
+              : text(lang === "ar" ? "ar" : "en", S.cancelledReport)}
           </p>
-
-          {report.status ===
-            "approved" &&
-          report.approvedAt ? (
-            <p className="mt-0.5 text-[0.68rem] text-muted">
-              {text(lang === "ar" ? "ar" : "en", S.approvedOn)}{" "}
-              {formatSlashDate(
-                report.approvedAt,
-              )}
-            </p>
-          ) : null}
 
           {signature || stamp ? (
             <div className="lab-sign">
@@ -706,7 +685,7 @@ export function PrintView({
             {text(lang === "ar" ? "ar" : "en", S.labDirector)}
           </p>
 
-          {approved && design.showQr ? <ReportQrCode reportId={report.id} caption={text(lang === "ar" ? "ar" : "en", S.scanToVerify)} /> : null}
+          {isFinal && design.showQr ? <ReportQrCode reportId={report.id} caption={text(lang === "ar" ? "ar" : "en", S.scanToVerify)} /> : null}
 
           {brand.doctorDegree ? (
             <p className="text-[0.68rem] text-muted">
@@ -780,9 +759,9 @@ export function PrintView({
           CORNER DECORATION
          ========================================= */}
 
-      {!approved ? (
+      {!isFinal ? (
         <div className="report-watermark" data-watermark aria-hidden>
-          <span>{text(lang === "ar" ? "ar" : "en", S.prelimReport)}</span>
+          <span>{text(lang === "ar" ? "ar" : "en", S.cancelledReport)}</span>
         </div>
       ) : null}
       {design.showCorner && !letterhead ? (

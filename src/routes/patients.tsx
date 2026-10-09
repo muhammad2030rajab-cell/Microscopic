@@ -340,13 +340,7 @@ function Info({
 
 function Status({ status }: { status: string }) {
   const label =
-    status === "approved"
-      ? "معتمد"
-      : status === "pending_review"
-        ? "مراجعة"
-        : status === "cancelled"
-          ? "ملغي"
-          : "مسودة";
+    status === "cancelled" ? "ملغي" : "جاهز";
 
   return (
     <span className="rounded-full bg-paper-2 px-2 py-0.5 text-[11px] text-muted">

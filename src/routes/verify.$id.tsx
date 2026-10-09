@@ -22,14 +22,13 @@ function VerifyPage() {
         {result.valid ? (
           <>
             <div className="mx-auto grid size-16 place-items-center rounded-full bg-ok/10 text-ok"><BadgeCheck className="size-9" /></div>
-            <h1 className="mt-4 font-display text-xl font-semibold">تقرير أصلي ومعتمد ✅</h1>
+            <h1 className="mt-4 font-display text-xl font-semibold">تقرير أصلي وصادر من المعمل ✅</h1>
             <p className="mt-1 text-sm text-muted">Verified Genuine Report</p>
             <div className="mt-5 space-y-2 rounded-xl bg-paper p-4 text-right text-sm">
               <Row label="المعمل" value={result.labName} />
               <Row label="اسم المريض" value={result.patientName} />
               <Row label="رقم العينة" value={result.sampleId} />
               {result.collectedAt ? <Row label="تاريخ السحب" value={formatSlashDate(result.collectedAt)} /> : null}
-              {result.approvedAt ? <Row label="تاريخ الاعتماد" value={formatSlashDate(result.approvedAt)} /> : null}
             </div>
           </>
         ) : (

@@ -2,7 +2,8 @@
 export function licenseErrorMessage(error: unknown): string {
   const text = error instanceof Error ? error.message : "";
   const known: Record<string, string> = {
-    LICENSE_INVALID: "كود التفعيل غير صحيح",
+    LICENSE_INVALID: "كود التفعيل غير صحيح. اتأكد إنك نسخته كامل من غير نقص",
+    LICENSE_WRONG_DEVICE: "الكود ده متصدّر لجهاز تاني. ابعت رقم الجهاز اللي قدامك للمطوّر عشان يصدر لك كود جديد",
     LICENSE_REVOKED: "الكود ده اتوقف. تواصل مع المطوّر",
     LICENSE_DEVICE_LIMIT: "الكود ده متفعّل بالفعل على جهاز تاني. تواصل مع المطوّر لنقله",
     LICENSE_TOO_MANY_ATTEMPTS: "محاولات كتير غلط. جرّب بعد شوية",

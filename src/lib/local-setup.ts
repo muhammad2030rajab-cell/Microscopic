@@ -18,19 +18,19 @@ export type LocalSetupState = {
   hub: boolean;
   /** hub mode and no lab has been created yet. */
   needsSetup: boolean;
-  license: { required: boolean; activated: boolean };
+  license: { required: boolean; activated: boolean; deviceId?: string };
 };
 
 export const getLocalSetupState = createServerFn({ method: "GET" }).handler(async (): Promise<LocalSetupState> => {
   if (!isHubMode) return { hub: false, needsSetup: false, license: { required: false, activated: true } };
-  const { currentLicenseState } = await import("@/lib/license-runtime.server");
+  const { currentDeviceId, currentLicenseState } = await import("@/lib/license-runtime.server");
   const license = await currentLicenseState();
   const sql = await getSql();
   const labs = await sql<{ exists: boolean }>`select exists(select 1 from labs) as exists`;
   return {
     hub: true,
     needsSetup: !labs[0]?.exists,
-    license: { required: license.required, activated: license.activated },
+    license: { required: license.required, activated: license.activated, deviceId: license.required && !license.activated ? await currentDeviceId() : undefined },
   };
 });
 

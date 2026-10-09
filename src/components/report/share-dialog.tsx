@@ -106,7 +106,7 @@ export function ShareDialog({
         {!input.approved ? (
           <p className="flex items-start gap-2 rounded-md bg-amber-50 p-3 text-xs leading-5 text-amber-900">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-            التقرير لم يُعتمد بعد، فالنتائج غير نهائية ورابط التحقق لن يعمل قبل الاعتماد.
+            التقرير ملغي، فالنتائج غير صالحة ورابط التحقق لن يعمل.
           </p>
         ) : null}
 

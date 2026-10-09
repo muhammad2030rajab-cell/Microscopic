@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { BarChart3, FileText, ArrowRight, CheckCircle2, Clock3, XCircle } from "lucide-react";
+import { BarChart3, FileText, ArrowRight, CheckCircle2, XCircle } from "lucide-react";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
@@ -70,9 +70,7 @@ function AdminReports() {
   const t = stats.totals;
   const dailyChartData = stats.daily.map((d) => ({ label: formatDayLabel(d.day), value: d.count }));
   const statusPieData = [
-    { label: "مسودة", value: t.draft, color: "#94a3b8" },
-    { label: "في المراجعة", value: t.pending, color: "#f59e0b" },
-    { label: "معتمد", value: t.approved, color: "#14b8a6" },
+    { label: "سارية", value: t.total - t.cancelled, color: "#14b8a6" },
     { label: "ملغي", value: t.cancelled, color: "#ef4444" },
   ];
   return (
@@ -91,9 +89,7 @@ function AdminReports() {
         </section>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Stat title="إجمالي التقارير" value={t.total} icon={<FileText />} />
-          <Stat title="مسودة" value={t.draft} icon={<Clock3 />} />
-          <Stat title="مراجعة" value={t.pending} icon={<Clock3 />} />
-          <Stat title="معتمد" value={t.approved} icon={<CheckCircle2 />} />
+          <Stat title="سارية" value={t.total - t.cancelled} icon={<CheckCircle2 />} />
           <Stat title="ملغي" value={t.cancelled} icon={<XCircle />} />
         </div>
 
@@ -125,7 +121,7 @@ function AdminReports() {
             {stats.labs.length === 0 ? <p className="p-8 text-center text-sm text-muted">لا توجد معامل بعد.</p> : stats.labs.map((lab) => (
               <div key={lab.id} className="flex items-center gap-4 p-4 sm:p-5">
                 <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-teal/10 text-teal"><BarChart3 className="size-5" /></div>
-                <div className="min-w-0 flex-1"><p className="font-medium">{lab.name}</p><p className="mt-1 text-xs text-muted">{lab.reports} تقرير · {lab.approved} معتمد · {lab.pending} في المراجعة</p></div>
+                <div className="min-w-0 flex-1"><p className="font-medium">{lab.name}</p><p className="mt-1 text-xs text-muted">{lab.reports} تقرير</p></div>
                 <div className="text-xl font-semibold tabular-nums">{lab.reports}</div>
               </div>
             ))}

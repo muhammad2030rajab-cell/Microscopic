@@ -276,7 +276,7 @@ export function ReportWizard({ catalog, groups = [], editReport, labId }: { cata
         ? await updateLabReport({ data: { ...payload, id: editReport.id } })
         : await createLabReport({ data: { ...payload, branchId: branchId || undefined, clientRequestId: requestId, clientCreatedAt: enteredAt, expectedLabId: labId } });
       resetDraft();
-      toast.success(editReport ? "تم تحديث المسودة" : "تم حفظ التقرير في قاعدة بيانات المعمل");
+      toast.success(editReport ? "تم تحديث التقرير" : "تم حفظ التقرير في قاعدة بيانات المعمل");
       void navigate({ to: "/reports/$id", params: { id: report.id } });
     } catch (error) {
       if (!editReport && labId && isOffline(error)) {
@@ -293,7 +293,7 @@ export function ReportWizard({ catalog, groups = [], editReport, labId }: { cata
       if (editReport && isOffline(error)) {
         // Save the edit on this device; it is sent (and checked against newer changes) when the connection is back.
         if (!labId) {
-          toast.error("تعديل المسودة يحتاج اتصالًا بالإنترنت.");
+          toast.error("تعديل التقرير يحتاج اتصالًا بالإنترنت.");
           return;
         }
         try {
@@ -347,7 +347,7 @@ export function ReportWizard({ catalog, groups = [], editReport, labId }: { cata
   return (
     <div className="mx-auto max-w-3xl">
       <header className="mb-6">
-        <p className="text-xs uppercase tracking-[0.18em] text-muted">{editReport ? "تعديل المسودة" : "تقرير جديد"}</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-muted">{editReport ? "تعديل التقرير" : "تقرير جديد"}</p>
         <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">{editReport ? "تعديل تقرير معملي" : "إنشاء تقرير معملي"}</h1>
       </header>
 

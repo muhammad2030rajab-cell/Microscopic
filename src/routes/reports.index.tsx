@@ -43,9 +43,7 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
   const [deleteError, setDeleteError] = useState("");
 
   async function removeReport(r: LabReportSummary) {
-    const message = r.status === "approved"
-      ? `تقرير "${r.patientName}" معتمد. حذفه نهائي ولا يمكن استرجاعه، وسيُسجَّل في سجل المراجعة. هل تريد المتابعة؟`
-      : `هل أنت متأكد من حذف تقرير "${r.patientName}"؟ لا يمكن التراجع عن هذا الإجراء.`;
+    const message = `هل أنت متأكد من حذف تقرير "${r.patientName}"؟ لا يمكن التراجع عن هذا الإجراء، وسيُسجَّل في سجل المراجعة.`;
     if (!window.confirm(message)) return;
     setDeleteError("");
     setDeletingId(r.id);
@@ -149,9 +147,6 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
             <SlidersHorizontal className="pointer-events-none absolute top-3.5 start-3 size-4 text-muted" />
             <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="h-11 w-full appearance-none rounded-lg border border-line bg-elevated ps-9 pe-8 text-sm outline-none focus:border-teal sm:w-48">
               <option value="all">كل الحالات</option>
-              <option value="draft">مسودة ({statusCounts.draft})</option>
-              <option value="pending_review">في انتظار المراجعة ({statusCounts.pending_review})</option>
-              <option value="approved">معتمد ({statusCounts.approved})</option>
               <option value="cancelled">ملغي ({statusCounts.cancelled})</option>
             </select>
           </label>
@@ -175,9 +170,6 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
         ) : null}
         {criticalTotal > 0 ? (
           <PeriodChip active={onlyCritical} onClick={() => setOnlyCritical(!onlyCritical)}>بقيم حرجة ({criticalTotal})</PeriodChip>
-        ) : null}
-        {statusCounts.pending_review > 0 && status !== "pending_review" ? (
-          <PeriodChip active={false} onClick={() => setStatus("pending_review")}>بانتظار المراجعة ({statusCounts.pending_review})</PeriodChip>
         ) : null}
       </div>
 
@@ -236,7 +228,7 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
                     {bad ? `${bad} علامة` : "طبيعي"}
                   </span>
                 </Link>
-                {canDelete && (r.status !== "approved" || isOwner) ? (
+                {canDelete ? (
                   <button
                     type="button"
                     onClick={() => removeReport(r)}

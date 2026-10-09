@@ -265,7 +265,7 @@ export function ReportDesignEditor({ lab, labId, initialDesign, onReportLanguage
 
           <fieldset className="min-w-0 space-y-3">
             <legend className="text-sm font-medium">التوقيع والختم</legend>
-            <p className="text-[11px] leading-5 text-muted">بيظهروا على التقارير <strong>المعتمدة</strong> بس، مش على المسودات. صورة PNG بخلفية شفافة أحسن حاجة (حتى حوالي 140 كيلوبايت).</p>
+            <p className="text-[11px] leading-5 text-muted">بيظهروا على التقارير السارية بس (مش الملغية)، مش على المسودات. صورة PNG بخلفية شفافة أحسن حاجة (حتى حوالي 140 كيلوبايت).</p>
             {([["signature", "التوقيع", signatureUrl], ["stamp", "الختم", stampUrl]] as const).map(([kind, label, url]) => (
               <div key={kind} className="flex items-center gap-3">
                 <div className="grid h-14 w-24 shrink-0 place-items-center overflow-hidden rounded-lg border border-line bg-paper text-[11px] text-muted">
@@ -288,7 +288,7 @@ export function ReportDesignEditor({ lab, labId, initialDesign, onReportLanguage
             <p className="text-[11px] text-muted">{design.footerNote.length} / {FOOTER_NOTE_MAX}</p>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={design.showQr} onChange={(e) => patch({ showQr: e.target.checked })} className="size-4 accent-teal" />
-              رمز QR للتحقق من التقرير (على المعتمد بس)
+              رمز QR للتحقق من التقرير
             </label>
           </fieldset>
 

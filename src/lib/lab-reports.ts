@@ -88,13 +88,13 @@ export async function createLabReportForUser(userId: string, data: CreateLabRepo
   if (data.expectedLabId && data.expectedLabId !== lab_id) throw new Error("LAB_MISMATCH");
   const clientRequestId = data.clientRequestId?.trim().slice(0, 64) || null;
   if (clientRequestId) {
-    const existing = await sql<{ id: string; patient_name: string; status: "draft" }>`
+    const existing = await sql<{ id: string; patient_name: string; status: "approved" }>`
       select r.id, p.full_name as patient_name, r.status
       from reports r inner join patients p on p.id = r.patient_id
       where r.lab_id = ${lab_id} and r.client_request_id = ${clientRequestId}
       limit 1
     `;
-    if (existing.length) return { id: existing[0].id, patientName: existing[0].patient_name, status: "draft" as const };
+    if (existing.length) return { id: existing[0].id, patientName: existing[0].patient_name, status: "approved" as const };
   }
   await assertCanCreateReport(sql, lab_id);
   const reportBranchId = await resolveReportBranch(sql, lab_id, branch_id, role === "owner" ? data.branchId : undefined);
@@ -147,7 +147,7 @@ export async function createLabReportForUser(userId: string, data: CreateLabRepo
 
   await sql.query(
     `insert into reports (id, lab_id, patient_id, sample_id, referring_doctor, status, notes, collected_at, created_by, created_at, client_request_id, branch_id, intake, total_price)
-     values ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10,$11,$12::jsonb,$13)`,
+     values ($1,$2,$3,$4,$5,'approved',$6,$7,$8,$9,$10,$11,$12::jsonb,$13)`,
     [reportId, lab_id, patientId, sampleId, data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, lab_user_id, now.toISOString(), clientRequestId, reportBranchId, intakeJson(data.intake), (await sumTestPrices(sql, lab_id, entered)) / 100],
   );
 
@@ -181,7 +181,7 @@ export async function createLabReportForUser(userId: string, data: CreateLabRepo
     [randomUUID(), lab_id, lab_user_id, userId, "report.created", "report", reportId],
   );
 
-  return { id: reportId, patientName, status: "draft" as const };
+  return { id: reportId, patientName, status: "approved" as const };
 }
 
 export const createLabReport = createServerFn({ method: "POST" })
@@ -228,7 +228,7 @@ export async function updateLabReportForUser(userId: string, data: CreateLabRepo
     select id, patient_id, status from reports where id = ${data.id} and lab_id = ${lab_id} and (${branch_id}::text is null or branch_id = ${branch_id}) limit 1
   `;
   if (!current.length) throw new Error("REPORT_NOT_FOUND");
-  if (current[0].status !== "draft") throw new Error("REPORT_NOT_EDITABLE");
+  if (current[0].status === "cancelled") throw new Error("REPORT_NOT_EDITABLE");
 
   const patientName = data.patientName.trim();
   const age = Number(data.age);
@@ -259,7 +259,7 @@ export async function updateLabReportForUser(userId: string, data: CreateLabRepo
     [data.patientCode?.trim() || null, patientName, age, ageUnit, data.gender, phoneDigits(data.phone), data.nationalId?.trim() || null, data.notes?.trim() || null, current[0].patient_id, lab_id],
   );
   await sql.query(
-    `update reports set referring_doctor=$1, notes=$2, collected_at=$3, intake=$4::jsonb, updated_at=current_timestamp where id=$5 and lab_id=$6 and status='draft'`,
+    `update reports set referring_doctor=$1, notes=$2, collected_at=$3, intake=$4::jsonb, updated_at=current_timestamp where id=$5 and lab_id=$6 and status <> 'cancelled'`,
     [data.doctor?.trim() || "Himself", data.notes?.trim() || null, data.collectedAt || null, intakeJson(data.intake), data.id, lab_id],
   );
   await sql.query(`delete from report_results where report_id=$1`, [data.id]);
@@ -279,7 +279,7 @@ export async function updateLabReportForUser(userId: string, data: CreateLabRepo
     `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
     [randomUUID(), lab_id, lab_user_id, userId, "report.updated", "report", data.id],
   );
-  return { id: data.id, patientName, status: "draft" as const };
+  return { id: data.id, patientName, status: "approved" as const };
 }
 
 export const updateLabReport = createServerFn({ method: "POST" })
@@ -420,40 +420,9 @@ export async function getReportForAction(userId: string, reportId: string, permi
   return { sql, lab_user_id, lab_id, role, report: rows[0] };
 }
 
-export const submitLabReportForReview = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .handler(async ({ context, data }: { context: { userId: string }; data: { id: string } }) => {
-    const { sql, lab_user_id, lab_id, report } = await getReportForAction(context.userId, data.id, "reports.edit");
-    if (report.status !== "draft") throw new Error("REPORT_NOT_DRAFT");
-    await sql.query(`update reports set status='pending_review', updated_at=current_timestamp where id=$1 and lab_id=$2`, [data.id, lab_id]);
-    await sql.query(
-      `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
-      [randomUUID(), lab_id, lab_user_id, context.userId, "report.submitted_for_review", "report", data.id],
-    );
-    return { ok: true, status: "pending_review" as const };
-  });
-
-export const approveLabReport = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .handler(async ({ context, data }: { context: { userId: string }; data: { id: string } }) => {
-    const { sql, lab_user_id, lab_id, report } = await getReportForAction(context.userId, data.id, "reports.approve");
-    if (!["pending_review", "draft"].includes(report.status)) throw new Error("REPORT_NOT_REVIEWABLE");
-    await sql.query(
-      `update reports set status='approved', reviewed_by=$1, approved_at=current_timestamp, updated_at=current_timestamp where id=$2 and lab_id=$3`,
-      [lab_user_id, data.id, lab_id],
-    );
-    await sql.query(
-      `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
-      [randomUUID(), lab_id, lab_user_id, context.userId, "report.approved", "report", data.id],
-    );
-    return { ok: true, status: "approved" as const };
-  });
-
 /** Plain-function core of `deleteLabReport`: also used by device sync (see sync.ts). */
 export async function deleteLabReportForUser(userId: string, data: { id: string }) {
-  const { sql, lab_user_id, lab_id, role, report } = await getReportForAction(userId, data.id, "reports.delete");
-  // التقرير المعتمد وثيقة نهائية: مالك المعمل بس هو اللي يقدر يحذفه.
-  if (report.status === "approved" && role !== "owner") throw new Error("APPROVED_REPORT_CANNOT_BE_DELETED");
+  const { sql, lab_user_id, lab_id } = await getReportForAction(userId, data.id, "reports.delete");
 
   const patientRows = await sql<{ patient_id: string }>`
     select patient_id from reports where id = ${data.id} and lab_id = ${lab_id} limit 1
@@ -474,7 +443,7 @@ export async function deleteLabReportForUser(userId: string, data: { id: string 
 
   await sql.query(
     `insert into audit_logs (id, lab_id, actor_user_id, actor_auth_user_id, action, entity_type, entity_id) values ($1,$2,$3,$4,$5,$6,$7)`,
-    [randomUUID(), lab_id, lab_user_id, userId, report.status === "approved" ? "report.approved_deleted" : "report.deleted", "report", data.id],
+    [randomUUID(), lab_id, lab_user_id, userId, "report.deleted", "report", data.id],
   );
   return { ok: true };
 }
@@ -490,7 +459,7 @@ export type PreviousResults = {
 };
 
 /**
- * The patient's latest earlier APPROVED report, to show the trend between visits.
+ * The patient's latest earlier (non-cancelled) report, to show the trend between visits.
  *
  * Every new report creates its own patient row, so matching on patient_id alone
  * almost never finds a previous visit. The same person is recognised by, in
@@ -520,7 +489,7 @@ export const getPreviousResults = createServerFn({ method: "GET" })
       from reports r inner join patients p on p.id = r.patient_id and p.lab_id = r.lab_id
       where r.lab_id = ${lab_id}
         and r.id <> ${data.reportId}
-        and r.status = 'approved'
+        and r.status <> 'cancelled'
         and r.created_at < ${current[0].created_at}
         and (
           r.patient_id = ${current[0].patient_id}

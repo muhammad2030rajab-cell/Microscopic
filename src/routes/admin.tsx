@@ -96,12 +96,6 @@ function AdminDashboard() {
             hint={overview ? `الإجمالي ${overview.reports.total}` : undefined}
             to="/admin/reports"
           />
-          <Stat
-            label="بانتظار المراجعة"
-            value={overview ? overview.reports.pending : null}
-            to="/admin/reports"
-            attention={overview ? overview.reports.pending > 0 : false}
-          />
         </section>
 
         {overviewFailed ? (

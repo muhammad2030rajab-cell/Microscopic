@@ -36,9 +36,7 @@ export const S = {
   labReport: p("LABORATORY REPORT", "تقرير معملي", true),
   clinicalSub: p("Clinical Laboratory Medicine", "طب المعامل الإكلينيكي", true),
   finalReport: p("FINAL REPORT", "التقرير النهائي", true),
-  prelimReport: p("PRELIMINARY REPORT", "تقرير أولي", true),
-  approved: p("Approved", "معتمد"),
-  notApproved: p("Not yet approved", "غير معتمد"),
+  cancelledReport: p("CANCELLED REPORT", "تقرير ملغي", true),
   labResults: p("LABORATORY RESULTS", "نتائج التحاليل", true),
 
   // patient block
@@ -77,10 +75,7 @@ export const S = {
   high: p("High", "مرتفع", true),
   low: p("Low", "منخفض", true),
   critical: p("Critical", "حرج", true),
-  verified: p("Verified", "اعتماد"),
-  finalApproved: p("FINAL · APPROVED", "نهائي · معتمد", true),
-  pendingApproval: p("PENDING APPROVAL", "قيد الاعتماد", true),
-  approvedOn: p("Approved:", "تاريخ الاعتماد:", true),
+  verified: p("Signature", "التوقيع"),
   labDirector: p("Lab. Director", "مدير المعمل", true),
   laboratoryDirector: p("Laboratory Director", "مدير المعمل", true),
   laboratory: p("Laboratory", "المعمل", true),
@@ -94,7 +89,6 @@ export const S = {
   flagLow: p("Low", "منخفض"),
   flagCritical: p("Critical", "حرج"),
   flagAbnormal: p("Abnormal", "غير طبيعي"),
-  preliminaryNote: p("Preliminary report — not valid until approved", "تقرير مبدئي — غير معتمد حتى الاعتماد"),
   letterheadSpace: p("Space for the pre-printed letterhead", "مساحة الترويسة المطبوعة", true),
   footer: p(
     "This report is electronically generated. Please verify patient identity and sample information before clinical use.",

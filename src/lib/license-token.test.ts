@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLicenseKeyPair, pemFromEnv, publicBase64FromPrivatePem, signLicenseToken, verifyLicenseToken } from "./license-token.ts";
+import { checkOfflineKey, createLicenseKeyPair, formatDeviceId, isOfflineLicense, looksLikeSignedKey, parseDeviceId, pemFromEnv, publicBase64FromPrivatePem, signLicenseToken, verifyLicenseToken } from "./license-token.ts";
 
 const pair = createLicenseKeyPair();
 const other = createLicenseKeyPair();
@@ -35,4 +35,37 @@ test("garbage never verifies and never throws", () => {
 test("LICENSE_PRIVATE_KEY may be plain PEM or base64 of the PEM", () => {
   assert.equal(pemFromEnv(pair.privatePem), pair.privatePem.trim());
   assert.equal(pemFromEnv(Buffer.from(pair.privatePem).toString("base64")), pair.privatePem);
+});
+
+test("offline key: genuine and for this device is accepted, even re-wrapped by a chat app", () => {
+  const key = signLicenseToken(pair.privatePem, { lic: "OFF-20261009-AB12", fp });
+  const wrapped = `${key.slice(0, 50)}\n ${key.slice(50, 120)}\r\n${key.slice(120)}`;
+  assert.deepEqual(checkOfflineKey(wrapped, pair.publicBase64, fp), { ok: true, payload: verifyLicenseToken(key, pair.publicBase64)! });
+});
+
+test("offline key: another device, another signer, a server-style token or garbage are refused with the right reason", () => {
+  const key = signLicenseToken(pair.privatePem, { lic: "OFF-1", fp });
+  assert.deepEqual(checkOfflineKey(key, pair.publicBase64, "b".repeat(64)), { ok: false, error: "LICENSE_WRONG_DEVICE" });
+  assert.deepEqual(checkOfflineKey(key, other.publicBase64, fp), { ok: false, error: "LICENSE_INVALID" });
+  assert.deepEqual(checkOfflineKey(signLicenseToken(pair.privatePem, { lic: "lic-1", fp }), pair.publicBase64, fp), { ok: false, error: "LICENSE_INVALID" });
+  assert.deepEqual(checkOfflineKey("hello", pair.publicBase64, fp), { ok: false, error: "LICENSE_INVALID" });
+});
+
+test("only hand-signed ids are 'offline', so the server is never asked about them", () => {
+  assert.equal(isOfflineLicense("OFF-1"), true);
+  assert.equal(isOfflineLicense("5f0c-server-license"), false);
+});
+
+test("a signed key is told apart from the short online code", () => {
+  assert.equal(looksLikeSignedKey("ABCDE-12345"), false);
+  assert.equal(looksLikeSignedKey(signLicenseToken(pair.privatePem, { lic: "OFF-1", fp })), true);
+});
+
+test("device id: formatted for reading, parsed back from whatever the customer pasted", () => {
+  const shown = formatDeviceId(fp);
+  assert.match(shown, /^([A-F0-9]{8}-){7}[A-F0-9]{8}$/);
+  assert.equal(parseDeviceId(shown), fp);
+  assert.equal(parseDeviceId(` ${shown.toLowerCase().replaceAll("-", " ")}\n`), fp);
+  assert.equal(parseDeviceId("1234"), null);
+  assert.equal(parseDeviceId("z".repeat(64)), null);
 });

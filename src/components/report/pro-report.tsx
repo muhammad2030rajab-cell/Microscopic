@@ -63,9 +63,9 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
   const brand = { ...defaultLab, ...lab };
   const design = normalizeDesign(brand.design);
   const letterhead = design.paper === "letterhead";
-  const approved = report.status === "approved";
-  const signature = approved ? brand.assets?.signatureUrl : null;
-  const stamp = approved ? brand.assets?.stampUrl : null;
+  const isFinal = report.status !== "cancelled";
+  const signature = isFinal ? brand.assets?.signatureUrl : null;
+  const stamp = isFinal ? brand.assets?.stampUrl : null;
   const groups = groupTests(report);
   const summary = summarize(report);
   const visit = visitIdFrom(report.id);
@@ -107,9 +107,9 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
             : `@media print{@page{size:A4 portrait;margin:0 0 13mm 0;@bottom-center{content:counter(page) " / " counter(pages);font:8.5px sans-serif;color:#64748b}}}`}
         </style>
 
-        {!approved ? (
+        {!isFinal ? (
           <div className="report-watermark" data-watermark aria-hidden>
-            <span>{text(l2, S.prelimReport)}</span>
+            <span>{text(l2, S.cancelledReport)}</span>
           </div>
         ) : null}
 
@@ -185,9 +185,9 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
                     <p>{text(l2, S.clinicalSub)}</p>
                   </div>
                   {design.showStatus ? (
-                    <span className={cn("rp-status", approved ? "rp-status-final" : "rp-status-prelim")}>
+                    <span className={cn("rp-status", isFinal ? "rp-status-final" : "rp-status-prelim")}>
                       <i aria-hidden />
-                      {approved ? text(l2, S.finalReport) : text(l2, S.prelimReport)}
+                      {isFinal ? text(l2, S.finalReport) : text(l2, S.cancelledReport)}
                     </span>
                   ) : null}
                 </div>
@@ -306,18 +306,14 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
                   </div>
                   <div className="rp-sign-mid">
                     {stamp ? <img src={stamp} alt="" className="rp-stamp" /> : null}
-                    {approved && design.showQr ? <ReportQrCode reportId={report.id} caption={text(l2, S.scanToVerify)} /> : null}
+                    {isFinal && design.showQr ? <ReportQrCode reportId={report.id} caption={text(l2, S.scanToVerify)} /> : null}
                   </div>
                   <div className="rp-sign-col">
                     <div className="rp-sign-box">{signature ? <img src={signature} alt="" className="rp-signature" /> : null}</div>
                     <p className="rp-sign-name">{brand.doctorName || text(l2, S.laboratoryDirector)}</p>
                     {brand.doctorDegree ? <p className="rp-sign-sub">{brand.doctorDegree}</p> : null}
                     <p className="rp-sign-role">{text(l2, S.pathologist)}</p>
-                    <p className="rp-sign-sub">
-                      {approved
-                        ? `${text(l2, S.approvedOn)} ${report.approvedAt ? formatSlashDate(report.approvedAt) : ""}`
-                        : text(l2, S.preliminaryNote)}
-                    </p>
+                    {isFinal ? null : <p className="rp-sign-sub">{text(l2, S.cancelledReport)}</p>}
                   </div>
                 </section>
 

@@ -64,7 +64,7 @@ function AuditPage() {
   return (
     <AppShell>
       <h1 className="mb-1 font-display text-2xl font-semibold">سجل العمليات</h1>
-      <p className="mb-4 text-sm text-muted">كل إضافة وتعديل وحذف واعتماد في المعمل، ومين عملها ومتى.</p>
+      <p className="mb-4 text-sm text-muted">كل إضافة وتعديل وحذف في المعمل، ومين عملها ومتى.</p>
       <div className="mb-4 flex flex-wrap gap-2">
         {AUDIT_GROUPS.map((g) => (
           <button key={g.key} type="button" onClick={() => { setGroup(g.key); void load(g.key, false); }} className={`min-h-10 rounded-full border px-4 text-sm ${group === g.key ? "border-ink bg-ink text-paper" : "border-line bg-elevated text-ink-soft"}`}>{g.label}</button>

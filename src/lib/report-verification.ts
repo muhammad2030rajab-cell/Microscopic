@@ -26,7 +26,7 @@ export const verifyReport = createServerFn({ method: "GET" })
       from reports r
       inner join labs l on l.id = r.lab_id
       inner join patients p on p.id = r.patient_id
-      where r.id = ${data.id} and r.status = 'approved'
+      where r.id = ${data.id} and r.status <> 'cancelled'
       limit 1
     `;
     if (!rows.length) return { valid: false };

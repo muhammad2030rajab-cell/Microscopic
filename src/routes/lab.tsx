@@ -14,7 +14,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   CircleHelp,
-  ClipboardCheck,
   ClipboardList,
   FilePlus2,
   FileText,
@@ -260,20 +259,9 @@ function LabDashboard() {
 
         <StatLink
           to="/reports"
-          preset={{ status: "pending_review" }}
+          preset={{ status: "all" }}
           disabled={!canView}
-          label="تحت المراجعة"
-          value={stats.pendingReview}
-          icon={<ClipboardCheck className="size-5" />}
-          iconClass="bg-amber-100 text-amber-600"
-          tone={stats.pendingReview > 0 ? "warn" : undefined}
-        />
-
-        <StatLink
-          to="/reports"
-          preset={{ status: "approved" }}
-          disabled={!canView}
-          label="تقارير جاهزة"
+          label="إجمالي التقارير"
           value={stats.approved}
           icon={<CheckCircle2 className="size-5" />}
           iconClass="bg-sky-100 text-sky-600"

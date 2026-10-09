@@ -60,7 +60,7 @@ function SyncPage() {
     try {
       const result = await reapplyChange(issue.item);
       if (result === "queued") toast.success("اتعاد تطبيق تعديلك وهيتبعت.");
-      else if (result === "not_a_draft") toast.error("التقرير مبقاش مسودة، فمينفعش تعدّله. اترك نسخة الخادم.");
+      else if (result === "not_a_draft") toast.error("التقرير اتلغى، فمينفعش تعدّله. اترك نسخة الخادم.");
       else toast.error("مفيش نسخة محفوظة من التقرير. اتصل بالنت وجرّب تاني.");
     } finally {
       setBusy(null);

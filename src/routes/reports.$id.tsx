@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { ArrowDown, ArrowRight, ArrowUp, CheckCircle2, ChevronDown, ClipboardCheck, FileDown, Loader2, Mail, MessageCircle, Minus, Pencil, Printer, Send, Share2, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ChevronDown, FileDown, Loader2, Mail, MessageCircle, Minus, Pencil, Printer, Send, Share2, Trash2, TriangleAlert } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportSheet } from "@/components/report/report-sheet";
 import { Button } from "@/components/ui/button";
 import { interpretResult, isCritical, parseValue } from "@/lib/medical";
 import { analyzeDelta, daysBetween } from "@/lib/delta-check";
 import { InsightsPanel } from "@/components/report/insights-panel";
-import { approveLabReport, deleteLabReport, getLabReport, getPreviousResults, submitLabReportForReview, type PreviousResults } from "@/lib/lab-reports";
+import { deleteLabReport, getLabReport, getPreviousResults, type PreviousResults } from "@/lib/lab-reports";
 import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
 import { getCurrentLabPermissions } from "@/lib/lab-users";
 import { loadLocalReport } from "@/lib/sync-engine/offline-fallback";
@@ -60,7 +60,7 @@ function ReportDetail() {
   const { lab, permissions, role, attachments, previous, offline, pendingEdit } = data;
   const navigate = useNavigate();
   const [report, setReport] = useState(data.report);
-  const [loading, setLoading] = useState<"submit" | "approve" | "delete" | null>(null);
+  const [loading, setLoading] = useState<"delete" | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [error, setError] = useState("");
   const [shareChannel, setShareChannel] = useState<ShareChannel | null>(null);
@@ -135,28 +135,8 @@ function ReportDetail() {
 
   const lang: ReportLang = langChoice ?? (labProfile.reportLanguage === "ar" ? "ar" : labProfile.reportLanguage === "en" ? "en" : "bi");
 
-  async function submitForReview() {
-    setError(""); setLoading("submit");
-    try {
-      const result = await submitLabReportForReview({ data: { id: report.id } });
-      setReport({ ...report, status: result.status });
-    } catch (err) { setError(err instanceof Error ? err.message : "تعذر إرسال التقرير للمراجعة"); }
-    finally { setLoading(null); }
-  }
-
-  async function approve() {
-    setError(""); setLoading("approve");
-    try {
-      const result = await approveLabReport({ data: { id: report.id } });
-      setReport({ ...report, status: result.status, approvedAt: new Date().toISOString() });
-    } catch (err) { setError(err instanceof Error ? err.message : "تعذر اعتماد التقرير"); }
-    finally { setLoading(null); }
-  }
-
   async function remove() {
-    const message = report!.status === "approved"
-      ? "هذا تقرير معتمد. حذفه نهائي ولا يمكن استرجاعه، وسيُسجَّل في سجل المراجعة. هل تريد المتابعة؟"
-      : "هل أنت متأكد من حذف هذا التقرير؟ لا يمكن التراجع عن هذا الإجراء.";
+    const message = "هل أنت متأكد من حذف هذا التقرير؟ لا يمكن التراجع عن هذا الإجراء، وسيُسجَّل في سجل المراجعة.";
     if (!window.confirm(message)) return;
     setError(""); setLoading("delete");
     try {
@@ -178,9 +158,8 @@ function ReportDetail() {
     }
   }
 
-  const canSubmit = permissions["reports.edit"] === true && report.status === "draft";
-  const canApprove = permissions["reports.approve"] === true && ["draft", "pending_review"].includes(report.status);
-  const canDelete = permissions["reports.delete"] === true && (report.status !== "approved" || role === "owner");
+  const canEdit = permissions["reports.edit"] === true && report.status !== "cancelled";
+  const canDelete = permissions["reports.delete"] === true;
 
   const visit = visitIdFrom(report.id);
   const intakeInfo = (() => {
@@ -205,7 +184,7 @@ function ReportDetail() {
       <AppShell>
         <div className="mx-auto w-full max-w-4xl">
           {pendingEdit ? <p role="status" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">فيه تعديل على التقرير ده محفوظ على جهازك ولسه ما اتبعتش. بيتبعت لوحده لما الاتصال يرجع، والبيانات اللي قدامك فيها التعديل.</p> : null}
-          {offline ? <p role="status" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">أنت غير متصل. دي نسخة محفوظة على جهازك للعرض والطباعة فقط، ومفيش تعديل أو اعتماد إلا لما الاتصال يرجع.</p> : null}
+          {offline ? <p role="status" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">أنت غير متصل. دي نسخة محفوظة على جهازك للعرض والطباعة فقط، ومفيش تعديل إلا لما الاتصال يرجع.</p> : null}
           <Link to="/reports" className="mb-3 inline-flex h-11 items-center gap-2 text-sm text-ink-soft"><ArrowRight className="size-4" />الأرشيف</Link>
 
           <section className="mb-4 rounded-lg border border-line bg-elevated p-4">
@@ -214,15 +193,10 @@ function ReportDetail() {
                 <h1 className="font-display text-xl font-semibold leading-tight">{report.patientName}</h1>
                 <p dir="ltr" className="mt-0.5 text-start font-mono text-xs text-muted">{visit}</p>
               </div>
-              <span className={`inline-flex rounded-full px-3 py-1 text-xs ${reportStatusClasses[report.status]}`}>{reportStatusLabels[report.status]}</span>
+              {report.status === "cancelled" ? <span className={`inline-flex rounded-full px-3 py-1 text-xs ${reportStatusClasses[report.status]}`}>{reportStatusLabels[report.status]}</span> : null}
             </div>
-            {report.status === "pending_review" ? <p className="mt-3 text-sm text-high">التقرير في انتظار مراجعة واعتماد المسؤول.</p> : null}
-            {report.status === "approved" ? <p className="mt-3 inline-flex items-center gap-1.5 text-sm text-ok"><CheckCircle2 className="size-4" />التقرير معتمد وجاهز كنسخة نهائية.</p> : null}
-            {report.status === "draft" ? <p className="mt-3 text-sm text-muted">يمكن تعديل التقرير ثم إرساله للمراجعة.</p> : null}
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              {canApprove ? <Button onClick={approve} disabled={loading !== null}><ClipboardCheck className="size-4" />{loading === "approve" ? "جارٍ الاعتماد…" : "اعتماد التقرير"}</Button> : null}
-              {canSubmit ? <Button variant="secondary" onClick={submitForReview} disabled={loading !== null}><Send className="size-4" />{loading === "submit" ? "جارٍ الإرسال…" : "إرسال للمراجعة"}</Button> : null}
-              {report.status === "draft" ? <Button variant="secondary" asChild><Link to="/reports/edit/$id" params={{ id: report.id }}><Pencil className="size-4" />تعديل المسودة</Link></Button> : null}
+              {canEdit ? <Button variant="secondary" asChild><Link to="/reports/edit/$id" params={{ id: report.id }}><Pencil className="size-4" />تعديل التقرير</Link></Button> : null}
               {canDelete ? <Button variant="danger" onClick={remove} disabled={loading !== null}><Trash2 className="size-4" />{loading === "delete" ? "جارٍ الحذف…" : "حذف التقرير"}</Button> : null}
             </div>
           </section>
@@ -286,7 +260,7 @@ function ReportDetail() {
               });
             return <section className="mb-4 rounded-lg border border-line bg-elevated p-4 print:hidden">
             <p className="text-sm font-medium">مقارنة بالزيارة السابقة</p>
-            <p className="mt-0.5 text-xs text-muted">آخر تقرير معتمد بتاريخ {formatSlashDate(previous.reportDate)}{gap != null && gap >= 0 ? ` (قبل ${gap} يوم)` : ""}</p>
+            <p className="mt-0.5 text-xs text-muted">آخر تقرير سابق بتاريخ {formatSlashDate(previous.reportDate)}{gap != null && gap >= 0 ? ` (قبل ${gap} يوم)` : ""}</p>
             <ul className="mt-3 divide-y divide-line/60">
               {rows.map(({ t, before, delta }) => {
                 const trend = delta?.direction ?? null;
@@ -355,7 +329,7 @@ function ReportDetail() {
         tests: report.tests,
         critical,
         verifyUrl: `${typeof window === "undefined" ? "" : window.location.origin}/verify/${report.id}`,
-        approved: report.status === "approved",
+        approved: report.status !== "cancelled", // "valid": not cancelled
       }}
     />
     <div className="hidden print:block"><ReportSheet report={report} lab={labProfile} lang={lang} template={templateChoice || undefined} /></div>

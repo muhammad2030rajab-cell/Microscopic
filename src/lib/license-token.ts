@@ -61,3 +61,39 @@ export function verifyLicenseToken(token: unknown, publicBase64: string): Licens
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Offline activation: you sign a key for ONE device on your own computer, the customer pastes it.
+// ---------------------------------------------------------------------------------------------
+
+/** Keys signed by hand (not by the license server) carry this prefix, so the program never asks the server about them. */
+export const OFFLINE_LICENSE_PREFIX = "OFF-";
+export const isOfflineLicense = (licenseId: string) => licenseId.startsWith(OFFLINE_LICENSE_PREFIX);
+
+/** A signed key is long and contains a dot; the short code of the online flow has neither. Tolerates line breaks from chat apps. */
+export function looksLikeSignedKey(code: string): boolean {
+  const compact = code.replace(/\s+/g, "");
+  return compact.length > 40 && compact.includes(".");
+}
+
+/** The device id as shown to the customer: 8 groups of 8 uppercase hex characters. */
+export function formatDeviceId(fingerprint: string): string {
+  return (fingerprint.toUpperCase().match(/.{1,8}/g) ?? []).join("-");
+}
+
+/** Back to the raw fingerprint from whatever the customer sent (any case, dashes, spaces, line breaks); null if it is not one. */
+export function parseDeviceId(text: string): string | null {
+  const hex = text.toLowerCase().replace(/[\s-]+/g, "");
+  return /^[0-9a-f]{64}$/.test(hex) ? hex : null;
+}
+
+export type OfflineCheck = { ok: true; payload: LicenseTokenPayload } | { ok: false; error: "LICENSE_INVALID" | "LICENSE_WRONG_DEVICE" };
+
+/** Is this pasted key genuine AND made for this very machine? Whitespace from copy/paste is ignored. */
+export function checkOfflineKey(pasted: string, publicBase64: string, fingerprint: string): OfflineCheck {
+  const payload = verifyLicenseToken(pasted.replace(/\s+/g, ""), publicBase64);
+  if (!payload || !isOfflineLicense(payload.lic)) return { ok: false, error: "LICENSE_INVALID" };
+  if (payload.fp !== fingerprint) return { ok: false, error: "LICENSE_WRONG_DEVICE" };
+  return { ok: true, payload };
+}
+

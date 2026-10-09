@@ -5,7 +5,7 @@
  *
  * Principle (medical data): a device NEVER silently overwrites newer server
  * data. A stale edit is kept as a conflict for a person to resolve, and
- * anything past "draft" is locked against offline edits.
+ * a cancelled report is locked against offline edits, and deleting a report always needs a person online.
  */
 import type { SyncEntity } from "../sync-shared.ts";
 
@@ -53,7 +53,7 @@ export function decidePush(input: {
   }
   // The device thinks it is creating a row the server already has: a retry. Never overwrite.
   if (baseVersion === null) return { kind: "already_applied" };
-  if (entity === "reports" && server.status !== "draft") return { kind: "reject", reason: "report_locked" };
+  if (entity === "reports" && server.status === "cancelled") return { kind: "reject", reason: "report_locked" };
   if (baseVersion === server.version) return { kind: "apply" };
   return { kind: "conflict", reason: baseVersion < server.version ? "server_newer" : "version_mismatch" };
 }

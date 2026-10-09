@@ -20,11 +20,15 @@ test("editing a draft: same version applies, a stale version is a conflict (neve
   assert.deepEqual(decidePush({ entity: "reports", op: "upsert", baseVersion: 9, server: draft(3) }), { kind: "conflict", reason: "version_mismatch" });
 });
 
-test("a report past draft is locked against offline edits", () => {
-  for (const status of ["pending_review", "approved", "cancelled"]) {
+test("a cancelled report is locked against offline edits, any other report can be edited", () => {
+  assert.deepEqual(
+    decidePush({ entity: "reports", op: "upsert", baseVersion: 4, server: { version: 4, status: "cancelled" } }),
+    { kind: "reject", reason: "report_locked" },
+  );
+  for (const status of ["draft", "pending_review", "approved"]) {
     assert.deepEqual(
       decidePush({ entity: "reports", op: "upsert", baseVersion: 4, server: { version: 4, status } }),
-      { kind: "reject", reason: "report_locked" },
+      { kind: "apply" },
       status,
     );
   }

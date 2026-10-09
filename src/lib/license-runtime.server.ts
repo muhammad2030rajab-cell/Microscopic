@@ -1,6 +1,6 @@
 import { getSql, type Sql } from "@/lib/db";
 import { LICENSE_ENFORCED, LICENSE_PUBLIC_KEY, LICENSE_SERVER_URL } from "@/lib/license-config";
-import { verifyLicenseToken } from "@/lib/license-token";
+import { checkOfflineKey, formatDeviceId, isOfflineLicense, verifyLicenseToken } from "@/lib/license-token";
 import { getDeviceName, getMachineFingerprint } from "@/lib/machine-fingerprint.server";
 import { logEvent } from "@/lib/logger.server";
 
@@ -56,7 +56,8 @@ export async function currentLicenseState(): Promise<LicenseState> {
   else if ((await setting(sql, "license_revoked")) === "1") state = { required: true, activated: false, reason: "REVOKED" };
   else state = { required: true, activated: true };
   cache = { at: Date.now(), state };
-  if (payload && state.activated) void pingLicenseServer(token);
+  // Hand-signed (offline) keys are unknown to the server, which would answer "revoked": never ask it about them.
+  if (payload && state.activated && !isOfflineLicense(payload.lic)) void pingLicenseServer(token);
   return state;
 }
 
@@ -93,7 +94,7 @@ async function pingLicenseServer(token: string): Promise<void> {
   }
 }
 
-export type ActivateError = "LICENSE_INVALID" | "LICENSE_REVOKED" | "LICENSE_DEVICE_LIMIT" | "LICENSE_TOO_MANY_ATTEMPTS" | "LICENSE_OFFLINE" | "LICENSE_SERVER_NOT_SET" | "LICENSE_BAD_REPLY";
+export type ActivateError = "LICENSE_INVALID" | "LICENSE_WRONG_DEVICE" | "LICENSE_REVOKED" | "LICENSE_DEVICE_LIMIT" | "LICENSE_TOO_MANY_ATTEMPTS" | "LICENSE_OFFLINE" | "LICENSE_SERVER_NOT_SET" | "LICENSE_BAD_REPLY";
 
 /** First activation: asks the license server, checks its signed answer, keeps the token on this machine. */
 export async function activateOnline(code: string): Promise<void> {
@@ -114,10 +115,26 @@ export async function activateOnline(code: string): Promise<void> {
   if (!res.ok || !body.token) throw new Error(body.error && /^LICENSE_/.test(body.error) ? body.error : "LICENSE_BAD_REPLY");
   const payload = verifyLicenseToken(body.token, LICENSE_PUBLIC_KEY);
   if (!payload || payload.fp !== fingerprint) throw new Error("LICENSE_BAD_REPLY");
+  await storeActivation(body.token, payload.lic);
+}
+
+async function storeActivation(token: string, licenseId: string): Promise<void> {
   const sql = await getSql();
-  await saveSetting(sql, "license_token", body.token);
+  await saveSetting(sql, "license_token", token);
   await saveSetting(sql, "license_revoked", "");
   await saveSetting(sql, "license_activated_at", new Date().toISOString());
   resetLicenseCache();
-  logEvent("info", "license.activated", { licenseId: payload.lic });
+  logEvent("info", "license.activated", { licenseId });
+}
+
+/** Activation without internet: checks a key you signed for this machine (see `npm run license -- issue`). */
+export async function activateOffline(pasted: string): Promise<void> {
+  const result = checkOfflineKey(pasted, LICENSE_PUBLIC_KEY, await getMachineFingerprint());
+  if (!result.ok) throw new Error(result.error);
+  await storeActivation(pasted.replace(/\s+/g, ""), result.payload.lic);
+}
+
+/** What the customer sends you to get a key: stable for this computer, safe to share. */
+export async function currentDeviceId(): Promise<string> {
+  return formatDeviceId(await getMachineFingerprint());
 }

@@ -1,7 +1,7 @@
 export const reportStatusLabels = {
   draft: "مسودة",
   pending_review: "في انتظار المراجعة",
-  approved: "معتمد",
+  approved: "جاهز",
   cancelled: "ملغي",
 } as const;
 

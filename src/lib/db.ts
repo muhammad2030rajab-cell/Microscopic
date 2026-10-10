@@ -48,7 +48,28 @@ const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
   __pgliteInstance__?: Promise<import("@electric-sql/pglite").PGlite>;
   __pgliteMigrateChain__?: Promise<void>;
+  __hubShutdownRegistered__?: boolean;
 };
+
+/**
+ * Local program only: when the launcher (scripts/hub-start.mjs) sends "hub-shutdown", close the embedded
+ * database cleanly and exit. A forced kill on Windows would leave the database as after a power cut.
+ */
+function registerHubShutdown(pg: import("@electric-sql/pglite").PGlite): void {
+  if (typeof process.send !== "function" || globalRef.__hubShutdownRegistered__) return;
+  globalRef.__hubShutdownRegistered__ = true;
+  process.on("message", (msg) => {
+    if (msg !== "hub-shutdown") return;
+    void (async () => {
+      try {
+        await pg.close();
+      } catch {
+        /* exiting anyway */
+      }
+      process.exit(0);
+    })();
+  });
+}
 
 /**
  * Result-type parity: Postgres sends every value as text plus a type OID — the
@@ -135,6 +156,7 @@ async function createPgliteSql(): Promise<Sql> {
       },
     });
     await pg.waitReady;
+    if (hubDataDir) registerHubShutdown(pg);
     await pg.exec(
       "create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())",
     );

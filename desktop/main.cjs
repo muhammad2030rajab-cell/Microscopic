@@ -48,7 +48,7 @@ function startHub() {
   const logFd = fs.openSync(logFile, "a");
   child = spawn(process.execPath, [script], {
     cwd: hubDir,
-    stdio: ["ignore", logFd, logFd],
+    stdio: ["ignore", logFd, logFd, "ipc"], // "ipc": lets us ask for a clean stop (see stopHubGracefully)
     windowsHide: true,
     // ELECTRON_RUN_AS_NODE: run electron.exe as plain Node. hub-start passes its env on to the app process.
     env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", HUB_NO_OPEN: "1" },
@@ -91,6 +91,25 @@ function stopHub() {
     /* already gone */
   }
   child = null;
+}
+
+async function stopHubGracefully(timeoutMs = 10000) {
+  const c = child;
+  if (!c) return;
+  let asked = false;
+  try {
+    if (c.connected) {
+      const exited = new Promise((resolve) => c.once("exit", resolve));
+      c.send("hub-shutdown");
+      asked = true;
+      await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
+    }
+  } catch {
+    /* fall through to the forced stop */
+  }
+  // Whatever is still running (or if the clean request could not be sent) is stopped by force.
+  if (child) stopHub();
+  return asked;
 }
 
 function waitForServer(timeoutMs = 90000) {
@@ -179,8 +198,13 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => app.quit());
-app.on("before-quit", () => {
+let shuttingDown = false;
+app.on("before-quit", (event) => {
   quitting = true;
-  stopHub();
+  if (shuttingDown || !child) return;
+  // Let the program close its database properly first; a forced kill is like pulling the power cord.
+  event.preventDefault();
+  shuttingDown = true;
+  stopHubGracefully().finally(() => app.quit());
 });
 process.on("exit", stopHub);

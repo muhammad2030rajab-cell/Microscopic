@@ -4,7 +4,7 @@
 // - The gateway on HUB_PORT (default 8080) is the one door. It always opens for this PC, and for phones
 //   only while the owner switches "mobile link" on from the control page (http://localhost:8080/_hub).
 // - Data lives in %USERPROFILE%\MicroscopicHub (override with HUB_HOME). Back that folder up.
-// - Patient data stays on this PC. (The page may ask Google Fonts for fonts when a connection exists; without one it falls back.)
+// - Patient data stays on this PC. The page asks for nothing from the internet (fonts come from the PC).
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -46,7 +46,8 @@ try {
   /* no QR: the address is still shown as text */
 }
 
-const app = spawn(process.execPath, [entry], { stdio: "inherit", env: { ...process.env, ...env } });
+// The 4th stdio slot is a message channel: it lets us ask the app to close its database cleanly before exiting.
+const app = spawn(process.execPath, [entry], { stdio: ["inherit", "inherit", "inherit", "ipc"], env: { ...process.env, ...env } });
 app.on("exit", (code) => process.exit(code ?? 0));
 
 const { server } = createGateway({
@@ -71,9 +72,34 @@ server.on("error", (e) => {
   process.exit(1);
 });
 
-for (const sig of ["SIGINT", "SIGTERM"]) {
-  process.on(sig, () => {
-    server.close();
-    app.kill(sig);
-  });
+// Clean stop: ask the app to close the database and exit; force it only if it has not finished in 8 seconds.
+let stopping = false;
+function gracefulStop() {
+  if (stopping) return;
+  stopping = true;
+  server.close();
+  let asked = false;
+  try {
+    if (app.connected) {
+      app.send("hub-shutdown");
+      asked = true;
+    }
+  } catch {
+    /* fall through to the forced stop */
+  }
+  if (!asked) app.kill();
+  setTimeout(() => {
+    try {
+      app.kill();
+    } catch {
+      /* already gone */
+    }
+    process.exit(0);
+  }, 8000).unref();
 }
+for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, gracefulStop);
+// Started by the Windows app: it asks for a clean stop when it quits, and if the window app itself dies we stop too.
+process.on("message", (msg) => {
+  if (msg === "hub-shutdown") gracefulStop();
+});
+process.on("disconnect", gracefulStop);

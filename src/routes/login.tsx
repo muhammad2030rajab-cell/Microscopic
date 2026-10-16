@@ -19,6 +19,7 @@ import { accountExists } from "@/lib/account-check";
 import { getCurrentAccess } from "@/lib/lab-access";
 import { getLocalSetupState } from "@/lib/local-setup";
 import { getPublicPlatformSettings, DEFAULT_SUPPORT_WHATSAPP } from "@/lib/platform-settings";
+import { rateLimitMessage } from "@/lib/auth/rate-limit";
 import { postLoginPath } from "@/lib/post-login-path";
 import { PoweredBy } from "@/components/powered-by";
 import { Button } from "@/components/ui/button";
@@ -172,6 +173,10 @@ function Login() {
       );
 
       if (result.error) {
+        if (result.error.status === 429) {
+          setError(rateLimitMessage());
+          return;
+        }
         const badCredentials =
           result.error.status === 401 || result.error.code === "INVALID_EMAIL_OR_PASSWORD";
         if (badCredentials) {

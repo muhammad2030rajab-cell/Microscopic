@@ -28,6 +28,7 @@ import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { ensureDbReady, getPglite, getSql } from "../db";
 import { emailAndPasswordEnabled } from "./email-password";
+import { authRateLimit } from "./rate-limit";
 import { pgliteDialect } from "./pglite-dialect";
 
 // Kick (and share) PGLite bootstrap as soon as the auth server module loads.
@@ -165,6 +166,10 @@ export const auth = betterAuth({
       maxAge: 300,
     },
   },
+
+  // Brute-force protection: 429 after too many sign-in / sign-up attempts per
+  // IP. Shared Postgres counters on Vercel; in-memory for PGLite / the hub.
+  rateLimit: authRateLimit(process.env, Boolean(databaseUrl)),
 
   // Public sign-up is only for bootstrapping the FIRST platform admin
   // (/admin/setup). After that, accounts are created server-side by admins

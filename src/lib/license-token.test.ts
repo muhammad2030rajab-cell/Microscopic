@@ -21,7 +21,10 @@ test("a token from another key pair, or with any edit, is rejected", () => {
   const [body, sig] = token.split(".");
   const forged = Buffer.from(JSON.stringify({ v: 1, lic: "lic-2", fp, iat: 1 })).toString("base64url");
   assert.equal(verifyLicenseToken(`${forged}.${sig}`, pair.publicBase64), null);
-  assert.equal(verifyLicenseToken(`${body}.${sig.slice(0, -2)}AA`, pair.publicBase64), null);
+  // Always change the signature: swap its first character for a different one
+  // (the old "…AA" suffix left the token unchanged ~1 run in 64 and flaked).
+  const tampered = (sig[0] === "A" ? "B" : "A") + sig.slice(1);
+  assert.equal(verifyLicenseToken(`${body}.${tampered}`, pair.publicBase64), null);
 });
 
 test("garbage never verifies and never throws", () => {

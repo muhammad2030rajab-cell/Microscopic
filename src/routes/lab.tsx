@@ -36,6 +36,7 @@ import { getCurrentAccess, getCurrentLab, getLabDashboardStats, getLabDashboardC
 import { FieldOfView } from "@/components/brand/field-of-view";
 import { CategoryDonut, WeeklyBars } from "@/components/charts/dashboard-charts";
 import { InventoryAlerts } from "@/components/inventory-alerts";
+import { BackupAlert, BillingAlerts } from "@/components/lab-alerts";
 import { loadLocalDashboard } from "@/lib/sync-engine/offline-fallback";
 import { requestAllOfflinePages } from "@/lib/offline/sync";
 import { getRecentLabReports, type RecentReport } from "@/lib/lab-reports";
@@ -380,6 +381,8 @@ function LabDashboard() {
       ) : null}
 
       {lab.role === "owner" || permissions["inventory.manage"] === true ? <InventoryAlerts /> : null}
+      {lab.role === "owner" || permissions["billing.manage"] === true ? <BillingAlerts /> : null}
+      {lab.role === "owner" ? <BackupAlert /> : null}
 
       {/* Everything else: small tiles, so they do not push the useful parts off-screen */}
       <section aria-label="اختصارات" className="mt-5 grid grid-cols-3 gap-2.5 sm:grid-cols-6">

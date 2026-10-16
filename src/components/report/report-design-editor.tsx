@@ -13,6 +13,7 @@ import {
   normalizeDesign,
   normalizeHex,
   REPORT_TEMPLATES,
+  REPORT_TEXT_SIZES,
   type ReportDesign,
   type ReportTemplate,
   type ReportTableStyle,
@@ -224,6 +225,21 @@ export function ReportDesignEditor({ lab, labId, initialDesign, onReportLanguage
               {TABLE_STYLES.map((t) => (
                 <button key={t.key} type="button" aria-pressed={design.tableStyle === t.key} onClick={() => patch({ tableStyle: t.key })}
                   className={`rounded-lg border p-3 text-start ${design.tableStyle === t.key ? "border-teal bg-teal/5" : "border-line bg-paper"}`}>
+                  <span className="block text-sm font-medium">{t.label}</span>
+                  <span className="block text-[11px] text-muted">{t.hint}</span>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          ) : null}
+
+          {design.template !== "standard" ? (
+          <fieldset className="min-w-0 space-y-2">
+            <legend className="text-sm font-medium">حجم الخط</legend>
+            <div className="grid grid-cols-3 gap-2">
+              {REPORT_TEXT_SIZES.map((t) => (
+                <button key={t.key} type="button" aria-pressed={design.textSize === t.key} onClick={() => patch({ textSize: t.key })}
+                  className={`rounded-lg border p-3 text-start ${design.textSize === t.key ? "border-teal bg-teal/5" : "border-line bg-paper"}`}>
                   <span className="block text-sm font-medium">{t.label}</span>
                   <span className="block text-[11px] text-muted">{t.hint}</span>
                 </button>

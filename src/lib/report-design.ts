@@ -6,6 +6,13 @@
 
 export type ReportPaper = "a4" | "letterhead";
 export type ReportTableStyle = "classic" | "modern" | "minimal";
+/** Text size of the printed sheet. Applies to the pro-family templates (everything except "standard"). */
+export type ReportTextSize = "small" | "normal" | "large";
+export const REPORT_TEXT_SIZES: { key: ReportTextSize; label: string; hint: string }[] = [
+  { key: "small", label: "صغير", hint: "تقارير فيها تحاليل كتير" },
+  { key: "normal", label: "عادي", hint: "الحجم الافتراضي" },
+  { key: "large", label: "كبير", hint: "أسهل في القراءة" },
+];
 /**
  * The printed layouts a lab can choose from. "standard" is the original sheet; the others share
  * one A4 sheet component (pro-report.tsx) and differ in look. Order = order in the picker.
@@ -34,6 +41,7 @@ export type ReportDesign = {
   /** Decorative corner at the top of the sheet (ignored on letterhead paper). */
   showCorner: boolean;
   tableStyle: ReportTableStyle;
+  textSize: ReportTextSize;
   /** "letterhead" = the paper already has the lab header/footer printed on it. */
   paper: ReportPaper;
   /** Blank space kept at the top / bottom of every page on letterhead paper (mm). */
@@ -59,6 +67,7 @@ export const DEFAULT_REPORT_DESIGN: ReportDesign = {
   accent: null,
   showCorner: true,
   tableStyle: "classic",
+  textSize: "normal",
   paper: "a4",
   letterheadTopMm: 45,
   letterheadBottomMm: 20,
@@ -107,6 +116,7 @@ export function normalizeDesign(input: unknown): ReportDesign {
     accent: normalizeHex(o.accent),
     showCorner: typeof o.showCorner === "boolean" ? o.showCorner : d.showCorner,
     tableStyle: o.tableStyle === "modern" || o.tableStyle === "minimal" || o.tableStyle === "classic" ? o.tableStyle : d.tableStyle,
+    textSize: o.textSize === "small" || o.textSize === "large" || o.textSize === "normal" ? o.textSize : d.textSize,
     paper: o.paper === "letterhead" ? "letterhead" : "a4",
     letterheadTopMm: clampMm(o.letterheadTopMm, d.letterheadTopMm),
     letterheadBottomMm: clampMm(o.letterheadBottomMm, d.letterheadBottomMm),

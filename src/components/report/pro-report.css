@@ -33,6 +33,15 @@
   box-shadow: var(--shadow-sheet);
 }
 
+/* Text size (design.textSize). Everything inside is em-based, so changing the base size scales the sheet.
+   [data-size] raises specificity above the narrow-container rule that sets 12px. */
+.rp-sheet[data-size="small"] { font-size: 11.5px; }
+.rp-sheet[data-size="large"] { font-size: 14.5px; }
+@container (max-width: 640px) {
+  .rp-sheet[data-size="small"] { font-size: 11px; }
+  .rp-sheet[data-size="large"] { font-size: 13px; }
+}
+
 .rp-pages { width: 100%; table-layout: fixed; border-collapse: collapse; }
 .rp-pages > thead > tr > td,
 .rp-pages > tfoot > tr > td { padding: 0; }

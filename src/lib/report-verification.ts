@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getSql } from "@/lib/db";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export type ReportVerification = {
   valid: boolean;
   labName?: string;
@@ -17,6 +19,8 @@ export type ReportVerification = {
  */
 export const verifyReport = createServerFn({ method: "GET" })
   .handler(async ({ data }: { data: { id: string } }): Promise<ReportVerification> => {
+    // Report ids are UUIDs; refuse anything else before touching the database.
+    if (typeof data?.id !== "string" || !UUID_RE.test(data.id)) return { valid: false };
     const sql = await getSql();
     const rows = await sql<{
       lab_name: string; full_name: string; sample_id: string | null;
@@ -26,7 +30,7 @@ export const verifyReport = createServerFn({ method: "GET" })
       from reports r
       inner join labs l on l.id = r.lab_id
       inner join patients p on p.id = r.patient_id
-      where r.id = ${data.id} and r.status <> 'cancelled'
+      where r.id = ${data.id} and r.status = 'approved'
       limit 1
     `;
     if (!rows.length) return { valid: false };

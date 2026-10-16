@@ -74,3 +74,11 @@ test("accentPalette: plain hex/rgba only (the PDF export cannot parse color-mix)
   assert.equal(accentPalette("#fde68a").fg, "#0f172a");
   assert.equal(accentPalette("#1d4ed8").fg, "#ffffff");
 });
+
+test("normalizeDesign: text size defaults to normal and only accepts the three sizes", () => {
+  assert.equal(normalizeDesign({}).textSize, "normal");
+  assert.equal(normalizeDesign({ textSize: "small" }).textSize, "small");
+  assert.equal(normalizeDesign({ textSize: "large" }).textSize, "large");
+  assert.equal(normalizeDesign({ textSize: "huge" }).textSize, "normal");
+  assert.equal(normalizeDesign({ textSize: 14 }).textSize, "normal");
+});

@@ -99,7 +99,7 @@ export function ProReportSheet({ report, lab, lang: langProp, variant = "pro" }:
 
   return (
     <div className="rp-wrap">
-      <article className={cn("rp-sheet", letterhead && "rp-letterhead")} data-variant={variant} dir={rtl ? "rtl" : "ltr"} lang={rtl ? "ar" : "en"} style={style}>
+      <article className={cn("rp-sheet", letterhead && "rp-letterhead")} data-variant={variant} data-size={design.textSize} dir={rtl ? "rtl" : "ltr"} lang={rtl ? "ar" : "en"} style={style}>
         {/* The page margin (not padding) keeps the pre-printed letterhead clear on EVERY page. */}
         <style>
           {letterhead

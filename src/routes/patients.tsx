@@ -105,7 +105,7 @@ function PatientsPage() {
     <AppShell>
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-muted">
+          <p className="text-xs font-medium text-teal">
             قاعدة المرضى
           </p>
 
@@ -134,7 +134,7 @@ function PatientsPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <section>
-          <div className="rounded-xl border border-line bg-elevated p-4">
+          <div className="app-card p-4">
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="pointer-events-none absolute top-3.5 start-3 size-4 text-muted" />
@@ -163,7 +163,7 @@ function PatientsPage() {
             </p>
           </div>
 
-          <div className="mt-4 overflow-hidden rounded-xl border border-line bg-elevated">
+          <div className="mt-4 overflow-hidden app-card">
             {patients.map((p) => (
               <button
                 key={p.id}
@@ -207,7 +207,7 @@ function PatientsPage() {
           </div>
         </section>
 
-        <aside className="h-fit rounded-xl border border-line bg-elevated p-5">
+        <aside className="h-fit app-card p-5">
           {!selected ? (
             <div className="py-8 text-center">
               <div className="mx-auto grid size-12 place-items-center rounded-full bg-teal/10 text-teal">

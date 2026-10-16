@@ -133,7 +133,7 @@ export function ReportDesignEditor({ lab, labId, initialDesign, onReportLanguage
   );
 
   return (
-    <section className="mx-auto mt-6 w-full max-w-5xl overflow-hidden rounded-lg border border-line bg-elevated p-4 sm:p-7">
+    <section className="mx-auto mt-6 w-full max-w-5xl overflow-hidden app-card p-4 sm:p-7">
       <h2 className="font-display text-xl font-semibold sm:text-2xl">شكل التقرير</h2>
       <p className="mt-1 text-sm text-ink-soft">اللي تغيّره هنا بيظهر في المعاينة على طول، ومبيتطبق على التقارير إلا لما تدوس «حفظ شكل التقرير».</p>
 

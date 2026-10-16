@@ -63,7 +63,7 @@ export function BackupPanel() {
   const last = info.lastBackupAt ? new Date(info.lastBackupAt).toLocaleString("ar-EG") : null;
   const age = backupAge(info.lastBackupAt);
   return (
-    <section className="mx-auto mt-6 w-full max-w-5xl rounded-lg border border-line bg-elevated p-4 sm:p-5">
+    <section className="mx-auto mt-6 w-full max-w-5xl app-card p-4 sm:p-5">
       <h2 className="font-display text-lg font-semibold">النسخ الاحتياطي</h2>
       <p className="mt-1 text-sm text-muted">
         نزّل نسخة من كل بيانات المعمل في ملف واحد، واحتفظ بيها على فلاشة أو جهاز تاني. من غير إنترنت.

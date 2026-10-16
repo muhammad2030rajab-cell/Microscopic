@@ -96,7 +96,7 @@ export function JoinRequestsPanel({ onError }: { onError: (message: string | nul
   const whatsapp = code ? `https://wa.me/?text=${encodeURIComponent(`انضم لفريق المعمل:\n${link}\nكود الانضمام: ${code}`)}` : "";
 
   return (
-    <section className="mt-6 rounded-xl border border-line bg-elevated p-5 sm:p-6">
+    <section className="mt-6 app-card p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="grid size-10 place-items-center rounded-lg bg-teal/10 text-teal">

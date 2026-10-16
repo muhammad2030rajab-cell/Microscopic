@@ -140,7 +140,7 @@ function AdminLabs() {
         {canCreate ? <LabInvitesPanel onError={setError} /> : null}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-          <section className="rounded-xl border border-line bg-elevated p-5 sm:p-6">
+          <section className="app-card p-5 sm:p-6">
             <div className="flex items-center justify-between gap-3">
               <div><h3 className="font-display text-xl font-semibold">المعامل الحالية</h3><p className="mt-1 text-sm text-muted">{labs.length} معمل مسجل</p></div>
               {canCreate ? <Button type="button" variant="outline" onClick={() => setShowForm(true)}><Plus className="size-4" /> إضافة</Button> : null}
@@ -215,7 +215,7 @@ function AdminLabs() {
             </div>
           </section>
 
-          {showForm && canCreate ? <section className="rounded-xl border border-line bg-elevated p-5 sm:p-6">
+          {showForm && canCreate ? <section className="app-card p-5 sm:p-6">
             <div className="mb-6 flex items-center gap-3"><div className="grid size-10 place-items-center rounded-lg bg-teal/10 text-teal"><ShieldCheck className="size-5" /></div><div><h3 className="font-display text-xl font-semibold">بيانات المعمل</h3><p className="text-sm text-muted">البيانات دي هتظهر في تقارير المعمل لاحقًا.</p></div></div>
             <form onSubmit={submit} className="space-y-4">
               <div className="rounded-lg border border-teal/20 bg-teal/5 p-4 text-sm leading-6 text-ink-soft">

@@ -75,7 +75,7 @@ function SyncPage() {
         <h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">المزامنة والتغييرات المحتاجة مراجعة</h1>
       </header>
 
-      <section className="mb-6 rounded-2xl border border-line bg-elevated p-4">
+      <section className="mb-6 app-card p-4">
         <p className="text-sm">
           {sync.phase === "offline" ? "غير متصل بالنت." : sync.phase === "syncing" ? "جارٍ المزامنة…" : "متصل."}{" "}
           {sync.lastSyncedAt ? `آخر مزامنة: ${new Date(sync.lastSyncedAt).toLocaleString("ar-EG")}` : "لسه ما حصلتش مزامنة في الجلسة دي."}

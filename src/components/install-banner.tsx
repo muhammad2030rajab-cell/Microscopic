@@ -29,7 +29,7 @@ export function InstallBanner() {
   if (standalone) return null;
 
   return (
-    <aside className="mt-6 rounded-lg border border-line bg-elevated p-5">
+    <aside className="mt-6 app-card p-5">
       <div className="flex items-start gap-3">
         <span className="flex size-11 shrink-0 items-center justify-center rounded-sm bg-teal text-teal-fg">
           <Smartphone className="size-5" />

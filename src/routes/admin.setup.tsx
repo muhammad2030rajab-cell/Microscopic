@@ -105,7 +105,7 @@ function AdminSetup() {
   if (license.required && !activated) {
     return (
       <main className="grid min-h-screen place-items-center bg-paper px-4 py-8">
-        <section className="w-full max-w-md rounded-2xl border border-line bg-elevated p-6 shadow-sm sm:p-8">
+        <section className="w-full max-w-md app-card p-6 shadow-sm sm:p-8">
           <div className="mb-7">
             <div className="mb-4 grid size-12 place-items-center rounded-xl bg-teal/10 text-teal"><KeyRound className="size-6" /></div>
             <h1 className="font-display text-2xl font-semibold">تفعيل البرنامج</h1>
@@ -139,7 +139,7 @@ function AdminSetup() {
 
   return (
     <main className="grid min-h-screen place-items-center bg-paper px-4 py-8">
-      <section className="w-full max-w-md rounded-2xl border border-line bg-elevated p-6 shadow-sm sm:p-8">
+      <section className="w-full max-w-md app-card p-6 shadow-sm sm:p-8">
         <div className="mb-7">
           <div className="mb-4 grid size-12 place-items-center rounded-xl bg-teal/10 text-teal"><UserPlus className="size-6" /></div>
           <h1 className="font-display text-2xl font-semibold">إنشاء حساب المدير الأول</h1>

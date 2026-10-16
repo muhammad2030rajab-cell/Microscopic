@@ -85,7 +85,7 @@ function MethodsPage() {
         </Link>
       </header>
 
-      <div className="rounded-2xl border border-line bg-elevated p-4">
+      <div className="app-card p-4">
         <div className="relative">
           <Search className="pointer-events-none absolute top-3.5 start-3 size-4 text-muted" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث باسم التحليل أو القسم" className="ps-9" />
@@ -110,7 +110,7 @@ function MethodsPage() {
         {results.map((item) => {
           const method = item.method_info?.trim();
           return (
-            <li key={item.id} className="rounded-xl border border-line bg-elevated">
+            <li key={item.id} className="app-card">
               <details className="group">
                 <summary className="flex min-h-12 cursor-pointer select-none items-center justify-between gap-2 px-4 py-3">
                   <span className="text-sm font-medium">

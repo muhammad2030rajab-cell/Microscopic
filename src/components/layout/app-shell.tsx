@@ -1,5 +1,6 @@
 import { OfflineStatus } from "@/components/offline-status";
 import { AnnouncementBanner } from "@/components/announcement-banner";
+import { UserButton } from "@/lib/auth/gates";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   BookOpen,
@@ -20,18 +21,28 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useLabStore } from "@/lib/store";
 
-const DESKTOP_NAV = [
-  { to: "/lab", label: "الرئيسية", icon: LayoutDashboard },
-  { to: "/patients", label: "المرضى", icon: Users },
-  { to: "/catalog", label: "دليل التحاليل", icon: BookOpen },
-  { to: "/new", label: "إدخال النتائج", icon: FilePlus2 },
-  { to: "/reports", label: "التقارير", icon: Files },
-  { to: "/contacts", label: "الأطباء والعملاء", icon: Stethoscope },
-  { to: "/billing", label: "الحسابات", icon: Wallet },
-  { to: "/inventory", label: "الأجهزة والمستلزمات", icon: Boxes },
-  { to: "/team", label: "المستخدمين", icon: UsersRound },
-  { to: "/methods", label: "كيف يتم التحليل؟", icon: Microscope },
-  { to: "/settings", label: "الإعدادات", icon: Settings },
+const DESKTOP_NAV_GROUPS = [
+  {
+    title: "الشغل اليومي",
+    items: [
+      { to: "/lab", label: "الرئيسية", icon: LayoutDashboard },
+      { to: "/new", label: "إدخال النتائج", icon: FilePlus2 },
+      { to: "/reports", label: "التقارير", icon: Files },
+      { to: "/patients", label: "المرضى", icon: Users },
+      { to: "/contacts", label: "الأطباء والعملاء", icon: Stethoscope },
+    ],
+  },
+  {
+    title: "إدارة المعمل",
+    items: [
+      { to: "/catalog", label: "دليل التحاليل", icon: BookOpen },
+      { to: "/billing", label: "الحسابات", icon: Wallet },
+      { to: "/inventory", label: "الأجهزة والمستلزمات", icon: Boxes },
+      { to: "/team", label: "المستخدمين", icon: UsersRound },
+      { to: "/methods", label: "كيف يتم التحليل؟", icon: Microscope },
+      { to: "/settings", label: "الإعدادات", icon: Settings },
+    ],
+  },
 ] as const;
 
 const MOBILE_NAV = [
@@ -73,32 +84,49 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh bg-paper text-ink">
       <div className="mx-auto flex min-h-dvh max-w-[1400px]">
         {/* Desktop Sidebar */}
-        <aside className="no-print sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-e border-white/10 bg-ink px-4 py-6 text-white lg:flex">
+        <aside className="app-sidebar no-print sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-y-auto border-e border-white/10 px-4 py-6 text-white lg:flex">
           <Brand
             name={lab.name}
             nameEn={lab.nameEn}
           />
 
-          <nav className="mt-8 flex flex-1 flex-col gap-1">
-            {DESKTOP_NAV.map((item) => (
-              <NavLink
-                key={item.to}
-                {...item}
-                active={isActive(pathname, item.to)}
-              />
+          <nav className="mt-7 flex flex-1 flex-col gap-5">
+            {DESKTOP_NAV_GROUPS.map((group) => (
+              <div key={group.title}>
+                <p className="mb-1.5 px-3 text-[11px] font-medium text-white/45">
+                  {group.title}
+                </p>
+                <div className="flex flex-col gap-0.5">
+                  {group.items.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      {...item}
+                      active={isActive(pathname, item.to)}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </nav>
 
-          <p className="mt-auto pt-6 text-[11px] leading-relaxed text-white/50">
-            بيانات المعمل وتقاريره محفوظة على النظام بشكل مستقل.
-            ليست بديلاً عن الرأي الطبي.
-          </p>
+          <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="truncate text-sm font-semibold">{lab.name}</p>
+            {lab.doctorName ? (
+              <p className="mt-0.5 truncate text-[11px] text-white/60">
+                {lab.doctorName}
+                {lab.doctorSpecialty ? ` · ${lab.doctorSpecialty}` : ""}
+              </p>
+            ) : null}
+            <p className="mt-2 text-[10px] leading-relaxed text-white/40">
+              النتائج لا تغني عن الرأي الطبي.
+            </p>
+          </div>
         </aside>
 
         {/* Main Content */}
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Top Header */}
-          <header className="no-print flex items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-6 lg:px-8">
+          <header className="no-print sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-paper/85 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8">
             <div className="lg:hidden">
               <Brand
                 compact
@@ -107,17 +135,23 @@ export function AppShell({ children }: { children: ReactNode }) {
               />
             </div>
 
-            <p className="hidden text-xs text-muted lg:block">
-              {lab.doctorName} · {lab.doctorSpecialty}
+            <p className="hidden text-sm font-medium text-ink-soft lg:block">
+              {lab.name}
             </p>
 
-            <Link
-              to="/new"
-              className="inline-flex h-10 items-center gap-2 rounded-sm bg-teal px-3 text-sm font-medium text-teal-fg transition-opacity hover:opacity-90"
-            >
-              <FilePlus2 className="size-4" />
-              تقرير جديد
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                to="/new"
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-teal px-4 text-sm font-semibold text-teal-fg shadow-[0_8px_18px_-10px_rgb(47_111_237/0.9)] transition hover:bg-teal-deep"
+              >
+                <FilePlus2 className="size-4" />
+                تقرير جديد
+              </Link>
+
+              <div className="hidden lg:block">
+                <UserButton />
+              </div>
+            </div>
           </header>
 
           <OfflineStatus />
@@ -189,7 +223,7 @@ function Brand({
       to="/"
       className="flex items-center gap-2.5"
     >
-      <span className="flex size-10 items-center justify-center rounded-xl bg-teal text-teal-fg shadow-sm">
+      <span className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal to-accent text-teal-fg shadow-[0_8px_20px_-8px_rgb(25_181_200/0.8)]">
         <Microscope className="size-5" />
       </span>
 
@@ -231,14 +265,15 @@ function NavLink({
   return (
     <Link
       to={to}
+      data-active={active}
       className={cn(
-        "flex h-11 items-center gap-3 rounded-sm px-3 text-sm transition-colors duration-150",
+        "app-nav-link flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-colors duration-150",
         active
-          ? "bg-teal font-medium text-white shadow-sm"
-          : "text-white/70 hover:bg-white/10 hover:text-white",
+          ? "bg-white/12 font-semibold text-white"
+          : "text-white/70 hover:bg-white/8 hover:text-white",
       )}
     >
-      <Icon className="size-4" />
+      <Icon className={cn("size-4", active && "text-accent")} />
 
       {label}
     </Link>

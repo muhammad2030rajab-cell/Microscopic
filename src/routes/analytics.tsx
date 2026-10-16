@@ -78,14 +78,14 @@ function AnalyticsPage() {
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="rounded-xl border border-line bg-elevated p-5 sm:p-6">
+        <section className="app-card p-5 sm:p-6">
           <h3 className="font-display text-lg font-semibold">التقارير خلال آخر 14 يوم</h3>
           <p className="mt-1 text-xs text-muted">عدد التقارير المُنشأة يوميًا في معملك.</p>
           <div className="mt-4">
             {analytics.totalReports === 0 ? <p className="py-10 text-center text-sm text-muted">لا توجد بيانات كافية بعد.</p> : <SimpleLineChart data={dailyChartData} height={200} />}
           </div>
         </section>
-        <section className="rounded-xl border border-line bg-elevated p-5 sm:p-6">
+        <section className="app-card p-5 sm:p-6">
           <h3 className="font-display text-lg font-semibold">توزيع حالات التقارير</h3>
           <p className="mt-1 text-xs text-muted">نسبة كل حالة من إجمالي تقاريرك.</p>
           <div className="mt-4 flex justify-center">
@@ -94,7 +94,7 @@ function AnalyticsPage() {
         </section>
       </div>
 
-      <section className="mt-4 rounded-xl border border-line bg-elevated p-5 sm:p-6">
+      <section className="mt-4 app-card p-5 sm:p-6">
         <h3 className="font-display text-lg font-semibold">أكثر التحاليل طلبًا</h3>
         <p className="mt-1 text-xs text-muted">التحاليل الأكثر تكرارًا في تقارير معملك.</p>
         <div className="mt-4">
@@ -107,7 +107,7 @@ function AnalyticsPage() {
 
 function StatCard({ label, value, icon, tone, isText }: { label: string; value: number | string; icon: ReactNode; tone?: "danger"; isText?: boolean }) {
   return (
-    <div className="rounded-xl border border-line bg-elevated p-4">
+    <div className="app-card p-4">
       <div className={`grid size-9 place-items-center rounded-lg ${tone === "danger" ? "bg-high/10 text-high" : "bg-teal/10 text-teal"}`}>{icon}</div>
       <p className="mt-3 text-xs text-muted">{label}</p>
       <p className={`mt-1 font-semibold tabular-nums ${isText ? "truncate text-base" : "text-2xl"}`}>{value}</p>

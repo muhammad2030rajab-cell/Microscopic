@@ -97,7 +97,7 @@ function LabSetupForm({ lab }: { lab: LabProfileData }) {
           </div>
         </section>
 
-        <form onSubmit={save} noValidate className="mt-6 rounded-2xl border border-line bg-elevated p-5 sm:p-7">
+        <form onSubmit={save} noValidate className="mt-6 app-card p-5 sm:p-7">
           <div className="mb-6 grid gap-3 sm:grid-cols-3">
             <Step icon={<Building2 className="size-4" />} title="بيانات المعمل" active />
             <Step icon={<Phone className="size-4" />} title="بيانات التواصل" active />

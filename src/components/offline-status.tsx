@@ -77,7 +77,7 @@ export function OfflineStatus() {
       ) : null}
 
       {items.length > 0 ? (
-        <div className="rounded-lg border border-line bg-elevated">
+        <div className="app-card">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}

@@ -48,7 +48,7 @@ function HelpPage() {
 
 function HelpCard({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-line bg-elevated p-5">
+    <div className="app-card p-5">
       <div className="flex items-center gap-3">
         <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-teal/10 text-teal">{icon}</div>
         <b className="text-[15px]">{title}</b>

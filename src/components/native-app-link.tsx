@@ -10,7 +10,7 @@ export function NativeAppLink() {
   useEffect(() => setNative(isNativeApp()), []);
   if (!native) return null;
   return (
-    <section className="mx-auto mt-6 w-full max-w-5xl rounded-lg border border-line bg-elevated p-4 sm:p-5">
+    <section className="mx-auto mt-6 w-full max-w-5xl app-card p-4 sm:p-5">
       <h2 className="font-display text-lg font-semibold">اتصال التطبيق</h2>
       <p className="mt-1 text-sm text-muted">لتغيير عنوان السحابة أو المركز المحلي، أو وضع الاتصال (سحابة / مركز / تلقائي).</p>
       <button

@@ -347,7 +347,7 @@ export function ReportWizard({ catalog, groups = [], editReport, labId }: { cata
   return (
     <div className="mx-auto max-w-3xl">
       <header className="mb-6">
-        <p className="text-xs uppercase tracking-[0.18em] text-muted">{editReport ? "تعديل التقرير" : "تقرير جديد"}</p>
+        <p className="text-xs font-medium text-teal">{editReport ? "تعديل التقرير" : "تقرير جديد"}</p>
         <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">{editReport ? "تعديل تقرير معملي" : "إنشاء تقرير معملي"}</h1>
       </header>
 
@@ -482,7 +482,7 @@ function PatientStep({
   }
 
   return (
-    <div className="rounded-lg border border-line bg-elevated p-5 sm:p-7">
+    <div className="app-card p-5 sm:p-7">
       <div className="mb-5 rounded-xl border border-line bg-paper p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -497,7 +497,7 @@ function PatientStep({
           </Button>
         </div>
         {patients.length > 0 ? (
-          <div className="mt-3 divide-y divide-line overflow-hidden rounded-lg border border-line bg-elevated">
+          <div className="mt-3 divide-y divide-line overflow-hidden app-card">
             {patients.map((patient) => (
               <button key={patient.id} type="button" onClick={() => usePatient(patient)} className="flex w-full items-center justify-between gap-3 px-3 py-3 text-start hover:bg-paper-2/50">
                 <span className="min-w-0"><span className="block truncate font-medium">{patient.fullName}</span><span className="text-xs text-muted">{patient.patientCode || "بدون كود"} · {patient.age || "-"} سنة · {patient.reportCount} تقرير سابق</span></span>
@@ -739,7 +739,7 @@ function TestsStep({
       )}
 
       {filteredCats.map((c) => (
-        <section key={c.id} className="rounded-lg border border-line bg-elevated p-4">
+        <section key={c.id} className="app-card p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
             <h3 className="font-medium">
               {c.nameAr}{" "}
@@ -924,7 +924,7 @@ function ResultsStep({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-line bg-elevated">
+    <div className="overflow-hidden app-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-paper px-4 py-3">
         <p className="text-sm font-medium" aria-live="polite">
           تم إدخال {filledCount} من {draft.tests.length}
@@ -1020,8 +1020,8 @@ function ReviewStep({ draft, gender, rangeFor }: { draft: Draft; gender: Gender;
         <Stat label="تحاليل" value={String(filled.length)} />
         <Stat label="غير طبيعية" value={String(abnormal)} />
       </div>
-      <InsightsPanel tests={draft.tests} gender={gender} age={ageNumberOrUndefined} rangeFor={rangeFor} className="rounded-lg border border-line bg-elevated p-4" />
-      <div className="overflow-hidden rounded-lg border border-line bg-elevated">
+      <InsightsPanel tests={draft.tests} gender={gender} age={ageNumberOrUndefined} rangeFor={rangeFor} className="app-card p-4" />
+      <div className="overflow-hidden app-card">
         <table className="w-full text-sm">
           <thead className="bg-paper-2/60 text-xs text-muted">
             <tr>

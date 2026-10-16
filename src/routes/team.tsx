@@ -178,7 +178,7 @@ function TeamPage() {
         {isOwner ? <BranchesPanel branches={branches} setBranches={setBranches} onError={setError} /> : null}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_1fr]">
-          <section className="rounded-xl border border-line bg-elevated p-5 sm:p-6">
+          <section className="app-card p-5 sm:p-6">
             <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-lg bg-teal/10 text-teal"><Users className="size-5" /></div><div><h3 className="font-display text-xl font-semibold">الفريق الحالي</h3><p className="text-sm text-muted">{staff.length} حساب داخل المعمل</p></div></div>
 
             <div className="mt-5 space-y-3">
@@ -261,7 +261,7 @@ function TeamPage() {
             </div>
           </section>
 
-          <section className="rounded-xl border border-line bg-elevated p-5 sm:p-6">
+          <section className="app-card p-5 sm:p-6">
             <div className="mb-6 flex items-center gap-3"><div className="grid size-10 place-items-center rounded-lg bg-teal/10 text-teal"><UserPlus className="size-5" /></div><div><h3 className="font-display text-xl font-semibold">إضافة مستخدم</h3><p className="text-sm text-muted">كل مستخدم له تسجيل دخول مستقل.</p></div></div>
             <form onSubmit={submit} className="space-y-5">
               <Field label="اسم الموظف" value={name} onChange={setName} placeholder="أحمد محمد" />
@@ -306,19 +306,19 @@ function PermissionEditor({ permissions, onToggle, onGroupChange, onPreset }: {
       </div>
       <PermissionGroup title="المرضى 👥" permissions={patientPermissions} values={permissions} onToggle={onToggle} onGroupChange={onGroupChange} />
       <PermissionGroup title="التقارير 🧾" permissions={reportPermissions} values={permissions} onToggle={onToggle} onGroupChange={onGroupChange} />
-      <div className="rounded-lg border border-line bg-elevated p-3">
+      <div className="app-card p-3">
         <label className="flex cursor-pointer items-start gap-3">
           <input type="checkbox" className="mt-0.5 size-4 accent-teal" checked={permissions["billing.manage"] === true} onChange={() => onToggle("billing.manage")} />
           <span><span className="block text-sm font-medium">الحسابات 💰</span><span className="mt-0.5 block text-xs text-muted">أسعار التحاليل، الفواتير، تسجيل المدفوعات، وملخص اليوم.</span></span>
         </label>
       </div>
-      <div className="rounded-lg border border-line bg-elevated p-3">
+      <div className="app-card p-3">
         <label className="flex cursor-pointer items-start gap-3">
           <input type="checkbox" className="mt-0.5 size-4 accent-teal" checked={permissions["inventory.manage"] === true} onChange={() => onToggle("inventory.manage")} />
           <span><span className="block text-sm font-medium">الأجهزة والمستلزمات 🧪</span><span className="mt-0.5 block text-xs text-muted">إضافة الأجهزة ومواعيد صيانتها، وتسجيل وارد ومنصرف المستلزمات ومتابعة النواقص والصلاحية.</span></span>
         </label>
       </div>
-      <div className="rounded-lg border border-line bg-elevated p-3">
+      <div className="app-card p-3">
         <label className="flex cursor-pointer items-start gap-3">
           <input type="checkbox" className="mt-0.5 size-4 accent-teal" checked={permissions["users.manage"] === true} onChange={() => onToggle("users.manage")} />
           <span><span className="block text-sm font-medium">إدارة مستخدمي المعمل</span><span className="mt-0.5 block text-xs text-muted">إضافة وتعديل وإيقاف مستخدمي نفس المعمل.</span></span>
@@ -334,7 +334,7 @@ function PermissionGroup({ title, permissions, values, onToggle, onGroupChange }
 }) {
   const allEnabled = permissions.every((p) => values[p] === true);
   return (
-    <div className="rounded-lg border border-line bg-elevated p-3">
+    <div className="app-card p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h5 className="text-sm font-semibold">{title}</h5>
         <button type="button" className="text-xs text-teal hover:underline" onClick={() => onGroupChange(permissions, !allEnabled)}>{allEnabled ? "إلغاء الكل" : "تحديد الكل"}</button>
@@ -426,7 +426,7 @@ function BranchesPanel({ branches, setBranches, onError }: { branches: Branch[];
   }
 
   return (
-    <section className="mt-6 rounded-xl border border-line bg-elevated p-5 sm:p-6">
+    <section className="mt-6 app-card p-5 sm:p-6">
       <div className="flex items-center gap-3">
         <div className="grid size-10 place-items-center rounded-lg bg-teal/10 text-teal"><Building2 className="size-5" /></div>
         <div>

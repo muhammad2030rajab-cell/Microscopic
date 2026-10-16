@@ -30,7 +30,7 @@ export const Route = createFileRoute("/billing")({
 
 function Stat({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone?: string }) {
   return (
-    <div className="rounded-xl border border-line bg-elevated p-4">
+    <div className="app-card p-4">
       <div className="mb-2 text-muted">{icon}</div>
       <p className={`font-display text-2xl font-semibold ${tone ?? ""}`}>{value}</p>
       <p className="mt-0.5 text-xs text-muted">{label}</p>
@@ -75,7 +75,7 @@ function TodayTab({ summary }: { summary: BillingSummary }) {
         <Stat icon={<Banknote className="size-5" />} label="المحصّل اليوم" value={formatMoney(summary.todayCollected)} tone="text-ok" />
         <Stat icon={<Wallet className="size-5" />} label="إجمالي المتبقي عند المرضى" value={formatMoney(summary.outstanding)} tone={summary.outstanding ? "text-high" : ""} />
       </div>
-      <section className="rounded-xl border border-line bg-elevated">
+      <section className="app-card">
         <h2 className="border-b border-line px-4 py-3 text-sm font-medium">فواتير عليها متبقي {summary.unpaid.length ? `(${summary.unpaid.length})` : ""}</h2>
         {summary.unpaid.length === 0 ? <p className="p-6 text-center text-sm text-muted">مفيش متأخرات. 🎉</p> : (
           <ul className="divide-y divide-line">
@@ -137,7 +137,7 @@ function PricesTab({ initial }: { initial: PriceRow[] }) {
       </div>
       {message ? <p className={`rounded-lg border px-3 py-2 text-sm ${message.ok ? "border-ok/20 bg-ok/5 text-ok" : "border-high/20 bg-high/5 text-high"}`}>{message.text}</p> : null}
       {groups.map(([cat, items]) => (
-        <section key={cat} className="rounded-xl border border-line bg-elevated">
+        <section key={cat} className="app-card">
           <h2 className="border-b border-line px-4 py-2.5 text-sm font-medium"><span dir="auto">{items[0].categoryAr} · {cat}</span></h2>
           <ul className="divide-y divide-line">
             {items.map((r) => (

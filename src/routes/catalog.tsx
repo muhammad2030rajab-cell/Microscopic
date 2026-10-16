@@ -88,7 +88,7 @@ function CatalogPage() {
   const mobileCards = (
     <ul className="mt-5 space-y-3 md:hidden">
       {results.map((item) => (
-        <li key={item.id} className="min-w-0 rounded-xl border border-line bg-elevated p-3.5">
+        <li key={item.id} className="min-w-0 app-card p-3.5">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="font-medium leading-6">{item.test_name}</p>
@@ -121,7 +121,7 @@ function CatalogPage() {
       </header>
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <TestGroupsPanel items={items} isOwner={lab.role === "owner"} />
-        <div className="rounded-2xl border border-line bg-elevated p-4 sm:p-5">
+        <div className="app-card p-4 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1"><Search className="pointer-events-none absolute top-3.5 start-3 size-4 text-muted" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث باسم التحليل أو القسم" className="ps-9" /></div>
             <div className="flex gap-2 overflow-x-auto pb-1">
@@ -133,7 +133,7 @@ function CatalogPage() {
         </div>
 
         {mobileCards}
-        <div className="mt-5 hidden overflow-x-auto rounded-xl border border-line bg-elevated md:block">
+        <div className="mt-5 hidden overflow-x-auto app-card md:block">
           <table className="w-full min-w-[850px] text-sm">
             <thead className="bg-paper-2/70 text-[11px] text-muted"><tr><th className="px-4 py-3 text-start">التحليل</th><th className="px-4 py-3 text-start">الوحدة</th><th className="px-4 py-3 text-start">ذكر</th><th className="px-4 py-3 text-start">أنثى</th><th className="px-4 py-3 text-start">الحالة</th><th className="px-4 py-3 text-start">إجراء</th></tr></thead>
             <tbody>{results.map((item) => <Fragment key={item.id}><tr className="border-t border-line align-top">

@@ -274,7 +274,7 @@ function InventoryPage() {
       ) : null}
 
       {tab === "supplies" && supplyDraft ? (
-        <section className="mb-4 space-y-3 rounded-2xl border border-line bg-elevated p-4">
+        <section className="mb-4 space-y-3 app-card p-4">
           <h2 className="text-sm font-semibold">{supplyDraft.id ? "تعديل مستلزم" : "إضافة مستلزم"}</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="الاسم">
@@ -308,7 +308,7 @@ function InventoryPage() {
       ) : null}
 
       {tab === "devices" && deviceDraft ? (
-        <section className="mb-4 space-y-3 rounded-2xl border border-line bg-elevated p-4">
+        <section className="mb-4 space-y-3 app-card p-4">
           <h2 className="text-sm font-semibold">{deviceDraft.id ? "تعديل جهاز" : "إضافة جهاز"}</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="اسم الجهاز">
@@ -364,7 +364,7 @@ function InventoryPage() {
               const unit = s.unit ? ` ${s.unit}` : "";
               const moving = moveDraft?.id === s.id ? moveDraft : null;
               return (
-                <li key={s.id} className="rounded-xl border border-line bg-elevated p-4">
+                <li key={s.id} className="app-card p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{s.name}</p>
@@ -486,7 +486,7 @@ function InventoryPage() {
             const service = serviceState(d.nextServiceDate, today);
             const warranty = warrantyState(d.warrantyUntil, today);
             return (
-              <li key={d.id} className="rounded-xl border border-line bg-elevated p-4">
+              <li key={d.id} className="app-card p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{d.name}</p>

@@ -6,15 +6,15 @@
   --font-display: "Segoe UI", "Segoe UI Variable", Tahoma, "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, Consolas, monospace;
 
-  --color-paper: #f4f6fb;
+  --color-paper: #f2f5fa;
   --color-paper-2: #e8edf5;
-  --color-ink: #0f2942;
+  --color-ink: #0b2240;
   --color-ink-soft: #3a4b5e;
   --color-muted: #6b7684;
-  --color-line: #dde3ec;
+  --color-line: #e1e7f0;
   --color-line-strong: #c1cad9;
   --color-teal: #2f6fed;
-  --color-teal-deep: #1d4fb8;
+  --color-teal-deep: #1a46a8;
   --color-teal-fg: #ffffff;
   --color-ok: #1f9d55;
   --color-ok-bg: #e5f7ec;
@@ -36,7 +36,12 @@
   --radius-lg: 18px;
   --radius-xl: 28px;
 
+  --color-ink-2: #12335c;
+  --color-accent: #19b5c8;
+
   --shadow-sheet: 0 18px 50px -28px rgb(21 36 40 / 0.35);
+  --shadow-card: 0 1px 2px rgb(11 34 64 / 0.05), 0 10px 28px -16px rgb(11 34 64 / 0.28);
+  --shadow-card-hover: 0 2px 4px rgb(11 34 64 / 0.06), 0 18px 36px -18px rgb(47 111 237 / 0.45);
 }
 
 @layer base {
@@ -1050,4 +1055,96 @@
 .nav-progress { animation: nav-progress 1s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
   .nav-progress { animation: none; width: 100%; }
+}
+
+
+/* =========================================
+   PREMIUM APP CHROME (screen only)
+   ========================================= */
+
+.app-sidebar {
+  background:
+    radial-gradient(420px 260px at 0% 0%, rgb(47 111 237 / 0.28), transparent 70%),
+    linear-gradient(180deg, var(--color-ink) 0%, #081a33 100%);
+}
+
+.app-nav-link {
+  position: relative;
+}
+
+.app-nav-link[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.55rem;
+  inset-inline-start: -1rem;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--color-accent);
+}
+
+.app-card {
+  background: var(--color-elevated);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+a.app-card,
+.app-card-hover {
+  transition:
+    box-shadow 160ms ease,
+    transform 160ms ease,
+    border-color 160ms ease;
+}
+
+a.app-card:hover,
+.app-card-hover:hover {
+  border-color: rgb(47 111 237 / 0.35);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
+}
+
+.app-hero {
+  background:
+    radial-gradient(520px 260px at 100% 0%, rgb(25 181 200 / 0.32), transparent 65%),
+    radial-gradient(480px 300px at 0% 100%, rgb(47 111 237 / 0.45), transparent 70%),
+    linear-gradient(135deg, var(--color-ink) 0%, var(--color-ink-2) 55%, var(--color-teal-deep) 100%);
+  box-shadow: 0 24px 50px -28px rgb(11 34 64 / 0.7);
+}
+
+.app-hero-art {
+  position: absolute;
+  inset-block-end: -2.5rem;
+  inset-inline-end: -1.5rem;
+  width: 11rem;
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+.app-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.app-section-title::before {
+  content: "";
+  width: 4px;
+  height: 1.05rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--color-teal), var(--color-accent));
+}
+
+@media print {
+  .app-sidebar,
+  .app-hero-art {
+    display: none !important;
+  }
+
+  .app-card {
+    box-shadow: none !important;
+    transform: none !important;
+  }
 }

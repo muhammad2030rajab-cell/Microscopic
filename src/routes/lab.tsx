@@ -12,6 +12,7 @@ import {
   BarChart3,
   Boxes,
   CheckCircle2,
+  Hourglass,
   ChevronLeft,
   CircleHelp,
   ClipboardList,
@@ -32,6 +33,7 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { UserButton, useCurrentUserState } from "@/lib/auth/gates";
 import { getCurrentAccess, getCurrentLab, getLabDashboardStats, getLabDashboardCharts, type LabDashboardCharts, type LabProfileData } from "@/lib/lab-access";
+import { FieldOfView } from "@/components/brand/field-of-view";
 import { CategoryDonut, WeeklyBars } from "@/components/charts/dashboard-charts";
 import { InventoryAlerts } from "@/components/inventory-alerts";
 import { loadLocalDashboard } from "@/lib/sync-engine/offline-fallback";
@@ -176,6 +178,13 @@ function LabDashboard() {
 
   const canView = permissions["reports.view"] === true;
 
+  const todayLabel = new Intl.DateTimeFormat("ar-EG", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "Africa/Cairo",
+  }).format(new Date());
+
   return (
     <AppShell>
       <header className="mb-4 flex items-center justify-between gap-3 lg:hidden">
@@ -193,22 +202,24 @@ function LabDashboard() {
       </header>
 
       {/* Greeting + the one thing people open the app to do */}
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-ink via-ink to-teal-deep p-5 text-paper sm:p-7">
-        <div className="relative z-10">
-          <p className="text-sm text-paper/60">مرحبًا 👋</p>
+      <section className="app-hero relative overflow-hidden rounded-3xl p-6 text-paper sm:p-8">
+        <FieldOfView className="app-hero-art" />
 
-          <h2 className="mt-1 font-display text-xl font-semibold sm:text-3xl">
-            {greetingName}
+        <div className="relative z-10">
+          <p className="text-sm text-paper/65">{todayLabel}</p>
+
+          <h2 className="mt-1.5 font-display text-2xl font-bold sm:text-3xl">
+            أهلاً، {greetingName}
           </h2>
 
-          <p className="mt-2 hidden max-w-sm text-sm leading-7 text-paper/65 sm:block">
+          <p className="mt-2 hidden max-w-sm text-sm leading-7 text-paper/70 sm:block">
             دقة في التحليل .. ثقة في النتيجة
           </p>
 
           {permissions["reports.create"] ? (
             <Link
               to="/new"
-              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-paper text-base font-semibold text-ink transition active:scale-[0.99] sm:w-auto sm:px-7"
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-paper text-base font-bold text-ink shadow-[0_14px_28px_-14px_rgb(0_0_0/0.6)] transition hover:bg-white active:scale-[0.99] sm:w-auto sm:px-8"
             >
               <FilePlus2 className="size-5" />
               تقرير جديد
@@ -259,12 +270,22 @@ function LabDashboard() {
 
         <StatLink
           to="/reports"
+          preset={{ status: "pending_review" }}
+          disabled={!canView}
+          label="بانتظار المراجعة"
+          value={stats.pendingReview}
+          icon={<Hourglass className="size-5" />}
+          iconClass="bg-low-bg text-low"
+        />
+
+        <StatLink
+          to="/reports"
           preset={{ status: "all" }}
           disabled={!canView}
           label="إجمالي التقارير"
           value={stats.approved}
           icon={<CheckCircle2 className="size-5" />}
-          iconClass="bg-sky-100 text-sky-600"
+          iconClass="bg-accent/10 text-accent"
         />
       </section>
 
@@ -281,14 +302,14 @@ function LabDashboard() {
 
       {charts && canView ? (
         <section aria-label="إحصائيات" className="mt-4 grid gap-3 lg:grid-cols-5">
-          <div className="rounded-2xl border border-line bg-elevated p-4 lg:col-span-3">
-            <h2 className="mb-3 text-sm font-semibold">إحصائيات التحاليل</h2>
+          <div className="app-card p-5 lg:col-span-3">
+            <h2 className="app-section-title mb-3">إحصائيات التحاليل</h2>
             <p className="-mt-2 mb-3 text-[11px] text-muted">عدد التقارير في آخر 7 أيام</p>
             <WeeklyBars data={charts.daily} />
           </div>
 
-          <div className="rounded-2xl border border-line bg-elevated p-4 lg:col-span-2">
-            <h2 className="mb-3 text-sm font-semibold">أنواع التحاليل</h2>
+          <div className="app-card p-5 lg:col-span-2">
+            <h2 className="app-section-title mb-3">أنواع التحاليل</h2>
             {charts.categories.length === 0 ? (
               <p className="py-8 text-center text-xs text-muted">لا توجد بيانات كافية بعد.</p>
             ) : (
@@ -302,7 +323,7 @@ function LabDashboard() {
       {canView ? (
         <section className="mt-5">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">أحدث الحالات</h2>
+            <h2 className="app-section-title">أحدث الحالات</h2>
             <Link
               to="/reports"
               onClick={() => presetReportFilters({})}
@@ -318,13 +339,13 @@ function LabDashboard() {
               لا توجد تقارير بعد. ابدأ بإنشاء أول تقرير.
             </p>
           ) : (
-            <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-elevated">
+            <ul className="app-card divide-y divide-line overflow-hidden">
               {recent.map((r) => (
                 <li key={r.id}>
                   <Link
                     to="/reports/$id"
                     params={{ id: r.id }}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-paper-2/50"
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-paper"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{r.patientName}</p>
@@ -402,19 +423,20 @@ function StatLink({
 }) {
   const body = (
     <div className="flex items-center gap-3">
-      <span className={cn("grid size-11 shrink-0 place-items-center rounded-xl", iconClass ?? "bg-teal/10 text-teal")}>
+      <span className={cn("grid size-12 shrink-0 place-items-center rounded-2xl", iconClass ?? "bg-teal/10 text-teal")}>
         {icon}
       </span>
       <span className="min-w-0">
-        <span className="block font-display text-2xl font-bold leading-none tabular-nums">{value}</span>
+        <span className="block font-display text-3xl font-bold leading-none tabular-nums">{value}</span>
         <span className="mt-1 block truncate text-xs text-muted">{label}</span>
       </span>
     </div>
   );
 
   const box = cn(
-    "block rounded-2xl border bg-elevated p-3.5 shadow-[0_6px_20px_-14px_rgb(15_41_66/0.35)]",
-    tone === "danger" ? "border-high/40 bg-high-bg/40" : tone === "warn" ? "border-amber-300" : "border-line",
+    "app-card block p-4",
+    tone === "danger" && "border-high/40 bg-high-bg/40",
+    tone === "warn" && "border-amber-300",
     className,
   );
 
@@ -424,7 +446,7 @@ function StatLink({
     <Link
       to={to}
       onClick={preset ? () => presetReportFilters(preset) : undefined}
-      className={cn(box, "transition active:scale-[0.99] hover:shadow-md")}
+      className={cn(box, "active:scale-[0.99]")}
     >
       {body}
     </Link>
@@ -446,7 +468,7 @@ function Shortcut({
     <Link
       to={to}
       onClick={onClick}
-      className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-elevated p-2 text-center text-xs font-medium text-ink-soft transition hover:shadow-sm active:scale-[0.98] [&_svg]:size-5 [&_svg]:text-teal"
+      className="app-card flex min-h-20 flex-col items-center justify-center gap-1.5 p-2 text-center text-xs font-semibold text-ink-soft active:scale-[0.98] [&_svg]:size-5 [&_svg]:text-teal"
     >
       {icon}
       {label}

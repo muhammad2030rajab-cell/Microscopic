@@ -130,7 +130,7 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
       ) : null}
       <header className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-muted">الأرشيف</p>
+          <p className="text-xs font-medium text-teal">الأرشيف</p>
           <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">التقارير</h1>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
@@ -197,7 +197,7 @@ function ReportsList({ initialReports, canDelete, isOwner, offline }: { initialR
           لا توجد تقارير مطابقة.
         </p>
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-elevated">
+        <ul className="divide-y divide-line overflow-hidden app-card">
           {filtered.map((r) => {
             const bad = r.flaggedCount;
             const critical = r.criticalCount;

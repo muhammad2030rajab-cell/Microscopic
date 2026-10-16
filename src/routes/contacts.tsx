@@ -176,7 +176,7 @@ function ContactsPage() {
       ) : null}
 
       {draft ? (
-        <section className="mb-4 space-y-3 rounded-2xl border border-line bg-elevated p-4">
+        <section className="mb-4 space-y-3 app-card p-4">
           <h2 className="text-sm font-semibold">{draft.id ? `تعديل ${singular}` : `إضافة ${singular}`}</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <Input aria-label="الاسم" placeholder={kind === "doctor" ? "اسم الطبيب" : "اسم العميل (عيادة، مركز، شركة)"} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
@@ -196,7 +196,7 @@ function ContactsPage() {
           {q ? "مفيش نتائج للبحث." : `لسه مضفتش ${KIND_LABEL[kind]}.`}
         </p>
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-elevated">
+        <ul className="divide-y divide-line overflow-hidden app-card">
           {shown.map((c) => {
             const wa = toWhatsAppNumber(c.phone);
             return (

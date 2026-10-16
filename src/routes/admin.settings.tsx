@@ -129,7 +129,7 @@ function SettingsForm({ initial }: { initial: PlatformSettingsAdminView }) {
   }
 
   return (
-    <form onSubmit={save} className="mt-6 space-y-6 rounded-2xl border border-line bg-elevated p-5 sm:p-7">
+    <form onSubmit={save} className="mt-6 space-y-6 app-card p-5 sm:p-7">
       <div>
         <div className="flex items-center gap-2 text-sm font-medium">
           <MessageCircle className="size-4 text-teal" /> رقم الدعم على واتساب
@@ -219,7 +219,7 @@ function SettingsForm({ initial }: { initial: PlatformSettingsAdminView }) {
 
 function InfoCard({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return (
-    <div className="rounded-xl border border-line bg-elevated p-5">
+    <div className="app-card p-5">
       <div className="grid size-10 place-items-center rounded-lg bg-teal/10 text-teal">{icon}</div>
       <h3 className="mt-4 font-semibold">{title}</h3>
       <p className="mt-1 text-sm text-muted">{text}</p>
@@ -236,7 +236,7 @@ function formatDate(iso: string | null) {
 function StatsSection({ overview }: { overview: LabsOverview }) {
   const { totals, labs } = overview;
   return (
-    <section className="mt-6 rounded-2xl border border-line bg-elevated p-5 sm:p-7">
+    <section className="mt-6 app-card p-5 sm:p-7">
       <div className="flex items-center gap-2 text-sm font-medium">
         <Building2 className="size-4 text-teal" /> إحصائيات المعامل
       </div>
@@ -306,7 +306,7 @@ function FeaturesSection({ overview }: { overview: LabsOverview }) {
   }
 
   return (
-    <section className="mt-6 rounded-2xl border border-line bg-elevated p-5 sm:p-7">
+    <section className="mt-6 app-card p-5 sm:p-7">
       <div className="flex items-center gap-2 text-sm font-medium">
         <ToggleRight className="size-4 text-teal" /> ميزات المنصة لكل معمل
       </div>

@@ -8,6 +8,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BackupPanel } from "@/components/backup-panel";
 import { NativeAppLink } from "@/components/native-app-link";
+import { IS_HUB_BUILD } from "@/lib/hub-build";
 import { ReportDesignEditor } from "@/components/report/report-design-editor";
 import { getCurrentLab, updateCurrentLabProfile, type LabProfileData } from "@/lib/lab-access";
 
@@ -86,14 +87,14 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
   return (
     <AppShell>
       <header className="mb-6">
-        <p className="text-xs uppercase tracking-[0.18em] text-muted">المختبر</p>
+        <p className="text-xs font-medium text-teal">المختبر</p>
         <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">بيانات المعمل</h1>
         <p className="mt-2 max-w-xl text-sm text-ink-soft">
           البيانات دي محفوظة للمعمل نفسه وبتظهر في التقارير المطبوعة.
         </p>
       </header>
 
-      <form onSubmit={save} className="mx-auto max-w-2xl space-y-4 rounded-lg border border-line bg-elevated p-5 sm:p-7">
+      <form onSubmit={save} className="mx-auto max-w-2xl space-y-4 app-card p-5 sm:p-7">
         <div className="flex items-center gap-4">
           <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-paper text-muted">
             {logoUrl ? <img src={logoUrl} alt="شعار المعمل" className="size-full object-cover" /> : "🔬"}
@@ -147,8 +148,8 @@ function SettingsForm({ lab }: { lab: LabProfileData }) {
         onReportLanguageChange={(language) => setReportLanguage(language)}
       />
       <BackupPanel />
-      <NativeAppLink />
-      <InstallBanner />
+      {IS_HUB_BUILD ? null : <NativeAppLink />}
+      {IS_HUB_BUILD ? null : <InstallBanner />}
     </AppShell>
   );
 }

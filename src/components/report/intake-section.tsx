@@ -34,7 +34,7 @@ export function IntakeSection({ intake, onChange, gender }: { intake: Intake; on
   const flags = CLINICAL_FLAGS.filter((f) => f.key !== "pregnant" || gender !== "ذكر");
 
   return (
-    <details className="group rounded-lg border border-line bg-elevated sm:col-span-2" open={filled > 0}>
+    <details className="group app-card sm:col-span-2" open={filled > 0}>
       <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 px-4 text-sm font-medium">
         <span>بيانات العينة والحالة <span className="text-xs font-normal text-muted">(اختياري)</span></span>
         {filled > 0 ? <span className="rounded-full bg-teal/10 px-2 py-0.5 text-xs text-teal">{filled}</span> : null}

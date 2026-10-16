@@ -21,6 +21,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "hub:build": "node scripts/hub-build.mjs",
+    "check:offline": "node scripts/check-offline.mjs",
     "hub:start": "node scripts/hub-start.mjs"
   },
   "dependencies": {

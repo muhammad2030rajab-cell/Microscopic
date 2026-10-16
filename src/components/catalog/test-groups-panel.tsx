@@ -97,7 +97,7 @@ export function TestGroupsPanel({ items, isOwner }: { items: LabCatalogRow[]; is
   }
 
   return (
-    <section className="mb-5 rounded-2xl border border-line bg-elevated p-4 sm:p-5">
+    <section className="mb-5 app-card p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-base font-semibold">مجموعات التحاليل</h2>

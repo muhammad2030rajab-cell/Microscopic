@@ -64,7 +64,7 @@ function NewReportPage() {
   if (unavailableOffline) {
     return (
       <AppShell>
-        <div className="mx-auto max-w-md rounded-lg border border-line bg-elevated p-5 text-sm leading-7">
+        <div className="mx-auto max-w-md app-card p-5 text-sm leading-7">
           <h1 className="mb-2 font-display text-lg font-semibold">لا يوجد اتصال</h1>
           <p className="text-ink-soft">
             علشان تشتغل بدون إنترنت لازم تفتح صفحة "تقرير جديد" مرة واحدة وأنت متصل. بعدها تفتح وحدها حتى بدون شبكة.

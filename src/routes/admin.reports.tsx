@@ -94,14 +94,14 @@ function AdminReports() {
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-          <section className="rounded-xl border border-line bg-elevated p-5 sm:p-6">
+          <section className="app-card p-5 sm:p-6">
             <h3 className="font-display text-lg font-semibold">التقارير خلال آخر 14 يوم</h3>
             <p className="mt-1 text-xs text-muted">عدد التقارير المُنشأة يوميًا عبر كل المعامل.</p>
             <div className="mt-4">
               {t.total === 0 ? <p className="py-10 text-center text-sm text-muted">لا توجد بيانات كافية بعد.</p> : <SimpleLineChart data={dailyChartData} height={200} />}
             </div>
           </section>
-          <section className="rounded-xl border border-line bg-elevated p-5 sm:p-6">
+          <section className="app-card p-5 sm:p-6">
             <h3 className="font-display text-lg font-semibold">توزيع حالات التقارير</h3>
             <p className="mt-1 text-xs text-muted">نسبة كل حالة من إجمالي التقارير.</p>
             <div className="mt-4 flex justify-center">
@@ -110,7 +110,7 @@ function AdminReports() {
           </section>
         </div>
 
-        <section className="mt-6 overflow-hidden rounded-xl border border-line bg-elevated">
+        <section className="mt-6 overflow-hidden app-card">
           <div className="border-b border-line p-5"><h3 className="font-display text-xl font-semibold">التقارير حسب المعمل</h3></div>
           {stats.labs.length > 0 ? (
             <div className="border-b border-line p-5">
@@ -133,5 +133,5 @@ function AdminReports() {
 }
 
 function Stat({ title, value, icon }: { title: string; value: number; icon: ReactNode }) {
-  return <div className="rounded-xl border border-line bg-elevated p-4"><div className="grid size-9 place-items-center rounded-lg bg-teal/10 text-teal">{icon}</div><p className="mt-3 text-xs text-muted">{title}</p><p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p></div>;
+  return <div className="app-card p-4"><div className="grid size-9 place-items-center rounded-lg bg-teal/10 text-teal">{icon}</div><p className="mt-3 text-xs text-muted">{title}</p><p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p></div>;
 }

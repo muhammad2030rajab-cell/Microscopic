@@ -128,7 +128,7 @@ function AdminDashboard() {
               <h3 className="font-display text-lg font-semibold">آخر المعامل المضافة</h3>
               <Link to="/admin/labs" className="text-sm text-teal hover:underline">عرض الكل</Link>
             </div>
-            <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-elevated">
+            <ul className="divide-y divide-line overflow-hidden app-card">
               {overview.recentLabs.map((lab) => (
                 <li key={lab.id}>
                   <Link to="/admin/labs" className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-paper-2/60">
@@ -174,7 +174,7 @@ function NavCard({ to, icon, title, description }: { to: "/admin/labs" | "/admin
   return (
     <Link
       to={to}
-      className="flex items-center gap-3 rounded-lg border border-line bg-elevated p-3.5 transition-colors hover:border-teal/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4"
+      className="flex items-center gap-3 app-card p-3.5 transition-colors hover:border-teal/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4"
     >
       <span className="grid size-10 shrink-0 place-items-center rounded-md bg-teal/10 text-teal [&_svg]:size-5">{icon}</span>
       <span className="min-w-0">

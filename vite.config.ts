@@ -23,6 +23,8 @@ function pgliteBootstrapPlugin(): Plugin {
   };
 }
 export default defineConfig({
+  // true only when building the lab's own offline program (scripts/hub-build.mjs sets HUB_BUILD).
+  define: { __HUB_BUILD__: JSON.stringify(Boolean(process.env.HUB_BUILD)) },
   server: { host: "0.0.0.0", port: 8080, strictPort: true },
   preview: { host: "127.0.0.1", port: 8081, strictPort: true },
   resolve: { tsconfigPaths: true },

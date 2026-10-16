@@ -81,7 +81,7 @@ export function LabInvitesPanel({ onError }: { onError: (message: string | null)
   const whatsapp = code ? `https://wa.me/?text=${encodeURIComponent(`أنشئ معملك على المنصة:\n${link}\nكود الدعوة: ${code}`)}` : "";
 
   return (
-    <section className="mt-6 rounded-xl border border-line bg-elevated p-5 sm:p-6">
+    <section className="mt-6 app-card p-5 sm:p-6">
       <div className="flex items-start gap-3">
         <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-teal/10 text-teal"><KeyRound className="size-5" /></div>
         <div>

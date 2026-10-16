@@ -18,7 +18,7 @@ function VerifyPage() {
   const result = Route.useLoaderData();
   return (
     <main dir="rtl" className="flex min-h-screen items-center justify-center bg-paper px-4 py-10">
-      <div className="w-full max-w-sm rounded-2xl border border-line bg-elevated p-6 text-center shadow-sm sm:p-8">
+      <div className="w-full max-w-sm app-card p-6 text-center shadow-sm sm:p-8">
         {result.valid ? (
           <>
             <div className="mx-auto grid size-16 place-items-center rounded-full bg-ok/10 text-ok"><BadgeCheck className="size-9" /></div>

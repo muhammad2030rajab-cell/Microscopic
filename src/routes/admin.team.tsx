@@ -130,7 +130,7 @@ function AdminTeamPage() {
         {error ? <div className="mt-5 rounded-xl border border-high/20 bg-high/5 p-4 text-sm text-high">{error}</div> : null}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_1fr]">
-          <section className="rounded-xl border border-line bg-elevated p-5 sm:p-6">
+          <section className="app-card p-5 sm:p-6">
             <h3 className="font-display text-xl font-semibold">المديرون الحاليون</h3>
             <div className="mt-4 space-y-3">
               {admins.map((admin) => {
@@ -172,7 +172,7 @@ function AdminTeamPage() {
             </div>
           </section>
 
-          <section className="rounded-xl border border-line bg-elevated p-5 sm:p-6">
+          <section className="app-card p-5 sm:p-6">
             <div className="mb-6 flex items-center gap-3"><div className="grid size-10 place-items-center rounded-lg bg-teal/10 text-teal"><UserPlus className="size-5" /></div><div><h3 className="font-display text-xl font-semibold">إضافة مدير</h3><p className="text-sm text-muted">حساب دخول مستقل ببريده وكلمة مروره.</p></div></div>
             <form onSubmit={submit} className="space-y-4">
               <div className="space-y-1.5"><Label>الاسم</Label><Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="سارة أحمد" /></div>

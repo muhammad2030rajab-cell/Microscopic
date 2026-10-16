@@ -71,7 +71,7 @@ function AuditPage() {
         ))}
       </div>
       {error ? <p className="mb-3 rounded-lg border border-high/20 bg-high/5 px-3 py-2 text-sm text-high">{error}</p> : null}
-      <section className="rounded-xl border border-line bg-elevated">
+      <section className="app-card">
         {events.length === 0 ? <p className="p-6 text-center text-sm text-muted">مفيش عمليات مسجّلة هنا.</p> : (
           <ul className="divide-y divide-line">
             {events.map((e) => (

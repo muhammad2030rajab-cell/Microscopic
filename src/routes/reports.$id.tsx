@@ -17,6 +17,7 @@ import { buildReportPdf, downloadReportPdf } from "@/lib/generate-report-pdf";
 import { formatSlashDate, visitIdFrom } from "@/lib/utils";
 import { listReportAttachments, type ReportAttachment } from "@/lib/attachments";
 import { AttachmentsPanel } from "@/components/report/attachments-panel";
+import { IS_HUB_BUILD } from "@/lib/hub-build";
 import { getReportDesignAssets } from "@/lib/report-design-settings";
 import { normalizeDesign, normalizeAsset, isReportTemplate, REPORT_TEMPLATES, type ReportDesignAssets, type ReportTemplate } from "@/lib/report-design";
 import { ShareDialog, type ShareChannel } from "@/components/report/share-dialog";
@@ -187,7 +188,7 @@ function ReportDetail() {
           {offline ? <p role="status" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">أنت غير متصل. دي نسخة محفوظة على جهازك للعرض والطباعة فقط، ومفيش تعديل إلا لما الاتصال يرجع.</p> : null}
           <Link to="/reports" className="mb-3 inline-flex h-11 items-center gap-2 text-sm text-ink-soft"><ArrowRight className="size-4" />الأرشيف</Link>
 
-          <section className="mb-4 rounded-lg border border-line bg-elevated p-4">
+          <section className="mb-4 app-card p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <h1 className="font-display text-xl font-semibold leading-tight">{report.patientName}</h1>
@@ -205,7 +206,7 @@ function ReportDetail() {
 
           {error ? <div role="alert" className="mb-4 rounded-lg border border-high/20 bg-high/5 p-4 text-sm text-high">{error}</div> : null}
 
-          <section className="mb-4 rounded-lg border border-line bg-elevated p-3">
+          <section className="mb-4 app-card p-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm text-ink-soft" id="report-lang-label">لغة التقرير (للطباعة وPDF)</span>
               <div role="radiogroup" aria-labelledby="report-lang-label" className="inline-flex overflow-hidden rounded-md border border-line">
@@ -245,7 +246,8 @@ function ReportDetail() {
             <p className="mt-2.5 px-1 text-xs leading-5 text-muted">واتساب بيفتح محادثة المريض على رقمه المسجّل، ومعاه رابط تحقق (أو ملخص نصي بعد تأكيدك). لإرسال التقرير بشكله الكامل كملف استخدم "مشاركة PDF" واختار واتساب من القائمة.</p>
           </section>
 
-          <AttachmentsPanel reportId={report.id} canEdit={permissions["reports.edit"] === true} initial={attachments} />
+          {/* The sold offline program has no report attachments. */}
+          {IS_HUB_BUILD ? null : <AttachmentsPanel reportId={report.id} canEdit={permissions["reports.edit"] === true} initial={attachments} />}
 
           {previous ? (() => {
             const gap = daysBetween(previous.reportDate, report.createdAt);
@@ -280,9 +282,9 @@ function ReportDetail() {
           </section>;
           })() : null}
 
-          <InsightsPanel tests={report.tests} gender={report.gender} age={insightAge} previous={previous} reportDate={report.createdAt} className="mb-4 rounded-lg border border-line bg-elevated p-4" />
+          <InsightsPanel tests={report.tests} gender={report.gender} age={insightAge} previous={previous} reportDate={report.createdAt} className="mb-4 app-card p-4" />
 
-          {notes.length > 0 ? <details className="group mb-5 rounded-lg border border-line bg-elevated">
+          {notes.length > 0 ? <details className="group mb-5 app-card">
             <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium">
               <span>ملخص طبي <span className="ms-1 rounded-full bg-paper-2 px-2 py-0.5 text-xs text-ink-soft">{notes.length}</span></span>
               <ChevronDown className="size-4 text-muted transition-transform group-open:rotate-180" />
@@ -292,7 +294,7 @@ function ReportDetail() {
 
           <InvoiceCard reportId={report.id} />
 
-          {intakeInfo ? <section className="mb-5 rounded-lg border border-line bg-elevated p-4 text-sm">
+          {intakeInfo ? <section className="mb-5 app-card p-4 text-sm">
             <p className="mb-2 text-xs font-medium text-ink-soft">بيانات الحالة <span className="text-muted">(للموظفين، مش بتتطبع)</span></p>
             <div className="flex flex-wrap gap-2">
               {intakeInfo.map((label) => <span key={label} className="rounded-full bg-paper-2 px-3 py-1 text-xs text-ink-soft">{label}</span>)}
@@ -354,7 +356,7 @@ function ShareAction({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-line bg-elevated p-2 text-center transition hover:bg-paper disabled:pointer-events-none disabled:opacity-60"
+      className="flex min-h-16 flex-col items-center justify-center gap-1.5 app-card p-2 text-center transition hover:bg-paper disabled:pointer-events-none disabled:opacity-60"
     >
       <span className={`grid size-9 place-items-center rounded-full ${color}`}>{icon}</span>
       <span className="text-xs font-medium">{label}</span>

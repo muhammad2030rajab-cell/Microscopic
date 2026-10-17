@@ -129,130 +129,131 @@ export type CreatePatientInput = {
   notes?: string;
 };
 
+/**
+ * The one place a patient is created: the online form calls it through `createPatient`, and the sync push
+ * calls it for a patient a device added offline (`clientRequestId` = the device's change id, so a retry
+ * finds the row that already landed instead of creating a second one).
+ */
+export async function createPatientForUser(userId: string, data: CreatePatientInput, clientRequestId?: string) {
+  const { sql, labId } = await currentLab(userId, "patients.create");
+
+  const fullName = data.fullName.trim();
+  const age = Number(data.age);
+  const ageUnit = parseAgeUnit(data.ageUnit);
+
+  if (fullName.length < 2) {
+    throw new Error("اسم المريض غير صالح");
+  }
+
+  const ageIssue = ageProblem(age, ageUnit);
+  if (ageIssue) {
+    throw new Error(ageIssue);
+  }
+
+  if (data.gender !== "ذكر" && data.gender !== "أنثى") {
+    throw new Error("النوع غير صالح");
+  }
+
+  if (!isValidPhone(data.phone)) {
+    throw new Error("رقم هاتف المريض مطلوب (10 أرقام على الأقل)");
+  }
+
+  const patientCode =
+    data.patientCode?.trim().toUpperCase() || null;
+
+  if (patientCode) {
+    const duplicate = await sql<{ id: string }>`
+      select id
+      from patients
+      where lab_id = ${labId}
+        and patient_code = ${patientCode}
+      limit 1
+    `;
+
+    if (duplicate.length) {
+      throw new Error(
+        "كود المريض مستخدم بالفعل في هذا المعمل",
+      );
+    }
+  }
+
+  const id = crypto.randomUUID();
+
+  await sql.query(
+    `insert into patients
+    (
+      id,
+      lab_id,
+      patient_code,
+      full_name,
+      age,
+      age_unit,
+      gender,
+      phone,
+      national_id,
+      notes,
+      client_request_id
+    )
+    values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    [
+      id,
+      labId,
+      patientCode,
+      fullName,
+      age,
+      ageUnit,
+      data.gender,
+      phoneDigits(data.phone),
+      data.nationalId?.trim() || null,
+      data.notes?.trim() || null,
+      clientRequestId || null,
+    ],
+  );
+
+  const actor = await sql<{ id: string }>`
+    select id
+    from lab_users
+    where auth_user_id = ${userId}
+      and lab_id = ${labId}
+    limit 1
+  `;
+
+  await sql.query(
+    `insert into audit_logs
+    (
+      id,
+      lab_id,
+      actor_user_id,
+      actor_auth_user_id,
+      action,
+      entity_type,
+      entity_id
+    )
+    values ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      crypto.randomUUID(),
+      labId,
+      actor[0]?.id || null,
+      userId,
+      "patient.created",
+      "patient",
+      id,
+    ],
+  );
+
+  return {
+    id,
+    patientCode: patientCode || "",
+    fullName,
+    age,
+    ageUnit,
+    gender: data.gender,
+  };
+}
+
 export const createPatient = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .handler(
-    async ({
-      context,
-      data,
-    }: {
-      context: { userId: string };
-      data: CreatePatientInput;
-    }) => {
-      const { sql, labId } = await currentLab(context.userId, "patients.create");
-
-      const fullName = data.fullName.trim();
-      const age = Number(data.age);
-      const ageUnit = parseAgeUnit(data.ageUnit);
-
-      if (fullName.length < 2) {
-        throw new Error("اسم المريض غير صالح");
-      }
-
-      const ageIssue = ageProblem(age, ageUnit);
-      if (ageIssue) {
-        throw new Error(ageIssue);
-      }
-
-      if (data.gender !== "ذكر" && data.gender !== "أنثى") {
-        throw new Error("النوع غير صالح");
-      }
-
-      if (!isValidPhone(data.phone)) {
-        throw new Error("رقم هاتف المريض مطلوب (10 أرقام على الأقل)");
-      }
-
-      const patientCode =
-        data.patientCode?.trim().toUpperCase() || null;
-
-      if (patientCode) {
-        const duplicate = await sql<{ id: string }>`
-          select id
-          from patients
-          where lab_id = ${labId}
-            and patient_code = ${patientCode}
-          limit 1
-        `;
-
-        if (duplicate.length) {
-          throw new Error(
-            "كود المريض مستخدم بالفعل في هذا المعمل",
-          );
-        }
-      }
-
-      const id = crypto.randomUUID();
-
-      await sql.query(
-        `insert into patients
-        (
-          id,
-          lab_id,
-          patient_code,
-          full_name,
-          age,
-          age_unit,
-          gender,
-          phone,
-          national_id,
-          notes
-        )
-        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-        [
-          id,
-          labId,
-          patientCode,
-          fullName,
-          age,
-          ageUnit,
-          data.gender,
-          phoneDigits(data.phone),
-          data.nationalId?.trim() || null,
-          data.notes?.trim() || null,
-        ],
-      );
-
-      const actor = await sql<{ id: string }>`
-        select id
-        from lab_users
-        where auth_user_id = ${context.userId}
-          and lab_id = ${labId}
-        limit 1
-      `;
-
-      await sql.query(
-        `insert into audit_logs
-        (
-          id,
-          lab_id,
-          actor_user_id,
-          actor_auth_user_id,
-          action,
-          entity_type,
-          entity_id
-        )
-        values ($1,$2,$3,$4,$5,$6,$7)`,
-        [
-          crypto.randomUUID(),
-          labId,
-          actor[0]?.id || null,
-          context.userId,
-          "patient.created",
-          "patient",
-          id,
-        ],
-      );
-
-      return {
-        id,
-        patientCode: patientCode || "",
-        fullName,
-        age,
-        ageUnit,
-        gender: data.gender,
-      };
-    },
-  );
+  .handler(async ({ context, data }: { context: { userId: string }; data: CreatePatientInput }) => createPatientForUser(context.userId, data));
 
 export const getPatientReports = createServerFn({ method: "GET" })
   .middleware([authMiddleware])

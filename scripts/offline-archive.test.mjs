@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 
 // UMD file for the offline page; under this package's "type": "module" it registers on globalThis.
 await import("../public/offline-archive.js");
@@ -9,8 +10,8 @@ const DAY = 86400000;
 test("freshness: recent copy shows, old / missing / future timestamps do not", () => {
   const now = 1_000_000_000_000;
   assert.equal(A.isFresh(now - 1 * DAY, now), true);
-  assert.equal(A.isFresh(now - 14 * DAY, now), true);
-  assert.equal(A.isFresh(now - 14 * DAY - 1, now), false);
+  assert.equal(A.isFresh(now - A.MAX_OFFLINE_DAYS * DAY, now), true);
+  assert.equal(A.isFresh(now - A.MAX_OFFLINE_DAYS * DAY - 1, now), false);
   assert.equal(A.isFresh(undefined, now), false);
   assert.equal(A.isFresh(0, now), false);
   assert.equal(A.isFresh(NaN, now), false);
@@ -59,4 +60,10 @@ test("list: newest first, own lab only, orphan reports skipped", () => {
   assert.deepEqual(out.map((r) => r.id), ["b", "a"]);
   assert.equal(out[0].doctor, "Himself");
   assert.equal(out[1].age, "25 سنة");
+});
+
+test("the offline page and the app use the same offline window", () => {
+  const shared = readFileSync(new URL("../src/lib/sync-shared.ts", import.meta.url), "utf8");
+  const days = Number(/export const MAX_OFFLINE_DAYS = (\d+);/.exec(shared)?.[1]);
+  assert.equal(A.MAX_OFFLINE_DAYS, days);
 });

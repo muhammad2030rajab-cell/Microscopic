@@ -144,6 +144,15 @@ const database = databaseUrl
 const cookiePrefix = isHubMode ? "app-auth" : "__Host-app-auth";
 export const SESSION_TOKEN_COOKIE = `${cookiePrefix}.session_token`;
 
+/**
+ * How long a device stays signed in. Internet is needed to sign in the FIRST time on a device; after that the
+ * session keeps working offline and renews itself (every day or so) whenever the device is online, so a lab
+ * only has to sign in again after this many days with no connection at all (or after signing out).
+ * Keep in step with MAX_OFFLINE_DAYS in src/lib/sync-shared.ts: that is how long the device copy of the
+ * data is shown offline. Override with the SESSION_DAYS environment variable (1 to 365).
+ */
+const SESSION_DAYS = Math.min(365, Math.max(1, Math.floor(Number(env("SESSION_DAYS"))) || 60));
+
 export const auth = betterAuth({
   baseURL,
 
@@ -161,6 +170,8 @@ export const auth = betterAuth({
   // (incl. the client's `/get-session`) skip the DB — this shrinks the
   // "loading" window and reduces auth flicker. Gate on `isPending`; SSR the session.
   session: {
+    expiresIn: SESSION_DAYS * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
     cookieCache: {
       enabled: true,
       maxAge: 300,

@@ -19,6 +19,9 @@ import { AGE_UNITS, formatAge, parseAgeUnit, type AgeUnit } from "@/lib/age";
 import { normalizeNumerals } from "@/lib/numerals";
 import { loadLocalPatientReports, loadLocalPatientSearch } from "@/lib/sync-engine/offline-fallback";
 import { requestAllOfflinePages } from "@/lib/offline/sync";
+import { getKnownLabId } from "@/lib/offline/bootstrap-cache";
+import { isNetworkError } from "@/lib/offline/network-error";
+import { queuePatientCreate } from "@/lib/sync-engine/outbox-actions";
 import { useOnline } from "@/lib/offline/use-offline";
 
 export const Route = createFileRoute("/patients")({
@@ -119,13 +122,13 @@ function PatientsPage() {
 
           {!online || fromDevice ? (
             <p className="mt-2 text-xs text-ink-soft">
-              شغّال بدون إنترنت: البحث بيتم من النسخة المحفوظة على الجهاز، وإضافة مريض جديد محتاجة اتصال.
+              شغّال بدون إنترنت: البحث بيتم من النسخة المحفوظة على الجهاز. تقدر تضيف مريض جديد، وهيتبعت للخادم أول ما النت يرجع.
             </p>
           ) : null}
         </div>
 
         {canCreate ? (
-          <Button onClick={() => setShowForm(true)} disabled={!online} title={online ? undefined : "إضافة مريض محتاجة اتصال بالإنترنت"}>
+          <Button onClick={() => setShowForm(true)}>
             <Plus className="size-4" />
             مريض جديد
           </Button>
@@ -308,11 +311,11 @@ function PatientsPage() {
       {showForm ? (
         <NewPatientModal
           onClose={() => setShowForm(false)}
-          onCreated={(patient) => {
+          onCreated={(patient, savedOffline) => {
             setShowForm(false);
             setPatients((current) => [patient, ...current]);
             void selectPatient(patient);
-            toast.success("تم إنشاء ملف المريض");
+            toast.success(savedOffline ? "اتحفظ المريض على الجهاز وهيتبعت للخادم لما النت يرجع" : "تم إنشاء ملف المريض");
           }}
         />
       ) : null}
@@ -354,7 +357,8 @@ function NewPatientModal({
   onCreated,
 }: {
   onClose: () => void;
-  onCreated: (patient: PatientSummary) => void;
+  /** `savedOffline` = kept on this device and queued; the server has not seen it yet. */
+  onCreated: (patient: PatientSummary, savedOffline: boolean) => void;
 }) {
   const [form, setForm] = useState({
     fullName: "",
@@ -388,31 +392,57 @@ function NewPatientModal({
 
     setSaving(true);
 
-    try {
-      const patient = await createPatient({
-        data: {
-          ...form,
-          age: Number(form.age),
-          ageUnit: form.ageUnit,
-        },
-      });
+    const input = {
+      ...form,
+      age: Number(form.age),
+      ageUnit: form.ageUnit,
+    };
 
-      onCreated({
-        id: patient.id,
-        patientCode: patient.patientCode,
-        fullName: patient.fullName,
-        age: patient.age,
-        ageUnit: patient.ageUnit,
-        gender: patient.gender,
-        phone: phoneDigits(form.phone),
-        reportCount: 0,
-      });
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "تعذر إنشاء المريض",
+    try {
+      const patient = await createPatient({ data: input });
+
+      onCreated(
+        {
+          id: patient.id,
+          patientCode: patient.patientCode,
+          fullName: patient.fullName,
+          age: patient.age,
+          ageUnit: patient.ageUnit,
+          gender: patient.gender,
+          phone: phoneDigits(form.phone),
+          reportCount: 0,
+        },
+        false,
       );
+    } catch (error) {
+      if (isNetworkError(error, navigator.onLine)) {
+        // No connection: keep the patient on this device; it is sent (and checked, e.g. a repeated code) on the next sync.
+        const labId = getKnownLabId();
+        if (!labId) {
+          toast.error("افتح البرنامج مرة وانت متصل بالنت عشان نقدر نحفظ المرضى أوفلاين");
+        } else {
+          try {
+            const { localId } = await queuePatientCreate({ labId, payload: input });
+            onCreated(
+              {
+                id: localId,
+                patientCode: form.patientCode.trim().toUpperCase(),
+                fullName: form.fullName.trim(),
+                age: input.age,
+                ageUnit: form.ageUnit,
+                gender: form.gender,
+                phone: phoneDigits(form.phone),
+                reportCount: 0,
+              },
+              true,
+            );
+          } catch {
+            toast.error("تعذر حفظ المريض على الجهاز");
+          }
+        }
+      } else {
+        toast.error(error instanceof Error ? error.message : "تعذر إنشاء المريض");
+      }
     } finally {
       setSaving(false);
     }

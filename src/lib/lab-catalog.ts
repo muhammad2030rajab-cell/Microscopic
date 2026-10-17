@@ -79,35 +79,52 @@ export const listLabCatalog = createServerFn({ method: "GET" })
     `;
   });
 
+export type CatalogItemEdit = { id: string; unit: string; maleRange: string; femaleRange: string; ageRanges?: string | null; isActive: boolean };
+
+/**
+ * The one place a catalog test is edited: the online page calls it through `updateLabCatalogItem`, and the
+ * sync push calls it for an edit a device made offline. With `expectedVersion` the update only happens if
+ * the row is still at that version (checked in the same statement as the write), so a device can never
+ * overwrite a newer change; `updated: false` then means "someone changed it first".
+ */
+export async function updateLabCatalogItemForUser(userId: string, data: CatalogItemEdit, opts: { expectedVersion?: number } = {}): Promise<{ updated: boolean }> {
+  const sql = await getSql();
+  const lab = await getLab(sql, userId);
+  if (lab.role !== "owner") throw new Error("OWNER_ACCESS_REQUIRED");
+
+  // Validate on the server too: the page validates for feedback, this is the gate.
+  const ageText = (data.ageRanges ?? "").trim();
+  if (ageText) {
+    const parsed = parseAgeRanges(ageText);
+    if (!parsed.ok) throw new Error(parsed.error);
+  }
+  const guarded = opts.expectedVersion !== undefined;
+  const updated = await sql.query<{ id: string }>(
+    `update lab_test_catalog
+     set unit=$1, male_range=$2, female_range=$3, age_ranges=$4, is_active=$5, updated_at=current_timestamp
+     where id=$6 and lab_id=$7${guarded ? " and version=$8" : ""}
+     returning id`,
+    [data.unit.trim(), data.maleRange.trim(), data.femaleRange.trim(), ageText || null, Boolean(data.isActive), data.id, lab.lab_id, ...(guarded ? [opts.expectedVersion] : [])],
+  );
+  // Online save keeps its old behaviour (no error for an unknown id); only a guarded write reports "not updated".
+  if (guarded && !updated.length) return { updated: false };
+
+  await logAudit(sql, {
+    labId: lab.lab_id,
+    actorUserId: await getLabUserId(sql, userId),
+    actorAuthUserId: userId,
+    action: "catalog.update",
+    entityType: "lab_test_catalog",
+    entityId: data.id,
+  });
+
+  return { updated: true };
+}
+
 export const updateLabCatalogItem = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .handler(async ({ context, data }: { context: { userId: string }; data: { id: string; unit: string; maleRange: string; femaleRange: string; ageRanges?: string | null; isActive: boolean } }) => {
-    const sql = await getSql();
-    const lab = await getLab(sql, context.userId);
-    if (lab.role !== "owner") throw new Error("OWNER_ACCESS_REQUIRED");
-
-    // Validate on the server too: the page validates for feedback, this is the gate.
-    const ageText = (data.ageRanges ?? "").trim();
-    if (ageText) {
-      const parsed = parseAgeRanges(ageText);
-      if (!parsed.ok) throw new Error(parsed.error);
-    }
-    await sql.query(
-      `update lab_test_catalog
-       set unit=$1, male_range=$2, female_range=$3, age_ranges=$4, is_active=$5, updated_at=current_timestamp
-       where id=$6 and lab_id=$7`,
-      [data.unit.trim(), data.maleRange.trim(), data.femaleRange.trim(), ageText || null, Boolean(data.isActive), data.id, lab.lab_id],
-    );
-
-    await logAudit(sql, {
-      labId: lab.lab_id,
-      actorUserId: await getLabUserId(sql, context.userId),
-      actorAuthUserId: context.userId,
-      action: "catalog.update",
-      entityType: "lab_test_catalog",
-      entityId: data.id,
-    });
-
+  .handler(async ({ context, data }: { context: { userId: string }; data: CatalogItemEdit }) => {
+    await updateLabCatalogItemForUser(context.userId, data);
     return { ok: true };
   });
 

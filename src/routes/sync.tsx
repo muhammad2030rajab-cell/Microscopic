@@ -97,7 +97,7 @@ function SyncPage() {
         {(data?.issues ?? []).map((issue) => (
           <li key={issue.item.id} className="rounded-2xl border border-red-300 bg-elevated p-4">
             <h2 className="text-base font-semibold">{issue.patientName}</h2>
-            <p className="mt-1 text-sm leading-7">{describeReason(issue.item.reason)}</p>
+            <p className="mt-1 text-sm leading-7">{describeReason(issue.item.reason, issue.item.entity)}</p>
 
             {issue.diff.length > 0 ? (
               <div className="mt-3 overflow-x-auto">

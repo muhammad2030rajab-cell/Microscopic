@@ -7,7 +7,7 @@
   else root.OfflineArchive = factory();
 })(typeof self !== "undefined" ? self : globalThis, function () {
   // Keep in step with MAX_OFFLINE_DAYS in src/lib/sync-shared.ts.
-  var MAX_OFFLINE_DAYS = 14;
+  var MAX_OFFLINE_DAYS = 60;
 
   /** Is the device copy recent enough to show? (A copy nobody refreshed for weeks should not stay readable.) */
   function isFresh(lastSyncMs, nowMs, maxDays) {

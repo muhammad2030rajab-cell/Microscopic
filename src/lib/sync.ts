@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { requireLabPermission } from "@/lib/lab-users";
+import { createPatientForUser, type CreatePatientInput } from "@/lib/patients";
+import { updateLabCatalogItemForUser, type CatalogItemEdit } from "@/lib/lab-catalog";
 import { createLabReportForUser, deleteLabReportForUser, updateLabReportForUser, type CreateLabReportInput } from "@/lib/lab-reports";
 import { createHash } from "node:crypto";
 import { decidePush, reconcileWithApplied, type ServerRowInfo } from "@/lib/sync-engine/conflict";
@@ -117,7 +119,7 @@ export const pullSyncChanges = createServerFn({ method: "POST" })
 /**
  * The push half of device sync: changes a device made while offline.
  *
- * Reports only (v1). A device sends COMMANDS, not rows — the same input the
+ * Reports, plus a brand-new patient and an edit of a catalog test. A device sends COMMANDS, not rows — the same input the
  * online forms send — so validation, ranges, flags and audit logging all run on
  * the server exactly as for an online save. `decidePush` (tested) says whether
  * a change may apply; a stale edit becomes a conflict and never overwrites.
@@ -174,17 +176,18 @@ async function applyOnePush(sql: Sql, userId: string, labId: string, change: Pus
   if (reconciled.kind === "already_applied") return { id: change.id, status: "applied", version: reconciled.version };
   const baseVersion = reconciled.baseVersion;
 
-  const isCreate = change.entity === "reports" && change.op === "upsert" && baseVersion === null;
+  const isCreate = (change.entity === "reports" || change.entity === "patients") && change.op === "upsert" && baseVersion === null;
 
-  // A report the device created is found by its request id (the server picks the real id);
-  // anything else by the id the device holds.
-  const found = await sql.query<{ id: string; version: number; status: string }>(
-    isCreate
-      ? `select id, version, status from reports where lab_id = $1 and client_request_id = $2 limit 1`
-      : `select id, version, status from reports where lab_id = $1 and id = $2 limit 1`,
+  // A row the device created is found by its request id (the server picks the real id);
+  // anything else by the id the device holds. Table names are literals chosen here, never from the request.
+  const table = change.entity === "patients" ? "patients" : change.entity === "lab_test_catalog" ? "lab_test_catalog" : "reports";
+  const statusColumn = table === "reports" ? "status" : "null::text as status";
+  const lookupBy = isCreate ? "client_request_id" : "id";
+  const found = await sql.query<{ id: string; version: number; status: string | null }>(
+    `select id, version, ${statusColumn} from ${table} where lab_id = $1 and ${lookupBy} = $2 limit 1`,
     [labId, isCreate ? change.id : change.entityId],
   );
-  const server: ServerRowInfo = found.length ? { version: Number(found[0].version), status: found[0].status } : null;
+  const server: ServerRowInfo = found.length ? { version: Number(found[0].version), status: found[0].status ?? undefined } : null;
 
   const decision = decidePush({ entity: change.entity, op: change.op, baseVersion, server });
   if (decision.kind === "reject") return { id: change.id, status: "rejected", reason: decision.reason };
@@ -193,8 +196,27 @@ async function applyOnePush(sql: Sql, userId: string, labId: string, change: Pus
     return { id: change.id, status: "applied", version: server?.version ?? null, serverId: found[0]?.id };
   }
 
-  // decision.kind === "apply" — only reports reach this point (decidePush rejects the rest).
+  // decision.kind === "apply" — only reports, new patients and catalog edits reach this point (decidePush rejects the rest).
   const payload = (change.payload ?? {}) as Record<string, unknown>;
+  if (change.entity === "lab_test_catalog") {
+    // Same owner check, validation and audit entry as the online catalog save; the write itself only
+    // happens if the row is still at the version the device started from.
+    const edit = { ...(payload as unknown as CatalogItemEdit), id: change.entityId };
+    const { updated } = await updateLabCatalogItemForUser(userId, edit, { expectedVersion: baseVersion as number });
+    if (!updated) return { id: change.id, status: "conflict", reason: "server_newer" };
+    const catalogAfter = await sql.query<{ version: number }>(`select version from lab_test_catalog where lab_id = $1 and id = $2 limit 1`, [labId, change.entityId]);
+    const catalogVersion = catalogAfter.length ? Number(catalogAfter[0].version) : null;
+    await recordApplied(sql, labId, change.id, change.entityId, catalogVersion, payloadHash);
+    return { id: change.id, status: "applied", version: catalogVersion, serverId: change.entityId };
+  }
+  if (change.entity === "patients") {
+    // Same validation, permission check and audit entry as the online "new patient" form.
+    const created = await createPatientForUser(userId, payload as unknown as CreatePatientInput, change.id);
+    const patientAfter = await sql.query<{ version: number }>(`select version from patients where lab_id = $1 and id = $2 limit 1`, [labId, created.id]);
+    const patientVersion = patientAfter.length ? Number(patientAfter[0].version) : null;
+    await recordApplied(sql, labId, change.id, created.id, patientVersion, payloadHash);
+    return { id: change.id, status: "applied", version: patientVersion, serverId: created.id };
+  }
   let reportId = change.entityId;
   if (change.op === "delete") {
     await deleteLabReportForUser(userId, { id: change.entityId });

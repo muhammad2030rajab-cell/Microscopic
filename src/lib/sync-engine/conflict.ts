@@ -22,11 +22,12 @@ export type PushDecision =
   | { kind: "reject"; reason: "report_locked" | "not_supported_offline" | "requires_online" };
 
 /**
- * v1: only DRAFT reports can be written offline (the patient is created and
- * edited together with its report). Patients on their own, catalog and
+ * Offline writes: DRAFT reports (the patient is created and edited together with
+ * its report), a NEW patient added on its own, and an EDIT of an existing catalog
+ * test. Editing or deleting a patient, creating or deleting catalog tests, and
  * attachments stay online-only.
  */
-export const OFFLINE_WRITABLE: readonly SyncEntity[] = ["reports"];
+export const OFFLINE_WRITABLE: readonly SyncEntity[] = ["reports", "patients", "lab_test_catalog"];
 
 export function decidePush(input: {
   entity: SyncEntity;
@@ -38,6 +39,10 @@ export function decidePush(input: {
   const { entity, op, baseVersion, server } = input;
 
   if (!OFFLINE_WRITABLE.includes(entity)) return { kind: "reject", reason: "not_supported_offline" };
+  // A patient can only be CREATED offline: no edit of an existing patient, no delete.
+  if (entity === "patients" && (op !== "upsert" || baseVersion !== null)) return { kind: "reject", reason: "not_supported_offline" };
+  // A catalog test can only be EDITED offline (it must exist and the device must know which version it started from).
+  if (entity === "lab_test_catalog" && (op !== "upsert" || baseVersion === null)) return { kind: "reject", reason: "not_supported_offline" };
 
   if (op === "delete") {
     if (!server) return { kind: "already_applied" };

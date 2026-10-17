@@ -6,7 +6,12 @@ import { Input } from "@/components/ui/input";
 import { TestGroupsPanel } from "@/components/catalog/test-groups-panel";
 import { listLabCatalog, updateLabCatalogItem, type LabCatalogRow } from "@/lib/lab-catalog";
 import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
+import { toast } from "sonner";
 import { loadLocalCatalog } from "@/lib/sync-engine/offline-fallback";
+import { EDIT_BLOCKED, queueCatalogEdit } from "@/lib/sync-engine/outbox-actions";
+import { syncRunner } from "@/lib/sync-engine/runner";
+import { getKnownLabId } from "@/lib/offline/bootstrap-cache";
+import { isNetworkError } from "@/lib/offline/network-error";
 import { requestAllOfflinePages } from "@/lib/offline/sync";
 import { parseAgeRanges } from "@/lib/age-ranges";
 
@@ -56,21 +61,50 @@ function CatalogPage() {
 
   async function save(item: LabCatalogRow) {
     setSaveError(null);
-    if (!navigator.onLine) {
-      setSaveError({ id: item.id, message: "تعديل الكتالوج محتاج اتصال بالإنترنت. اتصل وجرّب تاني." });
-      return;
-    }
     const parsed = parseAgeRanges(item.age_ranges);
     if (!parsed.ok) {
       setOpenAge(item.id);
       setSaveError({ id: item.id, message: parsed.error });
       return;
     }
+
+    // No connection: keep the edit on this device; it is sent on the next sync, and if someone changed
+    // the same test on the server meanwhile it waits on the sync screen for a person to decide.
+    async function saveOnDevice() {
+      const labId = getKnownLabId();
+      if (!labId) {
+        setSaveError({ id: item.id, message: "افتح البرنامج مرة وانت متصل بالنت عشان نقدر نحفظ التعديلات أوفلاين." });
+        return;
+      }
+      try {
+        await queueCatalogEdit({
+          labId,
+          itemId: item.id,
+          payload: { unit: item.unit, maleRange: item.male_range, femaleRange: item.female_range, ageRanges: item.age_ranges, isActive: item.is_active, testName: item.test_name },
+        });
+        toast.success("اتحفظ التعديل على الجهاز وهيتبعت للخادم لما النت يرجع");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        setSaveError({
+          id: item.id,
+          message: message === EDIT_BLOCKED ? "فيه تعديل سابق للتحليل ده محتاج مراجعة في صفحة المزامنة قبل ما تعدّله تاني." : "تعذر حفظ التعديل على الجهاز.",
+        });
+      }
+    }
+
     setSaving(item.id);
     try {
-      await updateLabCatalogItem({ data: { id: item.id, unit: item.unit, maleRange: item.male_range, femaleRange: item.female_range, ageRanges: item.age_ranges, isActive: item.is_active } });
-    } catch (error) {
-      setSaveError({ id: item.id, message: error instanceof Error ? error.message : "تعذر الحفظ" });
+      if (!navigator.onLine) {
+        await saveOnDevice();
+        return;
+      }
+      try {
+        await updateLabCatalogItem({ data: { id: item.id, unit: item.unit, maleRange: item.male_range, femaleRange: item.female_range, ageRanges: item.age_ranges, isActive: item.is_active } });
+        void syncRunner.syncNow(); // refresh the device copy so a later offline edit starts from this version
+      } catch (error) {
+        if (isNetworkError(error, navigator.onLine)) await saveOnDevice();
+        else setSaveError({ id: item.id, message: error instanceof Error ? error.message : "تعذر الحفظ" });
+      }
     } finally { setSaving(null); }
   }
 

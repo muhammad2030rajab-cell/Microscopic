@@ -16,9 +16,17 @@ const REASONS: Record<string, string> = {
   REPORT_NOT_FOUND: "التقرير ده مش موجود على الخادم.",
 };
 
+const CATALOG_REASONS: Record<string, string> = {
+  server_newer: "حد عدّل التحليل ده على الخادم بعد ما بدأت تعدّله.",
+  version_mismatch: "نسخة التحليل على الخادم مش مطابقة للنسخة اللي عدّلت عليها.",
+  deleted_on_server: "التحليل ده اتحذف من الخادم.",
+  OWNER_ACCESS_REQUIRED: "تعديل الكتالوج للمالك بس.",
+};
+
 /** Arabic text for a server verdict. Unknown codes (e.g. a permission error) are shown as-is, never hidden. */
-export function describeReason(reason: string | undefined): string {
+export function describeReason(reason: string | undefined, entity?: string): string {
   if (!reason) return "الخادم ماقبلش التعديل.";
+  if (entity === "lab_test_catalog" && CATALOG_REASONS[reason]) return CATALOG_REASONS[reason];
   return REASONS[reason] ?? `الخادم ماقبلش التعديل (${reason}).`;
 }
 
@@ -65,5 +73,20 @@ export function diffReportEdit(server: LocalReportDetail, payload: unknown): Dif
     }
   }
   for (const [k, t] of theirs) if (!ours.has(k)) rows.push({ label: t.name, mine: "اتشال", server: `${show(t.value)} ${t.unit}`.trim() });
+  return rows;
+}
+
+/** Catalog edit vs what the server holds now: only the fields that differ. */
+export function diffCatalogEdit(server: Record<string, unknown>, payload: unknown): DiffRow[] {
+  const p = (payload ?? {}) as { unit?: string; maleRange?: string; femaleRange?: string; ageRanges?: string | null; isActive?: boolean };
+  const rows: DiffRow[] = [];
+  const same = (label: string, mine: unknown, theirs: unknown) => {
+    if (show(mine) !== show(theirs)) rows.push({ label, mine: show(mine), server: show(theirs) });
+  };
+  same("الوحدة", p.unit, server.unit);
+  same("المدى (ذكر)", p.maleRange, server.male_range);
+  same("المدى (أنثى)", p.femaleRange, server.female_range);
+  same("نطاقات حسب السن", (p.ageRanges ?? "").trim(), String(server.age_ranges ?? "").trim());
+  same("الحالة", p.isActive === undefined ? undefined : p.isActive ? "مفعل" : "متوقف", server.is_active === false ? "متوقف" : "مفعل");
   return rows;
 }

@@ -10,8 +10,8 @@ import { isNetworkError } from "../offline/network-error";
 import { getKnownLabId } from "../offline/bootstrap-cache";
 import { idbLocalStore } from "./idb-local-store";
 import { isMirrorFresh } from "../sync-shared";
-import { diffReportEdit, type DiffRow } from "./conflict-review";
-import { outboxStateFor } from "./edit-item";
+import { diffCatalogEdit, diffReportEdit, type DiffRow } from "./conflict-review";
+import { outboxStateFor, overlayCatalogEdits, pendingPatientRows } from "./edit-item";
 import type { OutboxItem } from "./engine";
 import { applyPendingEdit, toReportDetail, toReportSummaries, type LocalReportDetail, type LocalReportSummary } from "./local-reads";
 import { toCatalogRows, toDashboardStats, toPatientReports, toPatientSummaries, toRecentReports } from "./local-screens";
@@ -140,13 +140,15 @@ async function openMirror(err: unknown): Promise<{ store: ReturnType<typeof idbL
   }
 }
 
-/** Patient search from the device copy (read-only). null = no usable copy. */
+/** Patient search from the device copy, including patients added here and not sent yet. null = no usable copy. */
 export async function loadLocalPatientSearch(err: unknown, query: string): Promise<PatientSummary[] | null> {
   const m = await openMirror(err);
   if (!m) return null;
   try {
-    const [patients, reports] = await Promise.all([m.store.listRows("patients"), m.store.listRows("reports")]);
-    return toPatientSummaries(patients.filter(ofLab(m.labId)), reports.filter(ofLab(m.labId)), query);
+    const [patients, reports, outbox] = await Promise.all([m.store.listRows("patients"), m.store.listRows("reports"), m.store.listOutbox(m.labId)]);
+    // Patients added on this device and not sent yet are searchable too.
+    const mine = [...patients.filter(ofLab(m.labId)), ...pendingPatientRows(outbox, m.labId)];
+    return toPatientSummaries(mine, reports.filter(ofLab(m.labId)), query);
   } catch {
     return null;
   }
@@ -186,7 +188,7 @@ export async function loadLocalDashboard<L>(err: unknown): Promise<{ lab: L; sta
   }
 }
 
-/** Test catalog (read-only) plus the lab header, from the device copy. */
+/** Test catalog plus the lab header, from the device copy (with unsent edits on top). */
 export async function loadLocalCatalog<L>(err: unknown): Promise<{ lab: L; items: LabCatalogRow[] } | null> {
   const m = await openMirror(err);
   const lab = loadLabProfile<L>();
@@ -194,7 +196,9 @@ export async function loadLocalCatalog<L>(err: unknown): Promise<{ lab: L; items
   try {
     const rows = await m.store.listRows("lab_test_catalog");
     const mine = rows.filter(ofLab(m.labId));
-    return mine.length ? { lab, items: toCatalogRows(mine) } : null;
+    // Edits saved on this device and not sent yet are shown on top of the pulled copy.
+    const withEdits = overlayCatalogEdits(mine, await m.store.listOutbox(m.labId), m.labId);
+    return mine.length ? { lab, items: toCatalogRows(withEdits) } : null;
   } catch {
     return null;
   }
@@ -249,17 +253,24 @@ export async function loadSyncIssues(labId: string): Promise<{ pending: OutboxIt
     const issues: SyncIssue[] = [];
     for (const item of outbox.filter((i) => i.status !== "pending")) {
       let serverReport: LocalReportDetail | null = null;
+      let catalogRow: Row | undefined;
+      let catalogDiff: DiffRow[] = [];
+      if (item.entity === "lab_test_catalog") {
+        catalogRow = await store.getRow("lab_test_catalog", item.entityId);
+        catalogDiff = catalogRow ? diffCatalogEdit(catalogRow, item.payload) : [];
+      }
       if (item.entity === "reports") {
         const report = await store.getRow("reports", item.entityId);
         const patient = report ? await store.getRow("patients", String(report.patient_id)) : undefined;
         serverReport = report ? toReportDetail(report, patient, await store.getResults(item.entityId)) : null;
       }
-      const name = (item.payload as { patientName?: unknown } | null)?.patientName;
+      const named = item.payload as { patientName?: unknown; fullName?: unknown; testName?: unknown } | null;
+      const name = named?.patientName ?? named?.fullName ?? named?.testName ?? (catalogRow ? catalogRow.test_name : undefined);
       issues.push({
         item,
         patientName: typeof name === "string" && name ? name : (serverReport?.patientName ?? "تقرير"),
         serverReport,
-        diff: serverReport ? diffReportEdit(serverReport, item.payload) : [],
+        diff: serverReport ? diffReportEdit(serverReport, item.payload) : catalogDiff,
       });
     }
     return { pending: outbox.filter((i) => i.status === "pending"), issues };

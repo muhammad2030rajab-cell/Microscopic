@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canReapply, describeReason, diffReportEdit, reapplyItem } from "./conflict-review.ts";
+import { canReapply, describeReason, diffCatalogEdit, diffReportEdit, reapplyItem } from "./conflict-review.ts";
 import type { OutboxItem } from "./engine.ts";
 import type { LocalReportDetail } from "./local-reads.ts";
 
@@ -62,4 +62,21 @@ test("diff: a changed custom range is reported on its own line", () => {
   assert.deepEqual(rows.map((r) => r.label), ["Hb (المدى)"]);
   assert.equal(rows[0].mine, "12-16");
   assert.equal(rows[0].server, "—");
+});
+
+test("catalog reasons talk about the test, not the report; other entities keep the report wording", () => {
+  assert.match(describeReason("server_newer", "lab_test_catalog"), /التحليل/);
+  assert.match(describeReason("deleted_on_server", "lab_test_catalog"), /التحليل/);
+  assert.match(describeReason("server_newer", "reports"), /التقرير/);
+  assert.match(describeReason("server_newer"), /التقرير/);
+  assert.match(describeReason("SOMETHING_ELSE", "lab_test_catalog"), /SOMETHING_ELSE/);
+});
+
+test("catalog diff lists only the fields that differ", () => {
+  const server = { unit: "g/dL", male_range: "13-17", female_range: "12-16", age_ranges: null, is_active: true };
+  assert.deepEqual(diffCatalogEdit(server, { unit: "g/dL", maleRange: "13-17", femaleRange: "12-16", ageRanges: "", isActive: true }), []);
+  const rows = diffCatalogEdit(server, { unit: "g/L", maleRange: "13-17", femaleRange: "11-15", ageRanges: "1-12: 11-14", isActive: false });
+  assert.deepEqual(rows.map((r) => r.label), ["الوحدة", "المدى (أنثى)", "نطاقات حسب السن", "الحالة"]);
+  assert.deepEqual(rows[3], { label: "الحالة", mine: "متوقف", server: "مفعل" });
+  assert.deepEqual(rows[2], { label: "نطاقات حسب السن", mine: "1-12: 11-14", server: "—" });
 });

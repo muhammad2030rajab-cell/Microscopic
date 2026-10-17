@@ -45,11 +45,44 @@ test("deletes: gone already = done; draft report with the right version applies;
   assert.deepEqual(decidePush({ entity: "reports", op: "delete", baseVersion: 2, server: { version: 2, status: "approved" } }), { kind: "reject", reason: "requires_online" });
 });
 
-test("patients on their own, catalog and attachments cannot be written offline in v1", () => {
-  for (const entity of ["patients", "lab_test_catalog", "report_attachments"] as const) {
+test("attachments cannot be written offline", () => {
+  for (const entity of ["report_attachments"] as const) {
     for (const op of ["upsert", "delete"] as const) {
       assert.deepEqual(decidePush({ entity, op, baseVersion: 1, server: { version: 1 } }), { kind: "reject", reason: "not_supported_offline" });
     }
+  }
+});
+
+test("a new patient can be added offline: applies once, a retry is harmless", () => {
+  assert.deepEqual(decidePush({ entity: "patients", op: "upsert", baseVersion: null, server: null }), { kind: "apply" });
+  // The row with this request id already landed (reply lost): report success, change nothing.
+  assert.deepEqual(decidePush({ entity: "patients", op: "upsert", baseVersion: null, server: { version: 1 } }), { kind: "already_applied" });
+});
+
+test("an existing patient cannot be edited or deleted offline", () => {
+  assert.deepEqual(decidePush({ entity: "patients", op: "upsert", baseVersion: 1, server: { version: 1 } }), { kind: "reject", reason: "not_supported_offline" });
+  assert.deepEqual(decidePush({ entity: "patients", op: "upsert", baseVersion: 1, server: null }), { kind: "reject", reason: "not_supported_offline" });
+  for (const baseVersion of [null, 1]) {
+    assert.deepEqual(decidePush({ entity: "patients", op: "delete", baseVersion, server: { version: 1 } }), { kind: "reject", reason: "not_supported_offline" });
+    assert.deepEqual(decidePush({ entity: "patients", op: "delete", baseVersion, server: null }), { kind: "reject", reason: "not_supported_offline" });
+  }
+});
+
+test("a catalog test edit applies only on the version the device started from", () => {
+  const edit = (baseVersion: number | null, server: { version: number } | null) => decidePush({ entity: "lab_test_catalog", op: "upsert", baseVersion, server });
+  assert.deepEqual(edit(3, { version: 3 }), { kind: "apply" });
+  // Someone changed it meanwhile (even another column, e.g. the price): never overwritten, a person decides.
+  assert.deepEqual(edit(3, { version: 4 }), { kind: "conflict", reason: "server_newer" });
+  assert.deepEqual(edit(4, { version: 3 }), { kind: "conflict", reason: "version_mismatch" });
+  assert.deepEqual(edit(3, null), { kind: "conflict", reason: "deleted_on_server" });
+});
+
+test("catalog tests cannot be created or deleted offline", () => {
+  assert.deepEqual(decidePush({ entity: "lab_test_catalog", op: "upsert", baseVersion: null, server: null }), { kind: "reject", reason: "not_supported_offline" });
+  assert.deepEqual(decidePush({ entity: "lab_test_catalog", op: "upsert", baseVersion: null, server: { version: 1 } }), { kind: "reject", reason: "not_supported_offline" });
+  for (const baseVersion of [null, 1]) {
+    assert.deepEqual(decidePush({ entity: "lab_test_catalog", op: "delete", baseVersion, server: { version: 1 } }), { kind: "reject", reason: "not_supported_offline" });
+    assert.deepEqual(decidePush({ entity: "lab_test_catalog", op: "delete", baseVersion, server: null }), { kind: "reject", reason: "not_supported_offline" });
   }
 });
 

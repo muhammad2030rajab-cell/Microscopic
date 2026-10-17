@@ -6,9 +6,9 @@
 })(typeof self !== "undefined" ? self : globalThis, function () {
   // Only these HTML pages are kept for offline use. Their saved HTML carries no patient data:
   // /new has the lab profile + test catalog, /patients only a permission flag, and /lab,
-  // /catalog, /analytics and /methods load their data in the browser (ssr: false), so the HTML is an empty shell.
+  // /catalog, /analytics, /methods and the /reports archive load their data in the browser (ssr: false), so the HTML is an empty shell.
   // Report pages are never cached.
-  var OFFLINE_PAGES = ["/new", "/lab", "/patients", "/catalog", "/analytics", "/methods"];
+  var OFFLINE_PAGES = ["/new", "/lab", "/patients", "/catalog", "/analytics", "/methods", "/reports"];
   var FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 
   /**
@@ -26,10 +26,15 @@
     if (p.indexOf("/@") === 0 || p.indexOf("/src/") === 0 || p.indexOf("/node_modules/") === 0) return "bypass";
     if (p === "/sw.js" || p === "/sw-rules.js") return "bypass";
     var isNav = r.mode === "navigate" || (r.accept || "").indexOf("text/html") !== -1;
-    if (isNav) return OFFLINE_PAGES.indexOf(p) !== -1 ? "page" : "navigate";
+    if (isNav) return OFFLINE_PAGES.indexOf(pageKey(p)) !== -1 ? "page" : "navigate";
     if (p.indexOf("/assets/") === 0) return "immutable";
     if (/\.(png|svg|jpg|jpeg|webp|ico|woff2?|webmanifest)$/i.test(p) || p === "/offline.html" || p === "/offline-archive.js") return "revalidate";
     return "bypass";
+  }
+
+  /** "/reports/" and "/reports" are the same page. */
+  function pageKey(path) {
+    return path.length > 1 && path.charAt(path.length - 1) === "/" ? path.slice(0, -1) : path;
   }
 
   /** Cache only clean, successful, non-redirected responses. */
@@ -46,5 +51,5 @@
     return out;
   }
 
-  return { decide: decide, cacheable: cacheable, assetUrls: assetUrls, OFFLINE_PAGES: OFFLINE_PAGES };
+  return { decide: decide, cacheable: cacheable, assetUrls: assetUrls, pageKey: pageKey, OFFLINE_PAGES: OFFLINE_PAGES };
 });

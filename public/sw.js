@@ -1,7 +1,7 @@
 /* Service worker: lets the app open and the main screens run offline.
  * - hashed build assets: cache-first
  * - icons / fonts: stale-while-revalidate
- * - /new, /lab, /patients, /catalog, /analytics, /methods HTML: network-first, cached copy only when the page asks (logged in);
+ * - /new, /lab, /patients, /catalog, /analytics, /methods, /reports HTML: network-first, cached copy only when the page asks (logged in);
  *   the build files that page needs are kept with it
  * - every other page: network only; on failure offline.html, which also shows the device copy
  *   of the archive (read-only) straight from IndexedDB
@@ -9,7 +9,7 @@
  * Report and patient-record pages are deliberately NOT cached (the saved HTML above carries no patient data). */
 importScripts("/sw-rules.js");
 
-var VERSION = "v4";
+var VERSION = "v5";
 var STATIC = "rajab-static-" + VERSION;
 var PAGES = "rajab-pages-" + VERSION;
 var KEEP = [STATIC, PAGES];
@@ -96,7 +96,7 @@ self.addEventListener("fetch", function (event) {
     event.respondWith(
       fetch(req).catch(function () {
         return caches.open(PAGES).then(function (c) {
-          return c.match(req.url).then(function (hit) { return hit || offlineResponse(); });
+          return c.match(SwRules.pageKey(new URL(req.url).pathname)).then(function (hit) { return hit || offlineResponse(); });
         });
       }),
     );

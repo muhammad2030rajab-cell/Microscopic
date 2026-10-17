@@ -17,6 +17,9 @@ import { reportStatusClasses, reportStatusLabels } from "@/lib/report-workflow";
 type LabReportSummary = Awaited<ReturnType<typeof listLabReports>>[number];
 
 export const Route = createFileRoute("/reports/")({
+  // Loads in the browser so the saved offline copy of this page is an empty shell (no patient data in it), and so
+  // that a reload with no connection opens the real archive from the device copy instead of the plain offline page.
+  ssr: false,
   loader: async () => {
     try {
       const [reports, access] = await Promise.all([listLabReports(), getCurrentLabPermissions().catch(() => null)]);

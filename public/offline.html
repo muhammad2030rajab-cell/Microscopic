@@ -20,6 +20,7 @@
            font:inherit; font-weight:600; text-decoration:none; cursor:pointer; background:transparent; color:var(--ink); border:1px solid var(--line); margin-bottom:.6rem; }
     .btn.primary { background:var(--accent); color:#fff; border:0; }
     @media (prefers-color-scheme: dark) { .btn.primary { color:#08211e; } }
+    .retry { font:inherit; font-size:.85rem; color:var(--accent); background:transparent; border:0; padding:0; text-decoration:underline; cursor:pointer; }
     .tabs { display:flex; gap:.5rem; margin:1rem 0 .75rem; }
     .tabs button { flex:1; min-height:2.5rem; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--ink); font:inherit; cursor:pointer; }
     .tabs button[aria-pressed="true"] { background:var(--ink); color:var(--bg); }
@@ -47,7 +48,7 @@
     </section>
 
     <section id="archive" hidden>
-      <div class="note no-print">نسخة محفوظة على الجهاز للعرض والطباعة فقط. أي تعديل أو اعتماد بعد ما الاتصال يرجع.</div>
+      <div class="note no-print">نسخة محفوظة على الجهاز للعرض والطباعة فقط. أي تعديل أو اعتماد بعد ما الاتصال يرجع. <button type="button" class="retry" onclick="location.reload()">إعادة المحاولة</button></div>
       <div class="tabs no-print" role="tablist">
         <button type="button" id="tabReports" aria-pressed="true">التقارير</button>
         <button type="button" id="tabMethods" aria-pressed="false">كيف يتم التحليل؟</button>
@@ -132,7 +133,9 @@
         $("detail").hidden = true; list.hidden = false; $("q").hidden = false; $("count").hidden = false;
         var rows = state.tab === "reports" ? state.reports : state.methods;
         var shown = rows.filter(function (r) { return A.matches(q, state.tab === "reports" ? A.searchFields(r) : [r.name, r.category]); });
-        $("count").textContent = shown.length + " من " + rows.length + (shown.length > 100 ? " (بنعرض أول 100، ضيّق البحث)" : "");
+        $("count").textContent = rows.length === 0
+          ? (state.tab === "reports" ? "مفيش تقارير محفوظة على الجهاز لسه. افتح التطبيق وانت متصل عشان تتزامن." : "مفيش بيانات محفوظة على الجهاز لسه.")
+          : shown.length + " من " + rows.length + (shown.length > 100 ? " (بنعرض أول 100، ضيّق البحث)" : "");
         shown.slice(0, 100).forEach(function (r) {
           var li = el("li"), b = el("button");
           b.type = "button";
@@ -233,7 +236,8 @@
             }).sort(function (a, b) { return a.name.localeCompare(b.name); });
             if (!state.reports.length && !state.methods.length) return;
             $("archive").hidden = false;
-            $("msgBox").classList.add("no-print");
+            // The device copy IS the content here: no "no connection" card on top of it.
+            $("msgBox").hidden = true;
             renderList();
           });
         });

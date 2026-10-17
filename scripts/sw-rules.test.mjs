@@ -24,12 +24,14 @@ test("hashed build assets are cache-first", () => {
 });
 
 test("the main screens' HTML is kept offline; report and patient-record pages are not", () => {
-  for (const page of ["/new", "/lab", "/patients", "/catalog", "/analytics", "/methods"]) {
+  for (const page of ["/new", "/lab", "/patients", "/catalog", "/analytics", "/methods", "/reports"]) {
     assert.equal(d(page, { mode: "navigate" }), "page", page);
     assert.ok(SwRules.OFFLINE_PAGES.includes(page), page);
   }
   assert.equal(d("/reports/abc", { mode: "navigate" }), "navigate");
-  assert.equal(d("/reports", { accept: "text/html,application/xhtml+xml" }), "navigate");
+  assert.equal(d("/reports", { accept: "text/html,application/xhtml+xml" }), "page"); // the archive list itself (empty shell, data loads in the browser)
+  assert.equal(d("/reports/", { mode: "navigate" }), "page");
+  assert.equal(d("/reports/abc/edit", { mode: "navigate" }), "navigate");
   assert.equal(d("/admin", { mode: "navigate" }), "navigate");
   assert.equal(d("/team", { mode: "navigate" }), "navigate");
 });

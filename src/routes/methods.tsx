@@ -6,14 +6,22 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { listLabCatalog, updateLabCatalogMethod, METHOD_INFO_MAX_LENGTH, type LabCatalogRow } from "@/lib/lab-catalog";
 import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
+import { loadLocalCatalog } from "@/lib/sync-engine/offline-fallback";
 
 export const Route = createFileRoute("/methods")({
+  // Loads in the browser so the saved offline copy of this page is an empty shell, and so that with no
+  // connection the loader can answer from the device copy (read-only: method notes are saved online only).
+  ssr: false,
   loader: async () => {
     try {
       const [lab, items] = await Promise.all([getCurrentLab(), listLabCatalog()]);
-      return { lab, items };
-    } catch {
-      return { lab: null as LabProfileData | null, items: [] as LabCatalogRow[] };
+      return { lab, items, offline: false };
+    } catch (error) {
+      if (typeof window !== "undefined") {
+        const local = await loadLocalCatalog<LabProfileData>(error);
+        if (local) return { lab: local.lab as LabProfileData | null, items: local.items, offline: true };
+      }
+      return { lab: null as LabProfileData | null, items: [] as LabCatalogRow[], offline: false };
     }
   },
   component: MethodsPage,
@@ -21,12 +29,12 @@ export const Route = createFileRoute("/methods")({
 
 /** "How is this test done?" — its own section; every lab user except "viewer" can write the notes here. */
 function MethodsPage() {
-  const { lab, items: loaded } = Route.useLoaderData();
+  const { lab, items: loaded, offline } = Route.useLoaderData();
   const [items, setItems] = useState(loaded);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [err, setErr] = useState<{ id: string; message: string } | null>(null);
-  const canEdit = lab?.role !== "viewer";
+  const canEdit = lab?.role !== "viewer" && !offline;
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [onlyWithMethod, setOnlyWithMethod] = useState(false);
@@ -84,6 +92,12 @@ function MethodsPage() {
           <ArrowRight className="size-4" /> لوحة المعمل
         </Link>
       </header>
+
+      {offline ? (
+        <p role="status" className="mb-3 rounded-xl border border-dashed border-line bg-elevated px-4 py-3 text-xs leading-6 text-muted">
+          إنت شغّال بدون إنترنت: الطرق ظاهرة للقراءة بس. تعديل الطريقة بيحتاج نت.
+        </p>
+      ) : null}
 
       <div className="app-card p-4">
         <div className="relative">

@@ -16,3 +16,11 @@ export const LICENSE_SERVER_URL: string = "https://microscopic.vercel.app";
  * changing this to true (no new keys, and codes already issued keep working).
  */
 export const LICENSE_ENFORCED: boolean = true;
+
+/**
+ * Hand-signed `OFF-` keys (`npm run license -- issue`) can never be revoked or released remotely. false = a NEW
+ * activation with one is refused, so the only way to activate is a key issued from the admin page, which is tied
+ * to a license in the database (revocable, releasable). Programs already activated with an OFF- key keep working.
+ * Set true only if you deliberately want irrevocable keys.
+ */
+export const LICENSE_ALLOW_MANUAL_KEYS: boolean = false;

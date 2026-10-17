@@ -98,6 +98,9 @@ export function checkOfflineKey(pasted: string, publicBase64: string, fingerprin
 }
 
 
+/** May a new activation use this license id? OFF- (hand-signed, irrevocable) ones only when explicitly allowed. */
+export const isLicenseKindAllowed = (licenseId: string, allowManual: boolean) => allowManual || !isOfflineLicense(licenseId);
+
 export type SignedKeyCheck = { ok: true; payload: LicenseTokenPayload } | { ok: false; error: "LICENSE_INVALID" | "LICENSE_WRONG_DEVICE" };
 
 /**

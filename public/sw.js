@@ -1,7 +1,7 @@
 /* Service worker: lets the app open and the main screens run offline.
  * - hashed build assets: cache-first
  * - icons / fonts: stale-while-revalidate
- * - /new, /lab, /patients, /catalog HTML: network-first, cached copy only when the page asks (logged in);
+ * - /new, /lab, /patients, /catalog, /analytics, /methods HTML: network-first, cached copy only when the page asks (logged in);
  *   the build files that page needs are kept with it
  * - every other page: network only; on failure offline.html, which also shows the device copy
  *   of the archive (read-only) straight from IndexedDB

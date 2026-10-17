@@ -14,7 +14,8 @@ import { diffCatalogEdit, diffReportEdit, type DiffRow } from "./conflict-review
 import { outboxStateFor, overlayCatalogEdits, pendingPatientRows } from "./edit-item";
 import type { OutboxItem } from "./engine";
 import { applyPendingEdit, toReportDetail, toReportSummaries, type LocalReportDetail, type LocalReportSummary } from "./local-reads";
-import { toCatalogRows, toDashboardStats, toPatientReports, toPatientSummaries, toRecentReports } from "./local-screens";
+import { toCatalogRows, toDashboardStats, toLabAnalytics, toPatientReports, toPatientSummaries, toRecentReports } from "./local-screens";
+import type { LabAnalytics } from "../analytics";
 import type { LabDashboardStats } from "../lab-access";
 import type { LabCatalogRow } from "../lab-catalog";
 import type { RecentReport } from "../lab-reports";
@@ -183,6 +184,21 @@ export async function loadLocalDashboard<L>(err: unknown): Promise<{ lab: L; sta
     const stats = toDashboardStats(myPatients, myReports, results, Date.now());
     const recent = toRecentReports(toReportSummaries(myReports, myPatients, grouped));
     return { lab, stats, recent, permissions: loadLabPermissions() };
+  } catch {
+    return null;
+  }
+}
+
+/** Analytics screen (charts and totals) plus the lab header, from the device copy. */
+export async function loadLocalAnalytics<L>(err: unknown): Promise<{ lab: L; analytics: LabAnalytics } | null> {
+  const m = await openMirror(err);
+  const lab = loadLabProfile<L>();
+  if (!m || !lab) return null;
+  // Same rule as the server (`reports.view`); the advisory copy only hides the screen, the server still decides online.
+  if (loadLabPermissions()["reports.view"] === false) return null;
+  try {
+    const [reports, patients, results] = await Promise.all([m.store.listRows("reports"), m.store.listRows("patients"), m.store.listAllResults()]);
+    return { lab, analytics: toLabAnalytics(patients.filter(ofLab(m.labId)), reports.filter(ofLab(m.labId)), results, Date.now()) };
   } catch {
     return null;
   }

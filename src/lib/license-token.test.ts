@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { checkOfflineKey, checkSignedKey, createLicenseKeyPair, formatDeviceId, isOfflineLicense, looksLikeSignedKey, parseDeviceId, pemFromEnv, publicBase64FromPrivatePem, signLicenseToken, verifyLicenseToken } from "./license-token.ts";
+import { isLicenseKindAllowed, checkOfflineKey, checkSignedKey, createLicenseKeyPair, formatDeviceId, isOfflineLicense, looksLikeSignedKey, parseDeviceId, pemFromEnv, publicBase64FromPrivatePem, signLicenseToken, verifyLicenseToken } from "./license-token.ts";
 
 const pair = createLicenseKeyPair();
 const other = createLicenseKeyPair();
@@ -83,4 +83,10 @@ test("a long key issued for a database license works on its own device only, and
   assert.equal(checkSignedKey(token.replace(/(.{30})/g, "$1\n "), pair.publicBase64, fp).ok, true);
   // the strict offline check still refuses it (it only accepts OFF- keys)
   assert.deepEqual(checkOfflineKey(token, pair.publicBase64, fp), { ok: false, error: "LICENSE_INVALID" });
+});
+
+test("manual OFF- keys are refused for new activations unless explicitly allowed; database licenses always pass", () => {
+  assert.equal(isLicenseKindAllowed("OFF-20261009-AB12", false), false);
+  assert.equal(isLicenseKindAllowed("OFF-20261009-AB12", true), true);
+  assert.equal(isLicenseKindAllowed("5b1c-db-license-id", false), true);
 });

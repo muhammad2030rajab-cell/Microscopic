@@ -53,6 +53,11 @@ if (process.argv[2] === "issue") {
     console.error("This private key does not match the public key inside the program (src/lib/license-config.ts): customers' programs would reject the key. Nothing was issued.");
     process.exit(1);
   }
+  const manualAllowed = /LICENSE_ALLOW_MANUAL_KEYS\s*:\s*boolean\s*=\s*true/.test(readFileSync(new URL("../src/lib/license-config.ts", import.meta.url), "utf8"));
+  if (!manualAllowed) {
+    console.error("Refused: hand-signed OFF- keys are switched off (LICENSE_ALLOW_MANUAL_KEYS = false in src/lib/license-config.ts), because they can never be revoked.\nIssue the key from the admin page instead (Labs > local licenses > Issue key). Nothing was issued.");
+    process.exit(1);
+  }
   const licenseId = arg("id") ?? `${OFFLINE_LICENSE_PREFIX}${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${randomBytes(2).toString("hex").toUpperCase()}`;
   if (!licenseId.startsWith(OFFLINE_LICENSE_PREFIX)) {
     console.error(`The id must start with ${OFFLINE_LICENSE_PREFIX} (that prefix is how the program knows not to ask a server about it).`);

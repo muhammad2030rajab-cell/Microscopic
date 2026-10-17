@@ -6,11 +6,15 @@ import { getCurrentLab, type LabProfileData } from "@/lib/lab-access";
 import { getLabAnalytics, type LabAnalytics } from "@/lib/analytics";
 import { FEATURE_DISABLED_MESSAGE } from "@/lib/lab-features";
 import { reportStatusLabels } from "@/lib/report-workflow";
+import { loadLocalAnalytics } from "@/lib/sync-engine/offline-fallback";
 import { SimpleBarChart, SimpleLineChart, SimplePieChart } from "@/components/charts/simple-charts";
 
 const EMPTY: LabAnalytics = { daily: [], statusBreakdown: [], topTests: [], criticalCount: 0, totalPatients: 0, totalReports: 0 };
 
 export const Route = createFileRoute("/analytics")({
+  // Loads in the browser so the saved offline copy of this page is an empty shell (no figures in it), and so that
+  // with no connection the loader can answer from the device copy (read-only).
+  ssr: false,
   loader: async () => {
     try {
       const lab = await getCurrentLab();
@@ -23,7 +27,10 @@ export const Route = createFileRoute("/analytics")({
         }
         throw err;
       }
-    } catch {
+    } catch (error) {
+      // No connection: show the device copy (only for a network failure; a rejected session still goes to login).
+      const local = typeof window !== "undefined" ? await loadLocalAnalytics<LabProfileData>(error) : null;
+      if (local) return { lab: local.lab, analytics: local.analytics, disabled: false };
       return { lab: null as LabProfileData | null, analytics: EMPTY, disabled: false };
     }
   },

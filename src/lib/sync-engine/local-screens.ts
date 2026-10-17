@@ -7,6 +7,7 @@
  */
 import { parseAgeUnit } from "../age.ts";
 import { matchesSearch } from "../search-text.ts";
+import type { LabAnalytics } from "../analytics.ts";
 import type { LabDashboardStats } from "../lab-access.ts";
 import type { LabCatalogRow } from "../lab-catalog.ts";
 import type { RecentReport } from "../lab-reports.ts";
@@ -129,4 +130,51 @@ export function toCatalogRows(rows: Row[]): LabCatalogRow[] {
       is_active: r.is_active !== false,
     }))
     .sort((a, b) => (a.category_id === b.category_id ? (a.test_name < b.test_name ? -1 : a.test_name > b.test_name ? 1 : 0) : a.category_id < b.category_id ? -1 : 1));
+}
+
+/** Calendar day (YYYY-MM-DD) `daysBack` days before `today` (a YYYY-MM-DD key); pure date arithmetic, no time zone. */
+function shiftDayKey(today: string, daysBack: number): string {
+  const [y, m, d] = today.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d - daysBack)).toISOString().slice(0, 10);
+}
+
+/**
+ * The analytics screen, computed like `getLabAnalytics`: last 14 days of report counts (every status,
+ * zero-filled), status breakdown, the 8 most-ordered tests, and the totals. Days follow the lab's time zone.
+ */
+export function toLabAnalytics(patients: Row[], reports: Row[], results: Row[], nowMs: number, timeZone: string = LAB_TIME_ZONE): LabAnalytics {
+  const today = labDayKey(nowMs, timeZone);
+  const perDay = new Map<string, number>();
+  const perStatus = new Map<string, number>();
+  for (const r of reports) {
+    const day = labDayKey(r.created_at, timeZone);
+    if (day) perDay.set(day, (perDay.get(day) ?? 0) + 1);
+    const status = str(r.status);
+    perStatus.set(status, (perStatus.get(status) ?? 0) + 1);
+  }
+  const daily = Array.from({ length: 14 }, (_, i) => {
+    const day = shiftDayKey(today, 13 - i);
+    return { day, count: perDay.get(day) ?? 0 };
+  });
+
+  const reportIds = new Set(reports.map((r) => str(r.id)));
+  const mine = results.filter((x) => reportIds.has(str(x.report_id)));
+  const perTest = new Map<string, number>();
+  for (const x of mine) {
+    const name = str(x.test_name);
+    perTest.set(name, (perTest.get(name) ?? 0) + 1);
+  }
+  const topTests = [...perTest.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ar"))
+    .slice(0, 8);
+
+  return {
+    daily,
+    statusBreakdown: [...perStatus.entries()].map(([status, count]) => ({ status, count })),
+    topTests,
+    criticalCount: mine.filter((x) => str(x.flag) === "critical").length,
+    totalPatients: patients.length,
+    totalReports: reports.length,
+  };
 }

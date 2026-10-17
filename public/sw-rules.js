@@ -5,10 +5,10 @@
   else root.SwRules = factory();
 })(typeof self !== "undefined" ? self : globalThis, function () {
   // Only these HTML pages are kept for offline use. Their saved HTML carries no patient data:
-  // /new has the lab profile + test catalog, /patients only a permission flag, and /lab and
-  // /catalog load their data in the browser (ssr: false), so the HTML is an empty shell.
+  // /new has the lab profile + test catalog, /patients only a permission flag, and /lab,
+  // /catalog, /analytics and /methods load their data in the browser (ssr: false), so the HTML is an empty shell.
   // Report pages are never cached.
-  var OFFLINE_PAGES = ["/new", "/lab", "/patients", "/catalog"];
+  var OFFLINE_PAGES = ["/new", "/lab", "/patients", "/catalog", "/analytics", "/methods"];
   var FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 
   /**

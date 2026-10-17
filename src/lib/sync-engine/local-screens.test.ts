@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { labDayKey, toCatalogRows, toDashboardStats, toPatientReports, toPatientSummaries, toRecentReports } from "./local-screens.ts";
+import { labDayKey, toCatalogRows, toDashboardStats, toLabAnalytics, toPatientReports, toPatientSummaries, toRecentReports } from "./local-screens.ts";
 
 const patients = [
   { id: "p1", full_name: "منى أحمد", patient_code: "P-1", age: 25, age_unit: "years", gender: "أنثى", phone: "01012345678", national_id: "29001010101010" },
@@ -85,4 +85,36 @@ test("catalog rows: ordered by category then name, nulls kept, inactive kept ina
   assert.deepEqual(out.map((r) => r.test_name), ["HB", "RBC", "WBC", "ALT"]);
   assert.deepEqual([out[0].is_active, out[0].method_info, out[1].is_active, out[0].age_ranges], [false, "طريقة", true, null]);
   assert.equal("lab_id" in out[0], false);
+});
+
+test("analytics: 14 zero-filled days in the lab time zone, all statuses counted, totals", () => {
+  const now = Date.parse("2026-10-17T10:00:00Z");
+  const reports = [
+    report("a", "p1", "2026-10-17T08:00:00Z", { status: "approved" }),
+    report("b", "p1", "2026-10-16T22:30:00Z", { status: "cancelled" }), // 01:30 on the 17th in Cairo
+    report("c", "p2", "2026-10-04T10:00:00Z", { status: "draft" }), // 13 days back: still inside
+    report("d", "p2", "2026-10-03T10:00:00Z", { status: "draft" }), // 14 days back: outside the chart, still in totals
+  ];
+  const a = toLabAnalytics(patients, reports, [], now);
+  assert.equal(a.daily.length, 14);
+  assert.deepEqual([a.daily[0].day, a.daily[13].day], ["2026-10-04", "2026-10-17"]);
+  assert.deepEqual([a.daily[0].count, a.daily[13].count, a.daily[5].count], [1, 2, 0]);
+  assert.equal(a.totalReports, 4);
+  assert.equal(a.totalPatients, 3);
+  assert.deepEqual(a.statusBreakdown.find((s) => s.status === "draft"), { status: "draft", count: 2 });
+});
+
+test("analytics: top tests (max 8, most ordered first) and critical count, other labs' results ignored", () => {
+  const reports = [report("a", "p1", "2026-10-17T08:00:00Z"), report("b", "p2", "2026-10-17T09:00:00Z")];
+  const results = [
+    { report_id: "a", test_name: "Hb", flag: "critical" },
+    { report_id: "b", test_name: "Hb", flag: "normal" },
+    { report_id: "a", test_name: "WBC", flag: "high" },
+    { report_id: "zzz", test_name: "WBC", flag: "critical" }, // not this lab's report
+    ...Array.from({ length: 10 }, (_, i) => ({ report_id: "a", test_name: `T${i}`, flag: "normal" })),
+  ];
+  const a = toLabAnalytics(patients, reports, results, Date.parse("2026-10-17T10:00:00Z"));
+  assert.equal(a.topTests.length, 8);
+  assert.deepEqual(a.topTests[0], { name: "Hb", count: 2 });
+  assert.equal(a.criticalCount, 1);
 });

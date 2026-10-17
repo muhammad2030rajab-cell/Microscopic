@@ -1,6 +1,6 @@
 import { getSql, type Sql } from "@/lib/db";
-import { LICENSE_ENFORCED, LICENSE_PUBLIC_KEY, LICENSE_SERVER_URL } from "@/lib/license-config";
-import { checkSignedKey, formatDeviceId, isOfflineLicense, verifyLicenseToken } from "@/lib/license-token";
+import { LICENSE_ALLOW_MANUAL_KEYS, LICENSE_ENFORCED, LICENSE_PUBLIC_KEY, LICENSE_SERVER_URL } from "@/lib/license-config";
+import { checkSignedKey, formatDeviceId, isLicenseKindAllowed, isOfflineLicense, verifyLicenseToken } from "@/lib/license-token";
 import { getDeviceName, getMachineFingerprint } from "@/lib/machine-fingerprint.server";
 import { logEvent } from "@/lib/logger.server";
 
@@ -99,7 +99,7 @@ async function pingLicenseServer(token: string): Promise<void> {
   }
 }
 
-export type ActivateError = "LICENSE_INVALID" | "LICENSE_WRONG_DEVICE" | "LICENSE_REVOKED" | "LICENSE_DEVICE_LIMIT" | "LICENSE_TOO_MANY_ATTEMPTS" | "LICENSE_OFFLINE" | "LICENSE_SERVER_NOT_SET" | "LICENSE_BAD_REPLY";
+export type ActivateError = "LICENSE_MANUAL_KEY_REFUSED" | "LICENSE_INVALID" | "LICENSE_WRONG_DEVICE" | "LICENSE_REVOKED" | "LICENSE_DEVICE_LIMIT" | "LICENSE_TOO_MANY_ATTEMPTS" | "LICENSE_OFFLINE" | "LICENSE_SERVER_NOT_SET" | "LICENSE_BAD_REPLY";
 
 /** First activation: asks the license server, checks its signed answer, keeps the token on this machine. */
 export async function activateOnline(code: string): Promise<void> {
@@ -140,6 +140,7 @@ async function storeActivation(token: string, licenseId: string): Promise<void> 
 export async function activateOffline(pasted: string): Promise<void> {
   const result = checkSignedKey(pasted, LICENSE_PUBLIC_KEY, await getMachineFingerprint());
   if (!result.ok) throw new Error(result.error);
+  if (!isLicenseKindAllowed(result.payload.lic, LICENSE_ALLOW_MANUAL_KEYS)) throw new Error("LICENSE_MANUAL_KEY_REFUSED");
   await storeActivation(pasted.replace(/\s+/g, ""), result.payload.lic);
 }
 

@@ -97,3 +97,16 @@ export function checkOfflineKey(pasted: string, publicBase64: string, fingerprin
   return { ok: true, payload };
 }
 
+
+export type SignedKeyCheck = { ok: true; payload: LicenseTokenPayload } | { ok: false; error: "LICENSE_INVALID" | "LICENSE_WRONG_DEVICE" };
+
+/**
+ * A long key pasted by the customer, either hand-signed (OFF-...) or issued from the admin page for a license
+ * in the database. Genuine AND made for this very machine. Whitespace from copy/paste is ignored.
+ */
+export function checkSignedKey(pasted: string, publicBase64: string, fingerprint: string): SignedKeyCheck {
+  const payload = verifyLicenseToken(pasted.replace(/\s+/g, ""), publicBase64);
+  if (!payload) return { ok: false, error: "LICENSE_INVALID" };
+  if (payload.fp !== fingerprint) return { ok: false, error: "LICENSE_WRONG_DEVICE" };
+  return { ok: true, payload };
+}

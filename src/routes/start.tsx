@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, Navigate, redirect, useNavigate } from "@tanstack/react-router";
-import { CircleAlert, KeyRound, Loader2, LockKeyhole, Microscope, UserRound } from "lucide-react";
+import { CircleAlert, ClipboardPaste, KeyRound, Loader2, LockKeyhole, Microscope, UserRound } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { activateLicense } from "@/lib/license";
 import { licenseErrorMessage } from "@/lib/license-messages";
@@ -40,6 +40,15 @@ function StartPage() {
   const [loading, setLoading] = useState(false);
 
   if (!state.hub) return <Navigate to="/login" replace />;
+
+  async function pasteCode() {
+    try {
+      setCode((await navigator.clipboard.readText()).trim());
+      setError("");
+    } catch {
+      setError("المتصفح منع اللصق التلقائي. اضغط على الخانة والصق الكود بنفسك.");
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -100,15 +109,26 @@ function StartPage() {
           <p className="mt-1 text-sm leading-6 text-slate-500">{reactivateOnly ? "الكود الحالي متصدّر لجهاز تاني (غالبًا بعد تغيير الويندوز أو الكمبيوتر). ابعت رقم الجهاز للمطوّر عشان يرسل لك كود جديد. بياناتك سليمة ومحفوظة." : "البيانات دي بتتحفظ على الجهاز ده بس."}</p>
 
           <form onSubmit={submit} className="mt-6 space-y-4">
+            {needsCode ? (
+              <ol className="space-y-1 rounded-xl bg-blue-50/70 px-4 py-3 text-xs leading-6 text-slate-600">
+                <li>١) ابعت <b>رقم الجهاز</b> للمطوّر (زرار واتساب تحت).</li>
+                <li>٢) هيرجّع لك <b>كود التفعيل</b>: الصقه في الخانة وخلاص.</li>
+                <li>٣) الكود شغّال على الجهاز ده بس، ومش محتاج إنترنت. لو الكود قصير (١٠ خانات) أول تفعيل بيحتاج نت.</li>
+              </ol>
+            ) : null}
             {needsCode && state.license.deviceId ? <DeviceIdBlock deviceId={state.license.deviceId} /> : null}
             {needsCode ? (
               <div className="space-y-1.5">
-                <Label htmlFor="code" className="text-slate-700">كود التفعيل</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="code" className="text-slate-700">كود التفعيل</Label>
+                  <button type="button" onClick={pasteCode} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+                    <ClipboardPaste className="size-3.5" /> لصق من الحافظة
+                  </button>
+                </div>
                 <div className="relative">
                   <KeyRound className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                  <Input id="code" dir="ltr" required value={code} onChange={(e) => setCode(e.target.value)} placeholder="الصق كود التفعيل هنا" className={`${FIELD} pl-10`} />
+                  <Input id="code" dir="ltr" required autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={code} onChange={(e) => setCode(e.target.value)} placeholder="الصق كود التفعيل هنا" className={`${FIELD} pl-10`} />
                 </div>
-                <p className="text-xs text-slate-500">ابعت رقم الجهاز للمطوّر واستلم الكود، والصقه هنا. مرة واحدة وبدون إنترنت.</p>
               </div>
             ) : null}
 

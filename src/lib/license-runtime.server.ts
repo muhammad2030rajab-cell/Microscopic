@@ -1,6 +1,6 @@
 import { getSql, type Sql } from "@/lib/db";
 import { LICENSE_ENFORCED, LICENSE_PUBLIC_KEY, LICENSE_SERVER_URL } from "@/lib/license-config";
-import { checkOfflineKey, formatDeviceId, isOfflineLicense, verifyLicenseToken } from "@/lib/license-token";
+import { checkSignedKey, formatDeviceId, isOfflineLicense, verifyLicenseToken } from "@/lib/license-token";
 import { getDeviceName, getMachineFingerprint } from "@/lib/machine-fingerprint.server";
 import { logEvent } from "@/lib/logger.server";
 
@@ -12,7 +12,12 @@ import { logEvent } from "@/lib/logger.server";
  * explicit "revoked" or "released" answer locks the program. No internet never locks anything.
  */
 
-export const licenseRequired = () => LICENSE_ENFORCED && LICENSE_PUBLIC_KEY.length > 0 && !process.env.LICENSE_PRIVATE_KEY;
+/**
+ * Only the lab's own program (HUB_MODE=1, never on Vercel) is ever locked. The cloud deployment is the license
+ * server / admin side, so turning LICENSE_ENFORCED on can never lock it, even if LICENSE_PRIVATE_KEY is missing there.
+ */
+export const licenseRequired = () =>
+  LICENSE_ENFORCED && LICENSE_PUBLIC_KEY.length > 0 && !process.env.LICENSE_PRIVATE_KEY && process.env.HUB_MODE === "1" && process.env.VERCEL !== "1";
 
 const MESSAGES = {
   NOT_ACTIVATED: "البرنامج غير مفعّل. اكتب كود التفعيل أولًا",
@@ -127,9 +132,13 @@ async function storeActivation(token: string, licenseId: string): Promise<void> 
   logEvent("info", "license.activated", { licenseId });
 }
 
-/** Activation without internet: checks a key you signed for this machine (see `npm run license -- issue`). */
+/**
+ * Activation by pasting a long key made for this machine: either hand-signed (`npm run license -- issue`, never
+ * revocable) or issued from the admin page for a license in the database (checked against the server when online,
+ * so it can be revoked or released like a short code).
+ */
 export async function activateOffline(pasted: string): Promise<void> {
-  const result = checkOfflineKey(pasted, LICENSE_PUBLIC_KEY, await getMachineFingerprint());
+  const result = checkSignedKey(pasted, LICENSE_PUBLIC_KEY, await getMachineFingerprint());
   if (!result.ok) throw new Error(result.error);
   await storeActivation(pasted.replace(/\s+/g, ""), result.payload.lic);
 }

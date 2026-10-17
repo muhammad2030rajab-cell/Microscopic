@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { checkOfflineKey, createLicenseKeyPair, formatDeviceId, isOfflineLicense, looksLikeSignedKey, parseDeviceId, pemFromEnv, publicBase64FromPrivatePem, signLicenseToken, verifyLicenseToken } from "./license-token.ts";
+import { checkOfflineKey, checkSignedKey, createLicenseKeyPair, formatDeviceId, isOfflineLicense, looksLikeSignedKey, parseDeviceId, pemFromEnv, publicBase64FromPrivatePem, signLicenseToken, verifyLicenseToken } from "./license-token.ts";
 
 const pair = createLicenseKeyPair();
 const other = createLicenseKeyPair();
@@ -71,4 +71,16 @@ test("device id: formatted for reading, parsed back from whatever the customer p
   assert.equal(parseDeviceId(` ${shown.toLowerCase().replaceAll("-", " ")}\n`), fp);
   assert.equal(parseDeviceId("1234"), null);
   assert.equal(parseDeviceId("z".repeat(64)), null);
+});
+
+test("a long key issued for a database license works on its own device only, and is not an OFF- key", () => {
+  const token = signLicenseToken(pair.privatePem, { lic: "5d1c-license-uuid", fp });
+  assert.equal(isOfflineLicense("5d1c-license-uuid"), false);
+  assert.equal(checkSignedKey(token, pair.publicBase64, fp).ok, true);
+  assert.deepEqual(checkSignedKey(token, pair.publicBase64, "b".repeat(64)), { ok: false, error: "LICENSE_WRONG_DEVICE" });
+  assert.deepEqual(checkSignedKey(token, other.publicBase64, fp), { ok: false, error: "LICENSE_INVALID" });
+  // line breaks added by chat apps are tolerated
+  assert.equal(checkSignedKey(token.replace(/(.{30})/g, "$1\n "), pair.publicBase64, fp).ok, true);
+  // the strict offline check still refuses it (it only accepts OFF- keys)
+  assert.deepEqual(checkOfflineKey(token, pair.publicBase64, fp), { ok: false, error: "LICENSE_INVALID" });
 });
